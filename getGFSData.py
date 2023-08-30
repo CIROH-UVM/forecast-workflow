@@ -31,14 +31,6 @@ def generate_date_strings(start_date, num_dates, cast="fore"):
 
     return date_strings
 
-
-# Example usage
-starting_date = "20230831"
-num_dates = 10
-date_list = generate_date_strings(starting_date, num_dates, cast="fore")
-print(date_list)
-
-
 ### Creates a list of forecast hours to be downloaded
 # -- num_days : how many days out of forecast data you want to download (i.e. 5, 7, 10, etc)
 def generate_hours_list(num_days):
@@ -56,20 +48,13 @@ def generate_hours_list(num_days):
                 hours_list.append(f"{hour:03}")
     return hours_list
 
-
-# Example usage
-num_days = 0
-hours_list = generate_hours_list(num_days)
-print(hours_list)
-
-
 ### Downloads gfs data into directories that mirrors the GFS directory structure
 # -- dates : list of forecast dates to download
 # -- hours : list of forecast hours to download
 def pull_gribs(
     dates=generate_date_strings("20230828", 2), hours=generate_hours_list(1)[0:1]
 ):
-    os.chdir("C:\\Users\\nbeckage\\OneDrive - University of Vermont\\Desktop\\GFS_Data")
+    os.chdir("/data/forecastData/GFS_forecasts")
 
     # root directory where the past 10 day forecasts subfolders are located:
     gfs_root = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/"
