@@ -31,6 +31,7 @@ def generate_date_strings(start_date, num_dates, cast="fore"):
 
     return date_strings
 
+
 ### Creates a list of forecast hours to be downloaded
 # -- num_days : how many days out of forecast data you want to download (i.e. 5, 7, 10, etc)
 def generate_hours_list(num_days):
@@ -48,13 +49,14 @@ def generate_hours_list(num_days):
                 hours_list.append(f"{hour:03}")
     return hours_list
 
+
 ### Downloads gfs data into directories that mirrors the GFS directory structure
 # -- dates : list of forecast dates to download
 # -- hours : list of forecast hours to download
 def pull_gribs(
-    dates=generate_date_strings("20230828", 2), hours=generate_hours_list(1)[0:1]
+    dates=generate_date_strings("20230828", 3), hours=generate_hours_list(1)[0:1]
 ):
-    os.chdir("/data/forecastData/GFS_forecasts")
+    os.chdir("/data/forecastData/gfs")
 
     # root directory where the past 10 day forecasts subfolders are located:
     gfs_root = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/"
@@ -70,7 +72,7 @@ def pull_gribs(
         for h in hours:
             hour_url = date_url + h
             print(hour_url)
-            # pull_call = sp.run(['curl', hour_url], capture_output = True, check = True)
+            # pull_call = sp.run(["curl","-O", hour_url], capture_output=True, check=True)
         os.chdir("../../../")
     return
 
@@ -85,21 +87,29 @@ def remap_longs(df):
 
 
 ### This code opens a grib2 file and makes it into a dataframe... needs to be converted to a function
-ds = xr.open_dataset(
-    "../GFS_Data/08_18_2023/gfs.t00z.pgrb2.0p25.f/gfs.t00z.pgrb2.0p25.f000",
-    engine="cfgrib",
-    backend_kwargs={"filter_by_keys": {"typeOfLevel": "surface"}},
-)
-print(ds)
+# ds = xr.open_dataset(
+#     "../GFS_Data/08_18_2023/gfs.t00z.pgrb2.0p25.f/gfs.t00z.pgrb2.0p25.f000",
+#     engine="cfgrib",
+#     backend_kwargs={"filter_by_keys": {"typeOfLevel": "surface"}},
+# )
+# print(ds)
 
-longnames = ["time", "step", "surface", "valid_time"]
-for v in ds:
-    print("{}, {}, {}".format(v, ds[v].attrs["long_name"], ds[v].attrs["units"]))
-    longnames.append("{}, {}".format(ds[v].attrs["long_name"], ds[v].attrs["units"]))
+# longnames = ["time", "step", "surface", "valid_time"]
+# for v in ds:
+#     print("{}, {}, {}".format(v, ds[v].attrs["long_name"], ds[v].attrs["units"]))
+#     longnames.append("{}, {}".format(ds[v].attrs["long_name"], ds[v].attrs["units"]))
 
-df = ds.to_dataframe()
-df.columns = longnames
+# df = ds.to_dataframe()
+# df.columns = longnames
 
-print(df)
-print(df.info())
-print(df.shape)
+# print(df)
+# print(df.info())
+# print(df.shape)
+
+########## ACTIVE SCRIPT ############
+dates = generate_date_strings("20230821", 10)
+hours = generate_hours_list(7)
+print("dates to pull:",dates)
+print("hours to pull:",hours)
+
+# pull_gribs(dates, hours)
