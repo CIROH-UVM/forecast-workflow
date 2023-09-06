@@ -13,17 +13,16 @@ fc_data_dir = 'raw_fc_data/'
 location_data_dir = "loc_data/"
 
 
-def aggregate_df(dates = [], hours = [], loc_list = [], location_dataframes = {}):
+def aggregate_df(dates = [], hours = [], loc_list = [], location_dataframes = {}, stepType = '', typeOfLevel = ''):
     if not os.path.exists(fc_data_dir): os.makedirs(fc_data_dir)
     os.chdir(fc_data_dir)
     
     for d in dates:
-        print(os.getcwd())
         date_dir = 'gfs.'+d+fc_time
         os.chdir(date_dir)
         for h in hours:
             hour_file = fc_file+h
-            ds = xr.open_dataset(hour_file, engine="cfgrib", backend_kwargs={'filter_by_keys': {'stepType': 'avg','typeOfLevel': 'surface'}})
+            ds = xr.open_dataset(hour_file, engine="cfgrib", backend_kwargs={'filter_by_keys': {'typeOfLevel': typeOfLevel}})
             longnames = ["time","step","surface","valid_time"]
             for v in ds:
                 # print("{}, {}, {}".format(v, ds[v].attrs["long_name"], ds[v].attrs["units"]))
@@ -34,7 +33,6 @@ def aggregate_df(dates = [], hours = [], loc_list = [], location_dataframes = {}
             extract_locs(df, loc_list, location_dataframes)
         os.chdir('../../../')
     os.chdir('../')
-    print(os.getcwd())
     return
 
 def dict_to_csv(loc_list = [], location_dataframes = {}):
@@ -123,11 +121,12 @@ def pull_gribs(dates = generate_date_strings('20230828',1), hours = generate_hou
         date_url = gfs_root+date_dir+fc_file
         for h in hours:
             hour_url = date_url + h
-            print("Downloading file from URL:",hour_url)
-            for path in execute(['curl', '--connect-timeout','120','-O', hour_url]):
-                print(path, end="")
-            print("Download Complete:",date_dir+fc_file+h,"\n")
-            # pull_call = sp.run(['curl', '-O', hour_url], capture_output = True, check = True)
+            if not os.path.exists(fc_file+h):
+                print("Downloading file from URL:",hour_url)
+                for path in execute(['curl', '--connect-timeout','120','-O', hour_url]):
+                    print(path, end="")
+                print("Download Complete:",date_dir+fc_file+h,"\n")
+                # pull_call = sp.run(['curl', '-O', hour_url], capture_output = True, check = True)
         os.chdir('../../../')
     os.chdir('../')
     return
