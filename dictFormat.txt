@@ -1,0 +1,8 @@
+{'401' (45.035531,-73.127665): Dataframe w/ one column per variable + DT Index
+ '402' (44.790926,-73.155695): Dataframe w/ one column per variable + DT Index
+ '403' (44.778645,-73.17273): Dataframe w/ one column per variable + DT Index
+)
+
+columns: 'T2', 'TCDC' (Cloud), 'SWDOWN' (Shortwave), 'U10', 'V10', 'RH2', 'RAIN', 'CPOFP'
+
+}
