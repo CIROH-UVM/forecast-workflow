@@ -7,7 +7,7 @@ loc_list = [(45.0, -73.25), (44.75, -73.25)]
 location_dataframes = {}
 
 ##### Varaibles Needed:
-# ENTIRE ATMOSPHERE, instant + avg
+# ENTIRE ATMOSPHERE, instant
 # - Total Cloud Cover [%]
 # SURFACE, avg
 # - Downward Short-Wave Radiation Flux [W/m^2]
@@ -17,26 +17,26 @@ location_dataframes = {}
 # 10 M ABOVE GROUND, instant
 # - U-Component of Wind [m/s]
 # - V-Component of Wind [m/s]
-
-##### Variables sucessfully downloaded:
 # SURFACE, instant
-# - "Temperature, K"
 # - "Precipitation rate, kg m**-2 s**-1"e
-# - "Snow depth, m"
-# - "Categorical snow, (Code table 4.222)"
+# - percent frozen percipitation
+
+
+# return the dictionary!!
 
 
 ### RUN PARAMS
 # home directory in which to run the program
-run_dir = '/netfiles/ciroh/nbeckage/gfs_data/stInstant_lvSurface/'
+run_dir = '/netfiles/ciroh/nbeckage/gfs_data/'
 if not os.path.exists(run_dir): os.makedirs(run_dir)
 os.chdir(run_dir)
 
 # dates to get
-dates = generate_date_strings('20230828',1)
+date_str = '20230906'
+dates = generate_date_strings(date_str,1)
 
 # forecast daysa ahead to get
-hours = generate_hours_list(0)
+hours = generate_hours_list(7)
 
 # define stepType
 stepType = 'instant'
@@ -47,8 +47,9 @@ stepType = 'instant'
 #     filter_by_keys={'stepType': 'accum', 'typeOfLevel': 'surface'}
 
 # define typeOfLevel
-# typeOfLevel = 'surface'
-typeOfLevel = 'heightAboveGround'
+typeOfLevel = 'surface'
+# typeOfLevel = 'heightAboveGround'
+
 
 # cfgrib.dataset.DatasetBuildError: multiple values for unique key, try re-open the file with one of:
 #     filter_by_keys={'typeOfLevel': 'meanSea'}
@@ -80,11 +81,12 @@ typeOfLevel = 'heightAboveGround'
 # , backend_kwargs={'filter_by_keys': {'stepType': stepType,'typeOfLevel': typeOfLevel}}
 
 
+##### RUNNING THE SCRIPT
 # 1. pull the data at the specified data/time ranges
-# pull_gribs(dates, hours)
+pull_gribs(dates, hours)
 
 # 2. open each file, read it as a dataframe, process it, and it it to location_dataframes
-aggregate_df(dates, hours, loc_list, location_dataframes, stepType, typeOfLevel)
+# aggregate_df(dates, hours, loc_list, location_dataframes, stepType, typeOfLevel)
 
 # write out csv's
 # dict_to_csv(loc_list, location_dataframes)

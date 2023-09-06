@@ -22,10 +22,9 @@ def aggregate_df(dates = [], hours = [], loc_list = [], location_dataframes = {}
         os.chdir(date_dir)
         for h in hours:
             hour_file = fc_file+h
-            ds = xr.open_dataset(hour_file, engine="cfgrib", backend_kwargs={'filter_by_keys': {'typeOfLevel': typeOfLevel}})
-            longnames = ["time","step","surface","valid_time"]
+            ds = xr.open_dataset(hour_file, engine="cfgrib", backend_kwargs={'filter_by_keys': {'stepType': stepType, 'typeOfLevel': typeOfLevel}})
+            longnames = ["time","step",typeOfLevel,"valid_time"]
             for v in ds:
-                # print("{}, {}, {}".format(v, ds[v].attrs["long_name"], ds[v].attrs["units"]))
                 longnames.append("{}, {}".format(ds[v].attrs["long_name"], ds[v].attrs["units"]))
             df = ds.to_dataframe()
             df.columns=longnames
