@@ -1,0 +1,11 @@
+! ---------------------------------------------------------------- !
+! Lake Champlain                                                   !
+! COMMENT   WQ_Si  All the same values                             !
+! Values by C. Marti on 24-Jan-2019                                !
+! ---------------------------------------------------------------- !
+8 data sets
+0 seconds between data
+0  $source_id_list
+TIME        SiO2	  SiO2	  SiO2	  SiO2	  SiO2	  SiO2		SiO2    SiO2
+$firstdate	2.500		2.500		2.500		2.500		2.500		2.500		2.500   2.500
+$lastdate	  2.500		2.500		2.500		2.500		2.500		2.500		2.500   2.500

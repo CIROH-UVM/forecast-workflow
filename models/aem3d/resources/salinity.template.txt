@@ -1,0 +1,10 @@
+! ---------------------------------------------------------------- !
+! Lake Champlain                                                   !
+! COMMENT   SALINITY   All the same values                         !
+! ---------------------------------------------------------------- !
+8 data sets
+0 seconds between data
+0    17	19	21	22	201	202	203	204
+TIME   SALINITY    SALINITY    SALINITY    SALINITY    SALINITY   SALINITY	SALINITY SALINITY
+$firstdate	0.0976	0.0976	0.0976	0.0976	0.0976	0.0976	0.0976	0.0976
+$lastdate	  0.0976	0.0976	0.0976	0.0976	0.0976	0.0976	0.0976	0.0976

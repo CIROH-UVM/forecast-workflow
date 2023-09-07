@@ -1,0 +1,12 @@
+! ----------------------------------------------------------------- !
+! Written by writeELCOMwqFile.m on 22-Jun-2020                       !
+!                                                                   !
+! COMMENT Values by C.L. Marti from DEC data (poor data), and assumed constant, site: Missisquoi River!
+!                                                                   !
+! ----------------------------------------------------------------- !
+16 data sets
+0 seconds between data
+0	17 17 19 19 21 21 22 22 201	201	202	202	203	203	204	204
+TIME	        DOCL	  POCL	  DOCL	  POCL	  DOCL	  POCL	  DOCL	  POCL    DOCL    POCL    DOCL    POCL    DOCL    POCL    DOCL    POCL
+$firstdate	  4.750	  4.750	  4.750	  4.750	  4.750	  4.750	  4.750	  4.750   4.750	  4.750	  4.750	  4.750   4.750   4.750   4.750   4.750
+$lastdate	    4.750	  4.750	  4.750	  4.750	  4.750	  4.750	  4.750	  4.750   4.750	  4.750	  4.750	  4.750   4.750   4.750   4.750   4.750

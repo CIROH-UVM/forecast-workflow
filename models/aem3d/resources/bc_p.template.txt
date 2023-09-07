@@ -1,0 +1,7 @@
+! Time series of Nutrient Species					
+8 data sets					
+0 seconds between data				
+0             300  300  300  300  300  300  300  300	
+TIME          PO4  DOPL POPL NH4  NO3  DONL PONL SiO2
+$firstdate    0.08 0.01 0.01 0    0.4  0.05 0.05 0.5
+$lastdate     0.08 0.01 0.01 0    0.4  0.05 0.05 0.5
