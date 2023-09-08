@@ -7,8 +7,8 @@ import xarray as xr
 ### global vars that wouldn't change based on user; may change depending on what forecast data is being pulled
 # root url where the past 10 day forecasts subfolders are located:
 gfs_root = 'https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/'
-fc_time = '/12/atmos/'
-fc_file = 'gfs.t12z.pgrb2.0p25.f'
+fc_time = '/00/atmos/'
+fc_file = 'gfs.t00z.pgrb2.0p25.f'
 # where the raw grib2 files will be stored
 fc_data_dir = 'raw_fc_data/'
 # where any csv files created for each location/station will be stored
