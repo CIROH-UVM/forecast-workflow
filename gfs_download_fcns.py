@@ -27,9 +27,12 @@ def aggregate_df_dict(dates = [], hours = [], loc_dict = {}):
         os.chdir(date_dir)
         for h in hours:
             hour_file = fc_file+h
+            print("aggregating subgribs for file",hour_file)
             df_list = get_subgrib_df_list(hour_file)
-            vars_df = merge_subgrib_dfs(df_list)
+            print("succesfully aggregated subgribs")
+            vars_df = merge_subgrib_dfs(df_list, hour_file)
             extract_locs(vars_df, loc_dict, data_dict)
+            print("successfully merged and extracted loc data from subgribs\n")
         os.chdir('../../../')
     os.chdir('../')
     return data_dict
@@ -61,7 +64,7 @@ def execute(cmd):
 def extract_locs(df, loc_dict = {}, location_dataframes = {}):
     for station in loc_dict:
         coords = loc_dict[station]
-        extracted_df = pd.DataFrame(df.loc[coords]).T.set_index('step')
+        extracted_df = pd.DataFrame(df.loc[coords]).T.set_index('time')
         # if the dictionary does not already have a key for each location, then initialize that key; should only be true when extracting the 1st df
         if len(location_dataframes) != len(loc_dict):
             location_dataframes[station] = extracted_df
@@ -97,11 +100,18 @@ def generate_date_strings(start_date, num_dates, cast="fore"):
     return date_strings
 
 def get_subgrib_df_list(fname = ''):
-    args_list = [{'typeOfLevel':'atmosphere', 'stepType':'instant'},
-             {'typeOfLevel':'heightAboveGround', 'topLevel':10},
-             {'typeOfLevel':'heightAboveGround', 'topLevel':2},
-             {'typeOfLevel':'surface', 'stepType':'avg'},
-             {'typeOfLevel':'surface', 'stepType':'instant'}]
+    # drop surface avg args for the first (f000) file
+    if fname[-3:] == "000":
+        args_list = [{'typeOfLevel':'atmosphere', 'stepType':'instant'},
+         {'typeOfLevel':'heightAboveGround', 'topLevel':10},
+         {'typeOfLevel':'heightAboveGround', 'topLevel':2},
+         {'typeOfLevel':'surface', 'stepType':'instant'}]
+    else:
+        args_list = [{'typeOfLevel':'atmosphere', 'stepType':'instant'},
+         {'typeOfLevel':'heightAboveGround', 'topLevel':10},
+         {'typeOfLevel':'heightAboveGround', 'topLevel':2},
+         {'typeOfLevel':'surface', 'stepType':'avg'},
+         {'typeOfLevel':'surface', 'stepType':'instant'}]
     # temporary list to store un-extracted dataframes
     df_list = []
     for args in args_list:
@@ -117,7 +127,7 @@ def generate_hours_list(num_days):
     hours_list = []
     hour = 0
     hours_list.append(f"{hour:03}")
-    for day in range(1, num_days + 1):
+    for day in range(1, num_days+1):
         if day <= 5:
             for h in range(24):
                 hour += 1
@@ -128,10 +138,7 @@ def generate_hours_list(num_days):
                 hours_list.append(f"{hour:03}")
     return hours_list
 
-def merge_subgrib_dfs(df_list = []):
-    # defining a list of the data that we want to extract for the forecast model
-    # - to grab more data, simply add them to the list
-    # - note that you may have to add an additional args dict to args_list (See get_subgrib_df_list()) in order to get the data you want
+def merge_subgrib_dfs(df_list = [], fname = ''):
     cols_to_keep = ['2 metre temperature, K',
                 'Total Cloud Cover, %',
                 'Downward short-wave radiation flux, W m**-2',
@@ -140,15 +147,19 @@ def merge_subgrib_dfs(df_list = []):
                 '2 metre relative humidity, %',
                 'Precipitation rate, kg m**-2 s**-1',
                 'Percent frozen precipitation, %']
-    # variable names required for model input file
-    var_names = ['time', 'step', 'T2', 'TCDC', 'SWDOWN' , 'U10', 'V10', 'RH2', 'RAIN', 'CPOFP']
-    # drop the surface average precip rate; it has the same col name as the surface instant precip col, which is problematic b/c we just need the latter
-    # ! easily breakable line ! 
-    df_list[3] = df_list[3].drop('Precipitation rate, kg m**-2 s**-1', axis=1)
+    var_names = ['time', 'T2', 'TCDC', 'SWDOWN' , 'U10', 'V10', 'RH2', 'RAIN', 'CPOFP']
+    
+    # if not the first file, drop surface avg precip rate
+    if not fname[-3:] == "000":
+        # drop the surface average precip rate; it has the same col name as the surface instant precip col, which is problematic b/c we just need the latter
+        df_list[3] = df_list[3].drop('Precipitation rate, kg m**-2 s**-1', axis=1)
     # combine all dfs in list
     all_cols_df = pd.concat(df_list, axis=1)
     # keep time and step indices at beginning of df
-    ts_indices = all_cols_df.iloc[:,[0,1]]
+    ts_indices = all_cols_df.iloc[:,[0]]
+    # create frozen precip if it does not exist
+    if not 'Downward short-wave radiation flux, W m**-2' in all_cols_df:
+        all_cols_df['Downward short-wave radiation flux, W m**-2'] = 0
     # get the vars we need, in order
     vars_df = all_cols_df[cols_to_keep]
     merged_df = pd.concat([ts_indices, vars_df], axis=1)
