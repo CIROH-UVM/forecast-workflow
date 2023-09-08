@@ -17,6 +17,7 @@ def USGSstreamflow_function(station_id, parameter, period):
     df = pd.DataFrame(values)
     df = df.set_index('dateTime')
     df = df.drop(['qualifiers'],axis =1)
+    df.columns = ['streamflow']
     #df.to_csv(station_id+"_flow.csv", sep=',')
 
 def get_USGS_data(station_ids = ['04294000', '04292810', '04292750']):
@@ -28,6 +29,6 @@ def get_USGS_data(station_ids = ['04294000', '04292810', '04292750']):
     returnVal = {}
 
     for station_id in station_ids:
-        returnVal.add(station_id: USGSstreamflow_function(station_id, parameter, period))
+        returnVal.add(station_id, USGSstreamflow_function(station_id, parameter, period))
     
     return returnVal
