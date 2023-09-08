@@ -1,4 +1,4 @@
-from gfs_download_fcns import *
+from .gfs_download_fcns import *
 
 # locations to pull forcast data for
 loc_dict = {'401':(45.0, -73.25),
