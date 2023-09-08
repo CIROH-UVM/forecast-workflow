@@ -21,3 +21,7 @@ One Dataframe...
 
 Columns: 'T2', 'SWDOWN', 'RH2', WSPEED, WDIR + DT Index
 
+----------------
+USGS obs + NWM forecasts
+
+column: 'streamflow'
