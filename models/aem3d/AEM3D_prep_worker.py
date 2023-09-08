@@ -12,6 +12,7 @@ import os
 import sys
 from string import Template
 import datetime
+import traceback
 
 
 def is_num(value):
@@ -34,11 +35,12 @@ def main():
 
     today = datetime.date.today()
 
-    THEBAY.FirstDate = 
+    THEBAY.FirstDate = datetimeToOrdinal(today)
+    THEBAY.LastDate = datetimeToOrdinal(today + datetime.timedelta(days=97))
 
     ## Need dataframes for hydrology from Missisquoi, Mill, JewittStevens
     
-    cp('p_reductions.csv', 'AEM3D-file-prep/')
+    # cp('p_reductions.csv', 'AEM3D-file-prep/')
 
     # template_files = [
     #     file
