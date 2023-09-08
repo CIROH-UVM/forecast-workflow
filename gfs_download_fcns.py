@@ -5,15 +5,20 @@ import subprocess as sp
 import xarray as xr
 
 ### global vars that wouldn't change based on user; may change depending on what forecast data is being pulled
-# root directory where the past 10 day forecasts subfolders are located:
+# root url where the past 10 day forecasts subfolders are located:
 gfs_root = 'https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/'
 fc_time = '/12/atmos/'
 fc_file = 'gfs.t12z.pgrb2.0p25.f'
+# where the raw grib2 files will be stored
 fc_data_dir = 'raw_fc_data/'
+# where any csv files created for each location/station will be stored
 location_data_dir = "loc_data/"
 
 
-def aggregate_df(dates = [], hours = [], loc_list = [], location_dataframes = {}, stepType = '', typeOfLevel = ''):
+def aggregate_df_dict(dates = [], hours = [], loc_dict = {}):
+    # initialize a dictionary to store a dataframe for each station in
+    data_dict = {}
+    
     if not os.path.exists(fc_data_dir): os.makedirs(fc_data_dir)
     os.chdir(fc_data_dir)
     
@@ -22,25 +27,21 @@ def aggregate_df(dates = [], hours = [], loc_list = [], location_dataframes = {}
         os.chdir(date_dir)
         for h in hours:
             hour_file = fc_file+h
-            ds = xr.open_dataset(hour_file, engine="cfgrib", backend_kwargs={'filter_by_keys': {'stepType': stepType, 'typeOfLevel': typeOfLevel}})
-            longnames = ["time","step",typeOfLevel,"valid_time"]
-            for v in ds:
-                longnames.append("{}, {}".format(ds[v].attrs["long_name"], ds[v].attrs["units"]))
-            df = ds.to_dataframe()
-            df.columns=longnames
-            remap_longs(df)
-            extract_locs(df, loc_list, location_dataframes)
+            df_list = get_subgrib_df_list(hour_file)
+            vars_df = merge_subgrib_dfs(df_list)
+            extract_locs(vars_df, loc_dict, data_dict)
         os.chdir('../../../')
     os.chdir('../')
-    return
+    return data_dict
 
-def dict_to_csv(loc_list = [], location_dataframes = {}):
+def dict_to_csv(loc_dict = {}, location_dataframes = {}):
     # make directory for location data
     if not os.path.exists(location_data_dir): os.makedirs(location_data_dir)
     os.chdir(location_data_dir)
-    for location in loc_list:
-        filename = f"{location[0]}_{location[1]}.csv"
-        location_dataframes[location].to_csv(filename)
+    for station in loc_dict:
+        location = loc_dict[station]
+        filename = f"{station}_{location[0]}_{location[1]}.csv"
+        location_dataframes[station].to_csv(filename)
     return
 
 def execute(cmd):
@@ -55,18 +56,28 @@ def execute(cmd):
 
 ### Given the transformed dataframe and a list of lat/long tuples to extract, returns new df containing just the rows for each lat/long pair
 # -- df : the grib2 df post-long-transform
-# -- loc_list : list of lat/long tuples to pull from dataframe
+# -- loc_dict : dict of of station names and corresponding lat/long tuples; will pull said coords from the datafram
 # given the transformed dataframe, adds the new rows to the respective composite dataframes in the df dictionary
-def extract_locs(df, loc_list = [], location_dataframes = {}):
-    for location in loc_list:
-        extracted_df = pd.DataFrame(df.loc[location]).T.set_index('step')
+def extract_locs(df, loc_dict = {}, location_dataframes = {}):
+    for station in loc_dict:
+        coords = loc_dict[station]
+        extracted_df = pd.DataFrame(df.loc[coords]).T.set_index('step')
         # if the dictionary does not already have a key for each location, then initialize that key; should only be true when extracting the 1st df
-        if len(location_dataframes) != len(loc_list):
-            location_dataframes[location] = extracted_df
+        if len(location_dataframes) != len(loc_dict):
+            location_dataframes[station] = extracted_df
         else:
-            location_dataframes[location] = pd.concat([location_dataframes[location], extracted_df])
+            location_dataframes[station] = pd.concat([location_dataframes[station], extracted_df])
     return
 
+def extract_subgrib(fname = '', args = {}):
+    ds = xr.open_dataset(fname, engine="cfgrib", backend_kwargs={'filter_by_keys': args})
+    longnames = ['time','step',args['typeOfLevel'], 'valid_time']
+    for v in ds:
+        longnames.append("{}, {}".format(ds[v].attrs["long_name"], ds[v].attrs["units"]))
+    df = ds.to_dataframe()
+    df.columns=longnames
+    remap_longs(df)
+    return df
 
 ### Creates a list of forecast dates to download
 # -- start_date : first date of forecast data to download
@@ -85,10 +96,23 @@ def generate_date_strings(start_date, num_dates, cast="fore"):
 
     return date_strings
 
+def get_subgrib_df_list(fname = ''):
+    args_list = [{'typeOfLevel':'atmosphere', 'stepType':'instant'},
+             {'typeOfLevel':'heightAboveGround', 'topLevel':10},
+             {'typeOfLevel':'heightAboveGround', 'topLevel':2},
+             {'typeOfLevel':'surface', 'stepType':'avg'},
+             {'typeOfLevel':'surface', 'stepType':'instant'}]
+    # temporary list to store un-extracted dataframes
+    df_list = []
+    for args in args_list:
+        subgrib_df = extract_subgrib(fname, args)
+        df_list.append(subgrib_df)
+    return df_list
+
 
 ### Creates a list of forecast hours to be downloaded
 # -- num_days : how many days out of forecast data you want to download (i.e. 5, 7, 10, etc)
-## may want to change this fcn so that it can generate a more precise hour list (i.e. specify how many hours out you want fc data)
+# - may want to change this fcn so that it can generate a more precise hour list (i.e. specify how many hours out you want fc data)
 def generate_hours_list(num_days):
     hours_list = []
     hour = 0
@@ -104,6 +128,32 @@ def generate_hours_list(num_days):
                 hours_list.append(f"{hour:03}")
     return hours_list
 
+def merge_subgrib_dfs(df_list = []):
+    # defining a list of the data that we want to extract for the forecast model
+    # - to grab more data, simply add them to the list
+    # - note that you may have to add an additional args dict to args_list (See get_subgrib_df_list()) in order to get the data you want
+    cols_to_keep = ['2 metre temperature, K',
+                'Total Cloud Cover, %',
+                'Downward short-wave radiation flux, W m**-2',
+                '10 metre U wind component, m s**-1',
+                '10 metre V wind component, m s**-1',
+                '2 metre relative humidity, %',
+                'Precipitation rate, kg m**-2 s**-1',
+                'Percent frozen precipitation, %']
+    # variable names required for model input file
+    var_names = ['time', 'step', 'T2', 'TCDC', 'SWDOWN' , 'U10', 'V10', 'RH2', 'RAIN', 'CPOFP']
+    # drop the surface average precip rate; it has the same col name as the surface instant precip col, which is problematic b/c we just need the latter
+    # ! easily breakable line ! 
+    df_list[3] = df_list[3].drop('Precipitation rate, kg m**-2 s**-1', axis=1)
+    # combine all dfs in list
+    all_cols_df = pd.concat(df_list, axis=1)
+    # keep time and step indices at beginning of df
+    ts_indices = all_cols_df.iloc[:,[0,1]]
+    # get the vars we need, in order
+    vars_df = all_cols_df[cols_to_keep]
+    merged_df = pd.concat([ts_indices, vars_df], axis=1)
+    merged_df.columns = var_names
+    return merged_df
 
 ### Downloads gfs data into directories that mirrors the GFS directory structure
 # -- dates : list of forecast dates to download

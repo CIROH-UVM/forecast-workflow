@@ -1,56 +1,45 @@
 from gfs_download_fcns import *
 
 # locations to pull forcast data for
-loc_list = [(45.0, -73.25), (44.75, -73.25)]
-
-# initialize empty dictionary which will hold dataframes for each lat/long pair in loc_list
-location_dataframes = {}
+loc_dict = {'401':(45.0, -73.25),
+            '402':(44.75, -73.25),
+            '403':(44.75, -73.25)}
 
 ##### Varaibles Needed:
+### listed in gfs grib2 'longnames' format
 # ENTIRE ATMOSPHERE, instant
-# - Total Cloud Cover [%]
+# - 'Total Cloud Cover, %'
 # SURFACE, avg
-# - Downward Short-Wave Radiation Flux [W/m^2]
+# - 'Downward short-wave radiation flux, W m**-2'
 # 2 M ABOVE GROUND, instant
-# - Temperature [K]
-# - Relative Humidity [%]
+# - '2 metre temperature, K'
+# - '2 metre relative humidity, %'
 # 10 M ABOVE GROUND, instant
-# - U-Component of Wind [m/s]
-# - V-Component of Wind [m/s]
+# - '10 metre U wind component, m s**-1'
+# - '10 metre V wind component, m s**-1'
 # SURFACE, instant
-# - "Precipitation rate, kg m**-2 s**-1"e
-# - percent frozen percipitation
-
-
-# return the dictionary!!
-
+# - 'Precipitation rate, kg m**-2 s**-1'
+# - 'Percent frozen precipitation, %'
 
 ### RUN PARAMS
-# home directory in which to run the program
+# home directory in which to run the program and store data
 run_dir = '/netfiles/ciroh/nbeckage/gfs_data/'
 if not os.path.exists(run_dir): os.makedirs(run_dir)
 os.chdir(run_dir)
 
-# dates to get
-date_str = '20230906'
+# determine dates for which to get forecast data
+date_str = datetime.today().strftime("%Y%m%d")
 dates = generate_date_strings(date_str,1)
 
-# forecast daysa ahead to get
+# determine how many days worth of forecasts to get
 hours = generate_hours_list(7)
 
-# define stepType
-stepType = 'instant'
-
+##### Future reference, pasted stepType and typeOfLevel params
+### - I couldn't find any way to see all of these params besides in these error messages
 # cfgrib.dataset.DatasetBuildError: multiple values for unique key, try re-open the file with one of:
 #     filter_by_keys={'stepType': 'instant', 'typeOfLevel': 'surface'}
 #     filter_by_keys={'stepType': 'avg', 'typeOfLevel': 'surface'}
 #     filter_by_keys={'stepType': 'accum', 'typeOfLevel': 'surface'}
-
-# define typeOfLevel
-typeOfLevel = 'surface'
-# typeOfLevel = 'heightAboveGround'
-
-
 # cfgrib.dataset.DatasetBuildError: multiple values for unique key, try re-open the file with one of:
 #     filter_by_keys={'typeOfLevel': 'meanSea'}
 #     filter_by_keys={'typeOfLevel': 'hybrid'}
@@ -77,16 +66,16 @@ typeOfLevel = 'surface'
 #     filter_by_keys={'typeOfLevel': 'sigma'}
 #     filter_by_keys={'typeOfLevel': 'potentialVorticity'}
 
-### Past this line back into aggregate_df()
-# , backend_kwargs={'filter_by_keys': {'stepType': stepType,'typeOfLevel': typeOfLevel}}
 
 
 ##### RUNNING THE SCRIPT
+# uncomment each function as needed
+
 # 1. pull the data at the specified data/time ranges
-pull_gribs(dates, hours)
+# pull_gribs(dates, hours)
 
-# 2. open each file, read it as a dataframe, process it, and it it to location_dataframes
-# aggregate_df(dates, hours, loc_list, location_dataframes, stepType, typeOfLevel)
+# 2. open each grib2 file, read the dataframes, merge them, and then return a dict of dfs for each station
+# master_dict = aggregate_df_dict(dates, hours, loc_dict)
 
-# write out csv's
-# dict_to_csv(loc_list, location_dataframes)
+# 3. write out csv's for each dataframe in master_dict
+# dict_to_csv(loc_dict, master_dict)
