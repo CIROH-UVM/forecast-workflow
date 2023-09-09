@@ -14,6 +14,9 @@ fc_data_dir = 'raw_fc_data/'
 # where any csv files created for each location/station will be stored
 location_data_dir = "loc_data/"
 
+# Define alias for aggreate_df_dict
+def get_data(dates = [], hours = [], loc_dict = {}):
+    return aggregate_df_dict(dates, hours, loc_dict)
 
 def aggregate_df_dict(dates = [], hours = [], loc_dict = {}):
     # initialize a dictionary to store a dataframe for each station in
@@ -155,8 +158,8 @@ def merge_subgrib_dfs(df_list = [], fname = ''):
         df_list[3] = df_list[3].drop('Precipitation rate, kg m**-2 s**-1', axis=1)
     # combine all dfs in list
     all_cols_df = pd.concat(df_list, axis=1)
-    # keep time and step indices at beginning of df
-    ts_indices = all_cols_df.iloc[:,[0]]
+    # keep valid_time indices at beginning of df
+    ts_indices = all_cols_df.iloc[:,[3]]
     # create frozen precip if it does not exist
     if not 'Downward short-wave radiation flux, W m**-2' in all_cols_df:
         all_cols_df['Downward short-wave radiation flux, W m**-2'] = 0
@@ -164,6 +167,13 @@ def merge_subgrib_dfs(df_list = [], fname = ''):
     vars_df = all_cols_df[cols_to_keep]
     merged_df = pd.concat([ts_indices, vars_df], axis=1)
     merged_df.columns = var_names
+    
+    # print(all_cols_df)
+    # print(ts_indices)
+    # print(vars_df)
+        
+    #merged_df['forecastTime'] = pd.to_datetime(merged_df['time']) + pd.to_timedelta(merged_df['step'])
+
     return merged_df
 
 ### Downloads gfs data into directories that mirrors the GFS directory structure
