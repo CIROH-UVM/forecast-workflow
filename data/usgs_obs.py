@@ -20,7 +20,7 @@ def USGSstreamflow_function(station_id, parameter, period):
     df.columns = ['streamflow']
     #df.to_csv(station_id+"_flow.csv", sep=',')
 
-def get_USGS_data(station_ids = ['04294000', '04292810', '04292750']):
+def get_data(station_ids = ['04294000', '04292810', '04292750']):
 
     # 04294000 (MS), 04292810 (J-S), 04292750 (Mill)
     parameter = '00060'
