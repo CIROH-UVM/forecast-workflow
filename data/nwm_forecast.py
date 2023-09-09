@@ -62,6 +62,7 @@ def GetForecastFile(Url, download_path='.'):
     if os.path.exists(FilePath):
         os.remove(FilePath)
     
+    print(f'Downloading {FileName}')
     # Lets make the request
     r = requests.get(Url, allow_redirects=True)
     # Time to save the file to the download_dir. 
@@ -97,7 +98,7 @@ def download_forecast_files(ForecastStartDate='20230907', ForecastStartTimestep=
         # Getting the URL
         url = GetForecastFileName(TimeStep=time_stamp)
         # Lets download the url file - The function will return the filepath which we will append to download_files
-        file_path = GetForecastFile(url, download_dir)
+        file_path = GetForecastFile(url, os.path.join(download_dir, ForecastStartDate))
         download_files.append(file_path)
 
     # Lets return the list
@@ -105,7 +106,7 @@ def download_forecast_files(ForecastStartDate='20230907', ForecastStartTimestep=
 
 # Lastly, lets read all the downloaded files and process them into a nice Dictionary, where the Key will be the Reach Name and 
 # values will be Pandas Series
-def get_data(ForecastStartDate, ForecastStartTimestep, download_files):
+def get_data(ForecastStartDate, ForecastStartTimestep, download_base_path):
     """
 
     A Function to Process the Downloaded data. It will read each individual file, extract the Stream Value and Add it to 
@@ -114,12 +115,15 @@ def get_data(ForecastStartDate, ForecastStartTimestep, download_files):
     Args:
     ForecastStartDate     : The date for which the forecast is needed - This is needed to extract the Datetime value.
     ForecastStartTimestep : The starting time for the forecasts - This is needed to extract the Datetime value. 
-    download_files        : List of All Files returned by download_forecast_files Function.
+    download_base_path    : Path for the downloaded files (minus the time stamp)
     reaches               : A Reach Dictionary where Key is Reach ID and Value is Reach Name
     
     """
     # Lets define an empty dictionary to store the Results.
     results  = {}
+
+    # Get the filenames from download_base_path
+    download_files = [f for f in os.listdir(download_base_path) if f.endswith('.nc')]
 
     # Lets initiate an another dictionary where key is reach name from reaches and value is an empty list. 
     # We will add the StreamFlow values later to this list.
