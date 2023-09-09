@@ -1,5 +1,7 @@
 import os
-
+import sys
+from contextlib import contextmanager
+import logging
 
 class IAMBAY:
     '''
@@ -211,6 +213,27 @@ class IAMLogger(logging.Logger):
             cls.setup_logging(name)
 
         return logging.getLogger(name)
+
+
+def check_frame(frame):
+    if(frame.f_globals['__package__'] is None):
+        return False
+    if(frame.f_globals['__package__'].startswith('importlib') or
+       frame.f_globals['__package__'] == 'workers'):
+        return True
+    return False
+
+
+def get_calling_package():
+    calling_package = None
+
+    current_frame = list(sys._current_frames().values())[0]
+    while(check_frame(current_frame)):
+        current_frame = current_frame.f_back
+
+    calling_package = current_frame.f_globals['__package__']
+    # print(f'Calling Package: {calling_package}')
+    return calling_package
 
 
 IAMLogger.setup_logging()
