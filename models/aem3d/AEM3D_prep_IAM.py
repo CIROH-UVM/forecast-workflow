@@ -16,11 +16,12 @@
 #  Control File
 
 from ...lib import *
-from ...NWM_forecast import *
-from ...USGS_obs import *
-from ...gfs_download_fcns import *
-from ...colchesterReefData import *
-from ...btvData import *
+from ...data import (nwm_forecast, 
+                     usgs_obs,
+                     gfs_download_fcns,
+                     colchester_reef_met,
+                     btv_met
+)
 from .waterquality import *
 
 from sh import cp, tar, mkdir, mv, Rscript
@@ -171,7 +172,7 @@ def writeCloudCover(climate, THEBAY):
 ##########################################################################
 
 
-def getflowfiles(whichbay):
+def getflowfiles(forecastDate, whichbay):
     '''
     getflowfiles : Get hydrology model flow file(s) for Bay Inflow
         Most information contained in passed Bay Object
@@ -196,13 +197,20 @@ def getflowfiles(whichbay):
     ######### TODO: Instead of from file below, get from data gathering functions
     
     # dict by id: 04294000 (MS), 04292810 (J-S), 04292750 (Mill)
-    #observedUSGS = get_USGS_data(station_ids = ['04294000', '04292810', '04292750'])
-    #forecastNWM = xxxx
+    observedUSGS = usgs_obs.get_data(station_ids = ['04294000', '04292810', '04292750'])
+    forecastNWM = forecastNWM.get_data(ForecastStartDate = forecastDate.strftime('%Y%m%d'),
+                                       ForecastStartTimestep = '00',
+                                       download_base_path = '/data/forecastData/NWM'
+    )
     
     # Need to adjust for column names
-    #flowdf = pd.concat([observedUSGS['04294000'], forecastNWM['MS'])
-    #mlflow = pd.concat([observedUSGS['04292750'], forecastNWM['Mill'])
-    #jsflow = pd.concat([observedUSGS['04292810'], forecastNWM['J-S'])
+    flowdf = pd.concat([observedUSGS['04294000'], forecastNWM['MS']])
+    mlflow = pd.concat([observedUSGS['04292750'], forecastNWM['Mill']])
+    jsflow = pd.concat([observedUSGS['04292810'], forecastNWM['J-S']])
+
+    print(flowdf)
+    print(mlflow)
+    print(jsflow)
 
     ##############  Remove filebased df initialization
     '''
@@ -257,11 +265,13 @@ def getflowfiles(whichbay):
     THEBAY.LastDate = flowdf['ordinaldate'].iloc[-1]
     '''
 
-    ############## TODO: Hopefully, converted... but, need to rename columns
-    #flowdf.columns = ['msflow']
-    #flowdf['jsflow'] = jsflow.iloc[:,0]
-    #flowdf['mlflow'] = mlflow.iloc[:,0]
-    #flowdf['ordinaldate'] = flowdf.index.to_series().apply(datetimeToOrdinal)
+    ############## Hopefully, units converted... but, need to rename columns
+    flowdf.columns = ['msflow']
+    flowdf['jsflow'] = jsflow['streamflow']
+    flowdf['mlflow'] = mlflow['streamflow']
+    flowdf['ordinaldate'] = flowdf.index.to_series().apply(datetimeToOrdinal)
+
+    print(flowdf)
 
     '''
     # Convert Streamflow units (per EFDC_file_prep precedent)
@@ -334,7 +344,7 @@ def getflowfiles(whichbay):
 ##########################################################################
 
 
-def genclimatefiles(whichbay):
+def genclimatefiles(forecastDate, whichbay):
 
     global SCENARIO
 
@@ -347,10 +357,18 @@ def genclimatefiles(whichbay):
     logger.info('Processing Meterological Data')
 
     ######################## Have to get new climate
-    # TODO: rename columns if necessary
-    #climateForecast = aggregate_df(dates, hours, loc_list, location_dataframes, stepType, typeOfLevel)
-    #climateObsBTV = getBTV()
-    #climateObsCR = getCol()
+
+    dates = gfs_download_fcns.generate_date_strings(forecastDate.strftime('%Y%m%d'), 1)
+    hours = gfs_download_fcns.generate_hours_list(7)
+    loc_dict = {'401': (45.0, -73.25),
+                '402': (44.75, -73.25),
+                '403': (44.75, -73.25)}
+    
+    climateForecast = gfs_download_fcns.get_data(dates, hours, loc_dict)
+    for zone in climateForecast.keys():
+        climateForecast[zone].to_csv(f'/data/forecastData/gfs{zone}.csv')
+    climateObsBTV = btv_met.get_data()
+    climateObsCR = colchester_reef_met.get_data()
 
     '''
     climate = [
@@ -402,11 +420,11 @@ def genclimatefiles(whichbay):
     #
     #print('Whole dataset TEMP Shape')
     #print(wrf_data.variables['T2'].shape)
-    # TODO New air_temp -- adjust window below if not hourly
-    # air_temp = {"401": pd.concat([climateObsCR['T2'],climateForecast['401']['T2']),
-    #             "402": pd.concat([climateObsCR['T2'],climateForecast['401']['T2']),
-    #             "403": pd.concat([climateObsCR['T2'],climateForecast['401']['T2'])
-    # }
+    # New air_temp -- adjust window below if not hourly
+    air_temp = {"401": pd.concat([climateObsCR['T2'],climateForecast['401']['T2']]),
+                "402": pd.concat([climateObsCR['T2'],climateForecast['402']['T2']]),
+                "403": pd.concat([climateObsCR['T2'],climateForecast['403']['T2']])
+     }
 
     # air_temp = climate['T2']    # temp at 2m
     #wrfdf['wtr_temp'] = wrfdf['air_temp'].rolling(window=4,min_periods=1).mean() # moving average over 4 days
@@ -461,9 +479,13 @@ def genclimatefiles(whichbay):
     #
     bay_rain = dict()
     bay_snow = dict()
-    for zone in climate['RAIN'].keys():
-        bay_rain[zone] = climate['RAIN'][zone] * 24 / 1000.0     # want daily cummulative rate in meters
-        TEMP = pd.to_numeric(air_temp['403'])
+
+    ### TODO: Remove hardcoded single RAIN zone
+    for zone in ['403']:
+        ###bay_rain[zone] = climate['RAIN'][zone] * 24 / 1000.0     # want daily cummulative rate in meters
+        bay_rain[zone] = pd.concat([climateObsBTV['RAIN'],climateForecast[zone]['RAIN']])
+        
+        TEMP = pd.to_numeric(air_temp[zone])
 
         # Original Try: Use https://www.ncdc.noaa.gov/sites/default/files/attachments/Estimating_the_Water_Equivalent_of_Snow.pdf
         #   and fit a quadratic regression through it
@@ -534,15 +556,26 @@ def genclimatefiles(whichbay):
     #   Longwave Radiation Measure : CLOUDS, LW_RAD_IN, or LW_RAD_NET
     #
 
-    if SCENARIO.gcm.startswith("bree."):
-        #writeLongwaveRadiationNet(climate, THEBAY)
-        writeLongwaveRadiationDownward(climate, THEBAY)
-    elif SCENARIO.gcm == "era5":
-        #writeCloudCover(climate, THEBAY)
-        # Found LWDOWN in ERA5 -- strd
-        writeLongwaveRadiationDownward(climate, THEBAY)
+    # if SCENARIO.gcm.startswith("bree."):
+    #     #writeLongwaveRadiationNet(climate, THEBAY)
+    #     writeLongwaveRadiationDownward(climate, THEBAY)
+    # elif SCENARIO.gcm == "era5":
+    #     #writeCloudCover(climate, THEBAY)
+    #     # Found LWDOWN in ERA5 -- strd
+    #     writeLongwaveRadiationDownward(climate, THEBAY)
 
-
+    # Use Cloud Cover
+    for zone in climateForecast.keys():
+        filename = f'CLOUDS_{zone}.dat'
+        logger.info('Generating Bay Cloud Cover File: '+filename)
+        writeFile(
+            os.path.join(THEBAY.infile_dir, filename),
+            THEBAY.bayid,
+            zone,
+            "CLOUDS",
+            seriesIndexToOrdinalDate(pd.concat([climateObsBTV['TCDC'],climateForecast[zone]['TCDC']]))
+        )
+        THEBAY.addfile(fname=filename)
 
     ###########################################################################################
     #
@@ -557,19 +590,24 @@ def genclimatefiles(whichbay):
     #            !! Similar issue for winddir and rhum
     windspd = dict()
     winddir = dict()
-    for zone in climate['V10'].keys():
+    for zone in climateForecast.keys():
         # a bit of vector math to combine the East(U) and North(V) wind components
         windspd[zone] = np.sqrt(
-            np.square(climate['U10'][zone]) +
-            np.square(climate['V10'][zone])
+            np.square(climateForecast[zone]['U10']) +
+            np.square(climateForecast[zone]['V10'])
         )
+        if zone == '403':
+            windspd[zone] = pd.concat([(climateObsCR['WSPEED'] * 0.75), windspd[zone]])
+        else:
+            windspd[zone] = pd.concat([(climateObsCR['WSPEED'] * 0.65), windspd[zone]])
 
         #  a bit of trig to map the wind vector components into a direction
         #  𝜙 =180+(180/𝜋)*atan2(𝑢,𝑣)
         winddir[zone] = 180 + np.arctan2(
-                climate['U10'][zone],
-                climate['V10'][zone]
+                climateForecast[zone]['U10'],
+                climateForecast[zone]['V10']
             ) * 180 / np.pi
+        winddir[zone] = pd.concat([climateObsCR['WDIR'], winddir[zone]])
 
     # Write Wind Speed and Direction File
     #
@@ -627,7 +665,7 @@ def genclimatefiles(whichbay):
     #     rhum_temp[rhum_temp>1] = 1
     #     rhum_temp[rhum_temp<0] = 0
     #     rhum[zone] = rhum_temp
-    rhum = climate['RH2']
+    rhum = pd.concat([climateObsCR['RH2'], climateForecast['403']['RH2']])
 
     #   Write Relative Humidity File
     #
@@ -659,9 +697,10 @@ def genclimatefiles(whichbay):
 
     # Write ShortwaveRad File
     #
-    swdown = climate['SWDOWN'] # * 0.875         # Scale Solar based on matching observed for 2018
+    #swdown = climate['SWDOWN'] # * 0.875         # Scale Solar based on matching observed for 2018
+    #
 
-    for zone in swdown.keys():
+    for zone in climateForecast.keys():
         filename = f'SOLAR_{zone}.dat'
         logger.info('Generating Short Wave Radiation File: '+filename)
         writeFile(
@@ -669,7 +708,7 @@ def genclimatefiles(whichbay):
             THEBAY.bayid,
             zone,
             "SOLAR_RAD",
-            seriesIndexToOrdinalDate(swdown[zone]))
+            seriesIndexToOrdinalDate(pd.concat([climateObsCR['SWDOWN'], climateForecast[zone]['SWDOWN']])))
         THEBAY.addfile(fname=filename)
 
 
@@ -911,16 +950,16 @@ def gencntlfile(whichbay):
 
 # end of control file generation
 
-def AEM3D_prep_IAM(whichbay):
+def AEM3D_prep_IAM(forecastDate, whichbay):
 
     THEBAY = whichbay
     #logger.info(f'Processing Bay: {THEBAY.bayid} for year {THEBAY.year}')
 
     # get flow files from hydrology model data
-    getflowfiles(THEBAY)
+    getflowfiles(forecastDate, THEBAY)
 
     # generate climate files including lake levels
-    genclimatefiles(THEBAY)
+    genclimatefiles(forecastDate, THEBAY)
 
     # generate salinity file
     gensalinefile(THEBAY)

@@ -35,8 +35,8 @@ def main():
 
     today = datetime.date.today()
 
-    THEBAY.FirstDate = datetimeToOrdinal(today)
-    THEBAY.LastDate = datetimeToOrdinal(today + datetime.timedelta(days=97))
+    THEBAY.FirstDate = datetimeToOrdinal(today - datetime.timedelta(days=90))
+    THEBAY.LastDate = datetimeToOrdinal(today + datetime.timedelta(days=7))
 
     ## Need dataframes for hydrology from Missisquoi, Mill, JewittStevens
     
@@ -59,7 +59,7 @@ def main():
 
         try:
             # source the python file prep script
-            preprc = AEM3D_prep_IAM(whichbay = THEBAY)
+            preprc = AEM3D_prep_IAM(forecastDate=today, whichbay = THEBAY)
 
         except Exception as e:
             logger.info('AEM3D_prep_IAM.py failed. Exiting.')

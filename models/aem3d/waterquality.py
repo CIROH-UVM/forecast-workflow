@@ -8,7 +8,7 @@
 #
 #  Control File
 
-from ..lib import *
+from ...lib import *
 from sh import cp, tar, mkdir, mv, Rscript
 import glob
 import os
@@ -267,7 +267,7 @@ def genwqfiles (whichbay):
     #p_redux = (100 - theyears_p_reductions[['40_redux']]) / 100       # Fix This hardcoded redux reference
     logger.info(f'Scaling Flow by P_Redux: {p_redux}')
 
-    phosdf = pandas.DataFrame()
+    phosdf = pd.DataFrame()
     phosdf['ordinaldate'] = flowdf['ordinaldate']
     cqVersion = 'BREE2021Quad'
 
@@ -324,7 +324,7 @@ def genwqfiles (whichbay):
     # print(phosdf['PO4'])
 
     # Nitrogen Series
-    nitdf = pandas.DataFrame()
+    nitdf = pd.DataFrame()
     nitdf['ordinaldate'] = flowdf['ordinaldate']
     zTN = (flowdf['msflow'] - 166.3734)/138.1476
     nitdf['TN'] = 0.00407 * np.power(zTN,2)  + 0.12853 * zTN + 0.75675
@@ -334,7 +334,7 @@ def genwqfiles (whichbay):
     nitdf['PONL'] = 0.475 * nitdf['TN']
 
     # Suspended Solids Series
-    ssdf = pandas.DataFrame()
+    ssdf = pd.DataFrame()
     ssdf['ordinaldate'] = flowdf['ordinaldate']
     zSS = (flowdf['msflow'] - 170.0903)/142.1835
     ssdf['SSOL1'] = 17.7558 * np.power(zSS,2)  + 59.5663 * zSS + 48.0127
