@@ -58,6 +58,9 @@ def GetForecastFile(Url, download_path='.'):
     FileName = os.path.basename(Url)
     # Lets construct the complete file path
     FilePath = os.path.join(download_path, FileName)
+    # Lets create download_path if it doesn't exist yet
+    if not os.path.exists(download_path):
+        os.makedirs(download_path)    
     # Lets make sure the file is not already downloaded - If yes, we will remove the old file and download the latest one.
     if os.path.exists(FilePath):
         os.remove(FilePath)
