@@ -99,7 +99,7 @@ def download_forecast_files(ForecastStartDate='20230907', ForecastStartTimestep=
     download_files = []
     for time_stamp in time_stamps:
         # Getting the URL
-        url = GetForecastFileName(TimeStep=time_stamp)
+        url = GetForecastFileName(ForecastStartDate=ForecastStartDate, TimeStep=time_stamp)
         # Lets download the url file - The function will return the filepath which we will append to download_files
         file_path = GetForecastFile(url, os.path.join(download_dir, ForecastStartDate))
         download_files.append(file_path)
