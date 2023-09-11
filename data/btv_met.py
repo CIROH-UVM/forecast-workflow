@@ -24,37 +24,62 @@ def leavenotrace (precip) :
   else :
     return precip
 
+def create_final_df(df, colToKeep, index):
+    df = pd.DataFrame(data={colToKeep: df[colToKeep]}, index=pd.to_datetime(index))
+
+def retrieve_data(startDate, endDate, variable):
+	requeststring = 'https://www.ncei.noaa.gov/access/services/data/v1/'+\
+							'?dataset=local-climatological-data'+\
+							'&stations=72617014742'+\
+							'&startDate='+\
+								str(startDate)+\
+							'&endDate='+\
+								str(endDate)+\
+							'&dataTypes='+\
+                                variable+\
+							'&format=json' 
+	print(requeststring)
+	result = requests.get(requeststring)
+    
+	print(result.text)
+
+	return pd.DataFrame(result.json())
+    
+
 def get_data () :
 
 		endday = date.today()
 		d = datetime.timedelta(days = 90)
 		startday = endday - d
 
-		requeststring = 'https://www.ncei.noaa.gov/access/services/data/v1/'+\
-		                        '?dataset=local-climatological-data'+\
-		                        '&stations=72617014742'+\
-		                        '&startDate='+\
-		                         str(startday)+\
-		                        '&endDate='+\
-		                         str(endday)+\
-		                        '&dataTypes=HourlyPrecipitation,HourlySkyConditions'+\
-		                        '&format=json' 
-		print(requeststring)
-		result = requests.get(requeststring)
+		# requeststring = 'https://www.ncei.noaa.gov/access/services/data/v1/'+\
+		#                         '?dataset=local-climatological-data'+\
+		#                         '&stations=72617014742'+\
+		#                         '&startDate='+\
+		#                          str(startday)+\
+		#                         '&endDate='+\
+		#                          str(endday)+\
+		#                         '&dataTypes=HourlyPrecipitation,HourlySkyConditions'+\
+		#                         '&format=json' 
+		# print(requeststring)
+		# result = requests.get(requeststring)
 
-		df = pd.DataFrame(result.json())
-	              
+		# df = pd.DataFrame(result.json())
+        
+		cloud_df = retrieve_data(startday, endday, 'HourlySkyConditions')
+		precip_df = retrieve_data(startday, endday, 'HourlyPrecipitation')
+        
+		print(cloud_df)
+		print(precip_df)
+        
+		returnDict = {}
 
-		df['skycode'] = df['HourlySkyConditions'].apply(splitsky)
-		
+		cloud_df['skycode'] = cloud_df['HourlySkyConditions'].apply(splitsky)
+		cloud_df['TCDC'] = cloud_df['skycode'].apply(sky2prop)
+        
+		precip_df['RAIN'] = precip_df['HourlyPrecipitation'].apply(leavenotrace)
 
-		df['TCDC'] = df['skycode'].apply(sky2prop)
+		returnDict['TCDC'] = create_final_df(cloud_df, 'TCDC', 'DATE')
+		returnDict['RAIN'] = create_final_df(precip_df, 'RAIN', 'DATE')
 
-		        
-		df['RAIN'] = df['HourlyPrecipitation'].apply(leavenotrace)
-
-		#print(df[['DATE', 'TCDC', 'RAIN']])
-
-		df.set_index('DATE')
-
-		return df 
+		return dict
