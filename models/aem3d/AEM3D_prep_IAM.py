@@ -388,12 +388,12 @@ def genclimatefiles(forecastDate, whichbay):
     for zone in climateForecast.keys():
         climateForecast[zone] = climateForecast[zone].rename_axis('time').astype('float')
         climateForecast[zone].to_csv(f'/data/forecastData/gfs{zone}.csv')
-    #climateObsBTV = btv_met.get_data()
-    climateObsBTV = {'TCDC': pd.DataFrame(data={'TCDC': [.50, .75, .25, .50]},
-                                          index=pd.DatetimeIndex(data=pd.date_range('2021-09-08 20:45:00', periods=4, freq='H'), name='time')),
-                     'RAIN': pd.DataFrame(data={'RAIN': [.5, .3, .1, 0.0]},
-                                          index=pd.DatetimeIndex(data=pd.date_range('2021-09-08 20:00:00', periods=4, freq='H'), name='time'))
-                    }
+    climateObsBTV = btv_met.get_data()
+    # climateObsBTV = {'TCDC': pd.DataFrame(data={'TCDC': [.50, .75, .25, .50]},
+    #                                       index=pd.DatetimeIndex(data=pd.date_range('2021-09-08 20:45:00', periods=4, freq='H'), name='time')),
+    #                  'RAIN': pd.DataFrame(data={'RAIN': [.5, .3, .1, 0.0]},
+    #                                       index=pd.DatetimeIndex(data=pd.date_range('2021-09-08 20:00:00', periods=4, freq='H'), name='time'))
+    #                 }
     climateObsCR = colchester_reef_met.get_data().rename_axis('time')
 
     logger.info(print_df(climateForecast['401']))
