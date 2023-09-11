@@ -15,10 +15,13 @@ def USGSstreamflow_function(station_id, parameter, period):
                      )
     values = gage.json()['value']['timeSeries'][0]['values'][0]['value']
     df = pd.DataFrame(values)
-    df = df.set_index('dateTime')
-    df = df.drop(['qualifiers'],axis =1)
-    df.columns = ['streamflow']
-    #df.to_csv(station_id+"_flow.csv", sep=',')
+    # print(df)
+    # df = df.set_index('dateTime')
+    # df = df.set_index(pd.to_datetime(df['dateTime']))
+    # df = df.drop(['dateTime','qualifiers'],axis =1)
+    # df.columns = ['streamflow']
+    # df.to_csv(station_id+"_flow.csv", sep=',')
+    return pd.DataFrame(data={'streamflow': df['value'].values}, index=pd.to_datetime(df['dateTime']).dt.tz_localize(None))
 
 def get_data(station_ids = ['04294000', '04292810', '04292750']):
 
@@ -29,6 +32,6 @@ def get_data(station_ids = ['04294000', '04292810', '04292750']):
     returnVal = {}
 
     for station_id in station_ids:
-        returnVal.add(station_id, USGSstreamflow_function(station_id, parameter, period))
+        returnVal[station_id] = USGSstreamflow_function(station_id, parameter, period)
     
     return returnVal
