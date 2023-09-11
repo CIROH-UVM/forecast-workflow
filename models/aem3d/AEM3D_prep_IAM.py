@@ -15,23 +15,28 @@
 #
 #  Control File
 
-from ...lib import *
-from ...data import (nwm_forecast, 
-                     usgs_obs,
-                     gfs_download_fcns,
-                     colchester_reef_met,
-                     btv_met
+from lib import *
+from data import (nwm_forecast, 
+                  usgs_obs,
+                  gfs_download_fcns,
+                  colchester_reef_met,
+                  btv_met
 )
 from .waterquality import *
 
-from sh import cp, tar, mkdir, mv, Rscript
-from string import Template
 import pandas as pd
 import numpy as np
 import glob
 import os
 import datetime
 
+
+def print_df(df):
+    logger.info('\n'
+                f'{df}\n'
+                f'column_dtypes:\n{df.dtypes}\n'
+                f'index_dtype: {df.index.dtype}\n'
+                )
 
 def colsToHeader(columns):
     return_string = ''
@@ -183,7 +188,7 @@ def getflowfiles(forecastDate, whichbay):
     #
     #   InLandSea has 3 *basin.daily files that provide input flow
     #
-    logger.info('Processing Hydrology Flow Data')
+    logger.info('Loading Hydrology Flow Data')
     #print (flowFiles)
 
     #
@@ -198,19 +203,22 @@ def getflowfiles(forecastDate, whichbay):
     
     # dict by id: 04294000 (MS), 04292810 (J-S), 04292750 (Mill)
     observedUSGS = usgs_obs.get_data(station_ids = ['04294000', '04292810', '04292750'])
-    forecastNWM = forecastNWM.get_data(ForecastStartDate = forecastDate.strftime('%Y%m%d'),
+    forecastNWM = nwm_forecast.get_data(ForecastStartDate = forecastDate.strftime('%Y%m%d'),
                                        ForecastStartTimestep = '00',
                                        download_base_path = '/data/forecastData/NWM'
     )
+
+    # logger.info(observedUSGS)
+    # logger.info(forecastNWM)
     
     # Need to adjust for column names
-    flowdf = pd.concat([observedUSGS['04294000'], forecastNWM['MS']])
-    mlflow = pd.concat([observedUSGS['04292750'], forecastNWM['Mill']])
-    jsflow = pd.concat([observedUSGS['04292810'], forecastNWM['J-S']])
+    flowdf = pd.concat([observedUSGS['04294000'], forecastNWM['MS']]).rename_axis('time').astype('float')
+    mlflow = pd.concat([observedUSGS['04292750'], forecastNWM['Mill']]).rename_axis('time').astype('float')
+    jsflow = pd.concat([observedUSGS['04292810'], forecastNWM['J-S']]).rename_axis('time').astype('float')
 
-    print(flowdf)
-    print(mlflow)
-    print(jsflow)
+    # logger.info(flowdf)
+    # logger.info(mlflow)
+    # logger.info(jsflow)
 
     ##############  Remove filebased df initialization
     '''
@@ -267,11 +275,24 @@ def getflowfiles(forecastDate, whichbay):
 
     ############## Hopefully, units converted... but, need to rename columns
     flowdf.columns = ['msflow']
-    flowdf['jsflow'] = jsflow['streamflow']
-    flowdf['mlflow'] = mlflow['streamflow']
+    ## Have to merge the other two because USGS sometimes doesn't return all dates for all gauges
+    jsflow.columns = ['jsflow']
+    flowdf = pd.merge(flowdf, jsflow, on='time', how='inner')
+    mlflow.columns = ['mlflow']
+    flowdf = pd.merge(flowdf, mlflow, on='time', how='inner')
+   
+    
+    # flowdf['jsflow'] = jsflow['streamflow']
+    # flowdf['mlflow'] = mlflow['streamflow']
+    
+    # logger.info(flowdf)
+    # logger.info(flowdf.index)
+    # logger.info(mlflow.index)
+    # logger.info(jsflow.index)   
+    
     flowdf['ordinaldate'] = flowdf.index.to_series().apply(datetimeToOrdinal)
 
-    print(flowdf)
+    logger.info(flowdf)
 
     '''
     # Convert Streamflow units (per EFDC_file_prep precedent)
@@ -309,7 +330,7 @@ def getflowfiles(forecastDate, whichbay):
         logger.info('Generating Bay Source File for Id: '+baysource)
         bs_prop = THEBAY.sourcemap[baysource]['prop']       # proportion of input file for this source
         wshed = THEBAY.sourcemap[baysource]['wshed']        # get column name of watershed flow source for this stream
-        flowdf[baysource]= flowdf[wshed] * bs_prop          # scale source from hydromodel flow (some are split)
+        flowdf[baysource] = flowdf[wshed] * bs_prop          # scale source from hydromodel flow (some are split)
         bs_name = THEBAY.sourcemap[baysource]['name']
         filename = bs_name + '_Flow.dat'
         logger.info('Bay Source File to Generate: '+filename)
@@ -358,17 +379,26 @@ def genclimatefiles(forecastDate, whichbay):
 
     ######################## Have to get new climate
 
-    dates = gfs_download_fcns.generate_date_strings(forecastDate.strftime('%Y%m%d'), 1)
-    hours = gfs_download_fcns.generate_hours_list(7)
-    loc_dict = {'401': (45.0, -73.25),
-                '402': (44.75, -73.25),
-                '403': (44.75, -73.25)}
-    
-    climateForecast = gfs_download_fcns.get_data(dates, hours, loc_dict)
+    # dates = gfs_download_fcns.generate_date_strings(forecastDate.strftime('%Y%m%d'), 1)
+    climateForecast = gfs_download_fcns.get_data(dates = [forecastDate.strftime('%Y%m%d')], 
+                                                 hours = gfs_download_fcns.generate_hours_list(7)[0:2],
+                                                 loc_dict = {'401': (45.00, -73.25),
+                                                             '402': (44.75, -73.25),
+                                                             '403': (44.75, -73.25)})
     for zone in climateForecast.keys():
+        climateForecast[zone] = climateForecast[zone].rename_axis('time').astype('float')
         climateForecast[zone].to_csv(f'/data/forecastData/gfs{zone}.csv')
-    climateObsBTV = btv_met.get_data()
-    climateObsCR = colchester_reef_met.get_data()
+    #climateObsBTV = btv_met.get_data()
+    climateObsBTV = {'TCDC': pd.DataFrame(data={'TCDC': [.50, .75, .25, .50]},
+                                          index=pd.DatetimeIndex(data=pd.date_range('2021-09-08 20:45:00', periods=4, freq='H'), name='time')),
+                     'RAIN': pd.DataFrame(data={'RAIN': [.5, .3, .1, 0.0]},
+                                          index=pd.DatetimeIndex(data=pd.date_range('2021-09-08 20:00:00', periods=4, freq='H'), name='time'))
+                    }
+    climateObsCR = colchester_reef_met.get_data().rename_axis('time')
+
+    logger.info(print_df(climateForecast['401']))
+    logger.info(print_df(climateObsBTV['TCDC']))
+    logger.info(print_df(climateObsCR))
 
     '''
     climate = [
@@ -421,10 +451,12 @@ def genclimatefiles(forecastDate, whichbay):
     #print('Whole dataset TEMP Shape')
     #print(wrf_data.variables['T2'].shape)
     # New air_temp -- adjust window below if not hourly
-    air_temp = {"401": pd.concat([climateObsCR['T2'],climateForecast['401']['T2']]),
-                "402": pd.concat([climateObsCR['T2'],climateForecast['402']['T2']]),
-                "403": pd.concat([climateObsCR['T2'],climateForecast['403']['T2']])
+    air_temp = {"401": pd.concat([climateObsCR['T2'],climateForecast['401']['T2']-273.15]),
+                "402": pd.concat([climateObsCR['T2'],climateForecast['402']['T2']-273.15]),
+                "403": pd.concat([climateObsCR['T2'],climateForecast['403']['T2']-273.15])
      }
+    
+    logger.info(print_df(air_temp['401']))
 
     # air_temp = climate['T2']    # temp at 2m
     #wrfdf['wtr_temp'] = wrfdf['air_temp'].rolling(window=4,min_periods=1).mean() # moving average over 4 days
@@ -483,9 +515,17 @@ def genclimatefiles(forecastDate, whichbay):
     ### TODO: Remove hardcoded single RAIN zone
     for zone in ['403']:
         ###bay_rain[zone] = climate['RAIN'][zone] * 24 / 1000.0     # want daily cummulative rate in meters
-        bay_rain[zone] = pd.concat([climateObsBTV['RAIN'],climateForecast[zone]['RAIN']])
         
-        TEMP = pd.to_numeric(air_temp[zone])
+        logger.info('BTV Rain')
+        logger.info(print_df(climateObsBTV['RAIN']))
+        
+        logger.info('GFS Rain')
+        logger.info(print_df(climateForecast[zone]['RAIN']))
+        
+        # 2 ['RAIN'] for BTV to get to a series
+        bay_rain[zone] = pd.concat([climateObsBTV['RAIN']['RAIN'],climateForecast[zone]['RAIN']])
+        
+        TEMP = air_temp[zone]
 
         # Original Try: Use https://www.ncdc.noaa.gov/sites/default/files/attachments/Estimating_the_Water_Equivalent_of_Snow.pdf
         #   and fit a quadratic regression through it
@@ -500,8 +540,33 @@ def genclimatefiles(forecastDate, whichbay):
         # Tried using TMAX, but TAVG ((TMAX + TMIN)/2) got a curve closer to NASA table and makes more sense
         snowcoeff = np.exp(2.1413626 - 0.1921400*TEMP - 0.0079924*TEMP*TEMP)
 
+        logger.info('bay_rain')
+        logger.info(print_df(bay_rain[zone]))
+        
+        # Also a series, name = T2
+        logger.info('snowcoeff')
+        logger.info(print_df(snowcoeff))
+
+        #####################
+        ## Need to merge bay_rain and snowcoeff first (intersection) before calculation to make sure the equation has a result
+
+
         # Calculate snow from snowcoeff
-        bay_snow[zone] = bay_rain[zone] * snowcoeff
+
+        ## Formerly...
+        # bay_snow[zone] = bay_rain[zone] * snowcoeff
+
+        ## But, now...
+        ## Merge bay_rain and snowcoeff by time stamps so we know we have times for both
+        snowcalc_df = pd.merge(bay_rain[zone], snowcoeff, on='time', how='inner')
+        logger.info('snowcalc_df')
+        logger.info(print_df(snowcalc_df))
+        bay_snow[zone] = snowcalc_df['RAIN'] * snowcalc_df['T2']
+
+        # bay_snow[zone] = bay_rain[zone] * snowcoeff
+        
+        logger.info('bay_snow')
+        logger.info(print_df(bay_snow[zone]))
         
         # If too warm, no snow - Use -2.0 C to get mean snowfall for 2017-2020 close to calibration data
         #  NOAA table above uses 34 F (1.1 C)
@@ -568,12 +633,18 @@ def genclimatefiles(forecastDate, whichbay):
     for zone in climateForecast.keys():
         filename = f'CLOUDS_{zone}.dat'
         logger.info('Generating Bay Cloud Cover File: '+filename)
+        
+        # Divide GFS TCDC by 100 to get true percentage
+        cloud_series = seriesIndexToOrdinalDate(pd.concat([climateObsBTV['TCDC']['TCDC'],climateForecast[zone]['TCDC']/100.0]))
+        logger.info(f'TCDC for zone {zone}')
+        logger.info(print_df(cloud_series))
+
         writeFile(
             os.path.join(THEBAY.infile_dir, filename),
             THEBAY.bayid,
             zone,
             "CLOUDS",
-            seriesIndexToOrdinalDate(pd.concat([climateObsBTV['TCDC'],climateForecast[zone]['TCDC']]))
+            cloud_series
         )
         THEBAY.addfile(fname=filename)
 
@@ -608,6 +679,11 @@ def genclimatefiles(forecastDate, whichbay):
                 climateForecast[zone]['V10']
             ) * 180 / np.pi
         winddir[zone] = pd.concat([climateObsCR['WDIR'], winddir[zone]])
+
+        logger.info(f'WINDSP for zone {zone}')
+        logger.info(print_df(windspd[zone]))        
+        logger.info(f'WINDDIR for zone {zone}')
+        logger.info(print_df(winddir[zone]))        
 
     # Write Wind Speed and Direction File
     #
@@ -665,7 +741,10 @@ def genclimatefiles(forecastDate, whichbay):
     #     rhum_temp[rhum_temp>1] = 1
     #     rhum_temp[rhum_temp<0] = 0
     #     rhum[zone] = rhum_temp
-    rhum = pd.concat([climateObsCR['RH2'], climateForecast['403']['RH2']])
+    rhum= {}
+    rhum['0'] = pd.concat([climateObsCR['RH2'], climateForecast['403']['RH2']])
+    logger.info(f'RH2')
+    logger.info(print_df(rhum['0']))
 
     #   Write Relative Humidity File
     #
@@ -703,12 +782,18 @@ def genclimatefiles(forecastDate, whichbay):
     for zone in climateForecast.keys():
         filename = f'SOLAR_{zone}.dat'
         logger.info('Generating Short Wave Radiation File: '+filename)
+        
+        swdown_series = seriesIndexToOrdinalDate(pd.concat([climateObsCR['SWDOWN'], climateForecast[zone]['SWDOWN']]))
+        logger.info(f'SWDOWN for zone {zone}')
+        logger.info(print_df(swdown_series))
+        
         writeFile(
             os.path.join(THEBAY.infile_dir, filename),
             THEBAY.bayid,
             zone,
             "SOLAR_RAD",
-            seriesIndexToOrdinalDate(pd.concat([climateObsCR['SWDOWN'], climateForecast[zone]['SWDOWN']])))
+            swdown_series
+        )
         THEBAY.addfile(fname=filename)
 
 
@@ -727,14 +812,25 @@ def genclimatefiles(forecastDate, whichbay):
     #
     ###
     logger.info('Generating Lake Levels')
-    flowdf = THEBAY.flowdf.copy()       # get flow dataframe from bay object
+   
+    ########################################### Formerly...
+    # # TODO: Which to use?  streamflow_cms or streamflow_adj_cms
+    # streamflow_unadj_cms = flowdf['msflow'] / 0.98
+    # flowdf['flowmean_07'] = streamflow_unadj_cms.rolling(window=7,min_periods=1).mean() # moving average over 7 days
+    # flowdf['flowmean_30'] = streamflow_unadj_cms.rolling(window=30,min_periods=1).mean() # moving average over 30 days
+    # flowdf['flowmean_60'] = streamflow_unadj_cms.rolling(window=60,min_periods=1).mean() # moving average over 60 days
 
-    # TODO: Which to use?  streamflow_cms or streamflow_adj_cms
-    streamflow_unadj_cms = flowdf['msflow'] / 0.98
-    flowdf['flowmean_07'] = streamflow_unadj_cms.rolling(window=7,min_periods=1).mean() # moving average over 7 days
-    flowdf['flowmean_30'] = streamflow_unadj_cms.rolling(window=30,min_periods=1).mean() # moving average over 30 days
-    flowdf['flowmean_60'] = streamflow_unadj_cms.rolling(window=60,min_periods=1).mean() # moving average over 60 days
-
+    ######################################### Now...
+    lakeLevel_df = pd.DataFrame({'ordinaldate': THEBAY.flowdf['ordinaldate'],
+                                 'msflow': THEBAY.flowdf['msflow'],
+                                 'flowmean_07': THEBAY.flowdf['msflow'].rolling(window=7,min_periods=1).mean(),
+                                 'flowmean_30': THEBAY.flowdf['msflow'].rolling(window=30,min_periods=1).mean(),
+                                 'flowmean_60': THEBAY.flowdf['msflow'].rolling(window=60,min_periods=1).mean()},
+                                 index=pd.DatetimeIndex(THEBAY.flowdf.index, name='time')
+                                 )
+    logger.info(f'lakelevel_df pre merge')
+    logger.info(print_df(lakeLevel_df))
+    
     # print('Missisqoui Flow Entering Bay')
     # print(flowdf['msflow'].describe(percentiles=[]))
     # print(flowdf['flowmean_07'].describe(percentiles=[]))
@@ -748,10 +844,19 @@ def genclimatefiles(forecastDate, whichbay):
     #wrftemp = wrfdf[['wrftime', 'air_temp']]
     #wrfdailyraw = wrftemp.set_index('wrftime').resample('D').mean()
     
-    # drop any null leap days generated by resample and convert to F
-    wrfdailyraw = air_temp['403'].resample('D').mean()
-    wrfdailyF = 32 + 1.8 * wrfdailyraw.dropna(axis=0, inplace=False, how='any')
-    TemperatureF = wrfdailyF.to_numpy()
+    ###################
+    # Need to get parity with timestamps between flow and temp
+    ## Formerly...
+    # # drop any null leap days generated by resample and convert to F
+    # wrfdailyraw = air_temp['403'].resample('D').mean()
+    # wrfdailyF = 32 + 1.8 * wrfdailyraw.dropna(axis=0, inplace=False, how='any')
+    # TemperatureF = wrfdailyF.to_numpy()
+    
+    ## Now...
+    ### Need to merge these df's together on time stamp
+    lakeLevel_df = pd.merge(lakeLevel_df, air_temp['403'], on='time', how='inner')
+    logger.info(f'lakelevel_df after merge')
+    logger.info(print_df(lakeLevel_df))
 
     # print('Air Temp Raw Stats (C)')
     # print(air_temp['403'].describe(percentiles=[]))
@@ -761,33 +866,36 @@ def genclimatefiles(forecastDate, whichbay):
     # print(TemperatureF.describe(percentiles=[]))
 
     # print('Calculating Lake Levels')
-    flowdf['LakeLevel'] = 94.05887 + 0.007910834 * TemperatureF + \
-        7.034478e-05 * flowdf['msflow'] + \
-        0.003396492 * flowdf['flowmean_07'] + \
-        0.01173037 * flowdf['flowmean_30'] + \
-        0.0258206 * flowdf['flowmean_60']
+    lakeLevel_df['LakeLevel'] = 94.05887 + 0.007910834 * lakeLevel_df['T2'] + \
+        7.034478e-05 * lakeLevel_df['msflow'] + \
+        0.003396492 * lakeLevel_df['flowmean_07'] + \
+        0.01173037 * lakeLevel_df['flowmean_30'] + \
+        0.0258206 * lakeLevel_df['flowmean_60']
 
     # print(flowdf['LakeLevel'].describe(percentiles=[]))
 
     # print('Calculating Lake Level Bias')
     # Next, apply the bias correction from the bias correction quadratic regression on the residuals against the observed lake level:
     bias_correction = -358.51020205 + \
-        7.16150850 * flowdf['LakeLevel'] + \
-        -0.03570562 * np.power(flowdf['LakeLevel'],2)
+        7.16150850 * lakeLevel_df['LakeLevel'] + \
+        -0.03570562 * np.power(lakeLevel_df['LakeLevel'],2)
 
-    flowdf['LakeLevel_corrected'] = flowdf['LakeLevel'] + bias_correction
+    lakeLevel_df['LakeLevel_corrected'] = lakeLevel_df['LakeLevel'] + bias_correction
 
 
     #	AEM3D lake input defined as meters above 93ft - do the math
-    flowdf['LakeLevel_delta'] = (flowdf['LakeLevel_corrected'] - 93) * 0.3048
+    lakeLevel_df['LakeLevel_delta'] = (lakeLevel_df['LakeLevel_corrected'] - 93) * 0.3048
 
     #
     #   write out lake level file
     #
-    print('Lake Level (m) above 93ft')
-    print(flowdf['LakeLevel_delta'].describe(percentiles=[]))
+    logger.info('Lake Level (m) above 93ft')
+    logger.info(lakeLevel_df['LakeLevel_delta'].describe(percentiles=[]))
 
-
+    ################### Fixing Lake_Level
+    lakeLevel_df = pd.DataFrame({'LakeLevel_delta': [1.0, 1.0],
+                                 'ordinaldate': [THEBAY.FirstDate, THEBAY.LastDate]},
+                                )
 
     filename = 'Lake_Level.dat'
     logger.info('Writing Lake Level File '+filename)
@@ -813,11 +921,10 @@ def genclimatefiles(forecastDate, whichbay):
         output_file.write('0    300\n')
         output_file.write('TIME	  HEIGHT\n')
 
-        # output the ordinal date and flow value time dataframe columns
-        flowdf.to_csv(path_or_buf=output_file, columns=['ordinaldate', 'LakeLevel_delta'], float_format='%.3f',
+        # output the ordinal date and flow value time dataframe columns for AEM3D and as .csv
+        lakeLevel_df.to_csv(path_or_buf=output_file, columns=['ordinaldate', 'LakeLevel_delta'], float_format='%.3f',
                       sep=' ', index=False, header=False)
-
-        flowdf.to_csv(path_or_buf='lakeheight.csv', float_format='%.3f', sep=' ', index=False, header=True)
+        # lakeLevel_df.to_csv(path_or_buf='lakeheight.csv', float_format='%.3f', sep=' ', index=False, header=True)
 
     ##
     #
@@ -826,102 +933,66 @@ def genclimatefiles(forecastDate, whichbay):
     #
 
 
-def gensalinefile(whichbay):
+def gensalinefile(theBay):
     #
     #   Salinity data time series
     #
-    global SCENARIO
-
-    THEBAY = whichbay
-
-    with open('TEMPLATES/salinity.template.txt', 'r') as file:
-        template = Template(file.read())
-
-    pathedfile = os.path.join(THEBAY.infile_dir, 'Inflows_Salinity.dat')
-    with open(pathedfile, 'w') as output_file:
-
-        # remember generated bay files
-        THEBAY.addfile(fname='Inflows_Salinity.dat')
-
-        output_file.write(template.substitute(**{
-            'source_id_list': '  '.join(THEBAY.sourcelist),
-            'firstdate': THEBAY.FirstDate,
-            'lastdate': THEBAY.LastDate
-        }))
+    generate_file_from_template('salinity.template.txt',
+                                'Inflows_Salinity.dat',
+                                theBay,
+                                {'source_id_list': '  '.join(theBay.sourcelist),
+                                 'firstdate': theBay.FirstDate,
+                                 'lastdate': theBay.LastDate
+                                })
 
 
-def genboundaryfile(whichbay):
+def genboundaryfile(theBay):
     #
     #   P boundary condition data time series
     #
-    global SCENARIO
-
-    THEBAY = whichbay
-
-    with open('TEMPLATES/bc_p.template.txt', 'r') as file:
-        template = Template(file.read())
-
-    pathedfile = os.path.join(THEBAY.infile_dir, 'OpenBC_P.dat')
-    with open(pathedfile, 'w') as output_file:
-
-        # remember generated bay files
-        THEBAY.addfile(fname='OpenBC_P.dat',ftype='boundary_condition_file')
-
-        output_file.write(template.substitute(**{
-            'firstdate': THEBAY.FirstDate,
-            'lastdate': THEBAY.LastDate
-        }))
+    generate_file_from_template('bc_p.template.txt',
+                                'OpenBC_P.dat',
+                                theBay,
+                                {'firstdate': theBay.FirstDate,
+                                 'lastdate': theBay.LastDate
+                                })
         
 
-def gentracerfiles(whichbay):
-  #
-  # Write Tracer Files - fixed series, use templates and set $year
-  #
-  THEBAY = whichbay
+def gentracerfiles(theBay):
+    #
+    # Write Tracer Files - fixed series, use templates and set $year
+    #
 
-  tracerfiles = glob.glob('TEMPLATES/*racer*.template')
-  # Loop through list of Phyto Templates, replacing $year with specific year
-  for thisfile in tracerfiles:        # for each filename
-
-    with open(thisfile,'r') as file:
-      tracerStr = file.read()
-    template = Template(tracerStr)
-
-    #	pull name out of the path/filename.template and add dat extention
-    thisfilename = os.path.splitext(os.path.split(thisfile)[1])[0]+'.dat'
-
-    pathedfile = os.path.join(THEBAY.infile_dir, thisfilename)
-    logger.info('Writing Tracer File, '+pathedfile)
-
-    with open(pathedfile, 'w') as output_file:
-        output_file.write(template.substitute(**{
-            'nextyear': str(THEBAY.year+1),
-            'year': str(THEBAY.year)
-            }))
-
-    # Change name of phyto templates to phyto dat
-    if (thisfilename == 'tracer_release.dat') :
-        THEBAY.addfile(fname=thisfilename,ftype='update_file')
-    else :
-        THEBAY.addfile(fname=thisfilename)
-  #
-  # End of Tracer File Generation
-  #
+    for templateFile in [f for f in os.listdir(theBay.template_dir) if 'Tracer' in f]:
+        generate_file_from_template(templateFile,
+                                    os.path.splitext(templateFile)[0]+'.dat',
+                                    theBay,
+                                    {'firstdate': theBay.FirstDate,
+                                     'lastdate': theBay.LastDate
+                                    })
+    
+    generate_file_from_template('tracer_release.template',
+                                'tracer_release.dat',
+                                theBay,
+                                {'firstdate': theBay.FirstDate,
+                                 'lastdate': theBay.LastDate
+                                },
+                                'update_file')
+    #
+    # End of Tracer File Generation
+    #
 
 
-def gencntlfile(whichbay):
-    global SCENARIO
+def gencntlfile(theBay):
 
-    THEBAY = whichbay
-
-    with open('TEMPLATES/aem3dcntl.template.txt', 'r') as file:
+    with open(os.path.join(theBay.template_dir, 'aem3dcntl.template.txt'), 'r') as file:
         template = Template(file.read())
 
-    #	control file is written to runtime directory
-    pathedfile = os.path.join(THEBAY.run_dir, 'run_aem3d.dat')
+    # control file is written to runtime directory
+    pathedfile = os.path.join(theBay.run_dir, 'run_aem3d.dat')
     with open(pathedfile, 'w') as output_file:
         output_file.write(template.substitute(**{
-            'start_date': THEBAY.FirstDate,
+            'start_date': theBay.FirstDate,
             # number of 300s steps in a 364 days (year minus 1 day, because 1st day is a start, not a step)
             # 27936 for 97 days (97*24*12)
             'iter_max': 27936
@@ -932,7 +1003,7 @@ def gencntlfile(whichbay):
             '! --------------------------------------------------------------- !\n')
         output_file.write(
             '! Input file names                                                 !\n')
-        output_file.write('\''+os.path.split(THEBAY.infile_dir)[1] +
+        output_file.write('\''+os.path.split(theBay.infile_dir)[1] +
                         '\'                                     infile_dir\n')
         output_file.write(
             ' sparsedata_aem3d.unf                              3D_data_file\n')
@@ -941,7 +1012,7 @@ def gencntlfile(whichbay):
         output_file.write(
             ' datablock.xml                                     datablock_file\n')
 
-        for f, t in THEBAY.bayfiles:        # for each filename, filetype
+        for f, t in theBay.bayfiles:        # for each filename, filetype
             output_file.write(' '+f+'              '+t+'\n')
 
         output_file.write(
@@ -950,30 +1021,29 @@ def gencntlfile(whichbay):
 
 # end of control file generation
 
-def AEM3D_prep_IAM(forecastDate, whichbay):
+def AEM3D_prep_IAM(forecastDate, theBay):
 
-    THEBAY = whichbay
-    #logger.info(f'Processing Bay: {THEBAY.bayid} for year {THEBAY.year}')
+    #logger.info(f'Processing Bay: {theBay.bayid} for year {theBay.year}')
 
     # get flow files from hydrology model data
-    getflowfiles(forecastDate, THEBAY)
+    getflowfiles(forecastDate, theBay)
 
     # generate climate files including lake levels
-    genclimatefiles(forecastDate, THEBAY)
+    genclimatefiles(forecastDate, theBay)
 
     # generate salinity file
-    gensalinefile(THEBAY)
+    gensalinefile(theBay)
 
     # generate boundary condition file
-    genboundaryfile(THEBAY)
+    genboundaryfile(theBay)
     
     # generate tracer files
-    gentracerfiles(THEBAY)
+    gentracerfiles(theBay)
 
     # generate the water quality files (waterquality.py script)
-    genwqfiles(whichbay=THEBAY)
+    genwqfiles(theBay)
 
     # generate control file
-    gencntlfile(THEBAY)
+    gencntlfile(theBay)
 
     return 0

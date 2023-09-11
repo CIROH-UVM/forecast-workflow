@@ -5,12 +5,11 @@
 #   - the bay of interest (Missisquoi, St. Albans)
 #   - the hydrology model (SWAT, RHESSys)
 
-from ...lib import cd, logger, IAMBAY
+from lib import cd, logger, IAMBAY
 from .AEM3D_prep_IAM import *
 from sh import cp
 import os
 import sys
-from string import Template
 import datetime
 import traceback
 
@@ -33,7 +32,9 @@ def main():
     #THEBAY = IAMBAY(settings['whichbay'])   # Create Bay Object for Bay specified
     THEBAY = IAMBAY(bayid='ILS')   # Create Bay Object for Bay specified
 
-    today = datetime.date.today()
+    # Make today, today at midnight
+    #today = datetime.datetime.combine(datetime.date.today(), datetime.datetime.min.time())
+    today = datetime.datetime(2023,9,9)
 
     THEBAY.FirstDate = datetimeToOrdinal(today - datetime.timedelta(days=90))
     THEBAY.LastDate = datetimeToOrdinal(today + datetime.timedelta(days=7))
@@ -55,11 +56,27 @@ def main():
     #             pkg_resources.resource_string('workers.prep_aem3d_worker.resources', f).decode('utf-8')
     #         )
 
-    with cd('AEM3D-file-prep'):
+    prep_path = 'aem3d-run'
+    THEBAY.infile_dir = os.path.join(prep_path, 'infiles')
+    THEBAY.template_dir = os.path.join(prep_path, 'TEMPLATES')
+    THEBAY.run_dir = prep_path
+
+    # Probably don't need this with the cp anymore...
+    # if not os.path.exists(prep_path):
+    #     os.makedirs(prep_path)
+    
+    # Copy current aem3d run template
+    cp('-R', '/netfiles/ciroh/models/aem3d/current/AEM3D-inputs', prep_path)
+
+    with cd('.'):
 
         try:
+            # Create Dir for infiles
+            if not os.path.exists(THEBAY.infile_dir):
+                os.makedirs(THEBAY.infile_dir)
+
             # source the python file prep script
-            preprc = AEM3D_prep_IAM(forecastDate=today, whichbay = THEBAY)
+            preprc = AEM3D_prep_IAM(forecastDate=today, theBay=THEBAY)
 
         except Exception as e:
             logger.info('AEM3D_prep_IAM.py failed. Exiting.')
