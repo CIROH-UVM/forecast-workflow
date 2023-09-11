@@ -10,7 +10,7 @@ gfs_root = 'https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/'
 fc_time = '/00/atmos/'
 fc_file = 'gfs.t00z.pgrb2.0p25.f'
 # where the raw grib2 files will be stored
-fc_data_dir = 'raw_fc_data/'
+fc_data_dir = '/data/forecastData/gfs/raw_fc_data/'
 # where any csv files created for each location/station will be stored
 location_data_dir = "loc_data/"
 
@@ -22,7 +22,9 @@ def aggregate_df_dict(dates = [], hours = [], loc_dict = {}):
     # initialize a dictionary to store a dataframe for each station in
     data_dict = {}
     
-    if not os.path.exists(fc_data_dir): os.makedirs(fc_data_dir)
+    # Don't think we need this anymore now that downloads are seperate
+    # if not os.path.exists(fc_data_dir): os.makedirs(fc_data_dir)
+    origDir = os.getcwd()
     os.chdir(fc_data_dir)
     
     for d in dates:
@@ -32,12 +34,13 @@ def aggregate_df_dict(dates = [], hours = [], loc_dict = {}):
             hour_file = fc_file+h
             print("aggregating subgribs for file",hour_file)
             df_list = get_subgrib_df_list(hour_file)
+            # df_list = get_subgrib_df_list(os.path.join(fc_data_dir, date_dir, hour_file))
             print("succesfully aggregated subgribs")
             vars_df = merge_subgrib_dfs(df_list, hour_file)
             extract_locs(vars_df, loc_dict, data_dict)
             print("successfully merged and extracted loc data from subgribs\n")
         os.chdir('../../../')
-    os.chdir('../')
+    os.chdir(origDir)
     return data_dict
 
 def dict_to_csv(loc_dict = {}, location_dataframes = {}):
