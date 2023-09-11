@@ -1,4 +1,4 @@
-from ...lib import (
+from lib import (
     cd,
     logger,
 )
@@ -114,11 +114,12 @@ def main():
     # pick_aem3d_bin(settings)
     aem3d = Command('/usr/local/bin/aem3d_openmp')
 
-    with cd('today'):        # the working dir for the run
+    with cd('aem3d-run'):        # the working dir for the run
 
         # setup(settings)
 
         try:
+            args = []
             for line in aem3d(*args, _iter=True):
                 logger.info(line)
         except Exception as e:
