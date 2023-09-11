@@ -1,7 +1,9 @@
 import os
 import sys
+import logging, logging.config
 from contextlib import contextmanager
-import logging
+from string import Template
+
 
 class IAMBAY:
     '''
@@ -22,6 +24,7 @@ class IAMBAY:
         self.LastDate =  str(year)+'365.000'  # default last date of data
         self.wrfgridxy = (1,1)      # a default grid selection
         self.infile_dir = 'AEM3D-inputs/infiles'            # directory for boundary condition inputs
+        self.template_dir = 'AEM3D-inputs/TEMPLATES'            # directory for boundary condition inputs
         self.run_dir = 'AEM3D-inputs'     # directory to contain everything the lake model needs to run
         self.bayfiles = []                           # initial (empty) list of boundary condition files for bay modeling
         self.flowdf =  None       # eventually to contain bay input flow time series dataframe
@@ -139,6 +142,20 @@ class IAMBAY:
     ##
     #       End of IAMBAY Class
     ##
+
+
+def generate_file_from_template(templateFile, outFile, theBay, sub_dict, outFileType='boundary_condition_file'):
+    
+    logger.info(f'Writing out {outFile} from template file {templateFile}')
+
+    with open(os.path.join(theBay.template_dir, templateFile), 'r') as file:
+        template = Template(file.read())
+
+    with open(os.path.join(theBay.infile_dir, outFile), 'w') as output_file:
+        output_file.write(template.substitute(**sub_dict))
+    
+    # remember generated bay files
+    theBay.addfile(fname=outFile, ftype=outFileType)
 
 
 @contextmanager
