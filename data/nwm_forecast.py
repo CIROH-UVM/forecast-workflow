@@ -118,12 +118,14 @@ def get_data(ForecastStartDate, ForecastStartTimestep, download_base_path):
     Args:
     ForecastStartDate     : The date for which the forecast is needed - This is needed to extract the Datetime value.
     ForecastStartTimestep : The starting time for the forecasts - This is needed to extract the Datetime value. 
-    download_base_path    : Path for the downloaded files (minus the time stamp)
+    download_base_path    : Path for the downloaded files (minus the time stamp / ForecastStartDate)
     reaches               : A Reach Dictionary where Key is Reach ID and Value is Reach Name
     
     """
     # Lets define an empty dictionary to store the Results.
     results  = {}
+    # Append ForecastStartDate to download_base_path
+    download_base_path = os.path.join(download_base_path, ForecastStartDate)
 
     # Get the filenames from download_base_path
     download_files = [f for f in os.listdir(download_base_path) if f.endswith('.nc')]
@@ -145,7 +147,7 @@ def get_data(ForecastStartDate, ForecastStartTimestep, download_base_path):
 
     # Time to read the data files
     for file in download_files:
-        data = xr.open_dataset(file)
+        data = xr.open_dataset(os.path.join(download_base_path, file))
 
         # Time to extract the relevent reach id data from data
         for reach_id, reach_name in reaches.items():
@@ -160,7 +162,7 @@ def get_data(ForecastStartDate, ForecastStartTimestep, download_base_path):
 
     # At step we have all the data need to get the final format - which {'Reach_Name':pd.Series(streamflow, index=timestamp)}
     for reach_name, series_data in data_dict.items():
-        results[reach_name] = pd.Series(data=series_data, name="streamflow", index=timestamps)
+        results[reach_name] = pd.DataFrame(data={'streamflow': series_data}, index=timestamps)
 
     # Simply return the results
     return results
