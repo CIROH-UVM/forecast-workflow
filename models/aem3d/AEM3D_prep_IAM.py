@@ -44,6 +44,15 @@ def colsToHeader(columns):
         return_string += ' ' + str(col)
     return return_string
 
+def remove_nas(series):
+    # logger.info('Size with nas')
+    # logger.info(len(series))
+    # new_series = series[~series.isna()]
+    # logger.info('Size without nas')
+    # logger.info(len(new_series))    
+    # return new_series
+    return series[~series.isna()]
+
 def datetimeToOrdinal(date):
 
     dayofyear = date.strftime('%j')
@@ -399,14 +408,19 @@ def genclimatefiles(forecastDate, whichbay):
     
     # dates = gfs_download_fcns.generate_date_strings(forecastDate.strftime('%Y%m%d'), 1)
     # Add [0:2] to generate_hours_list(7) to run shorter test model
-    climateForecast = gfs_download_fcns.get_data(dates = [forecastDate.strftime('%Y%m%d')], 
-                                                 hours = gfs_download_fcns.generate_hours_list(7),
-                                                 loc_dict = {'401': (45.00, -73.25),
-                                                             '402': (44.75, -73.25),
-                                                             '403': (44.75, -73.25)})
-    for zone in climateForecast.keys():
-        climateForecast[zone] = climateForecast[zone].rename_axis('time').astype('float')
-        climateForecast[zone].to_csv(f'/data/forecastData/gfs{zone}.csv')
+
+    # climateForecast = gfs_download_fcns.get_data(dates = [forecastDate.strftime('%Y%m%d')], 
+    #                                              hours = gfs_download_fcns.generate_hours_list(7),
+    #                                              loc_dict = {'401': (45.00, -73.25),
+    #                                                          '402': (44.75, -73.25),
+    #                                                          '403': (44.75, -73.25)})
+    # for zone in climateForecast.keys():
+    #     climateForecast[zone] = climateForecast[zone].rename_axis('time').astype('float')
+    #     climateForecast[zone].to_csv(f'/data/forecastData/gfs{zone}.csv')
+
+    climateForecast = {}
+    for zone in ['401', '402', '403']:
+        climateForecast[zone] = pd.read_csv(f'/data/forecastData/gfs{zone}.csv', index_col='time', parse_dates=True)
 
     logger.info('BTV Data')
     logger.info(print_df(climateObsBTV['TCDC']))
@@ -466,9 +480,9 @@ def genclimatefiles(forecastDate, whichbay):
     #print('Whole dataset TEMP Shape')
     #print(wrf_data.variables['T2'].shape)
     # New air_temp -- adjust window below if not hourly
-    air_temp = {"401": pd.concat([climateObsCR['T2'],climateForecast['401']['T2']-273.15]),
-                "402": pd.concat([climateObsCR['T2'],climateForecast['402']['T2']-273.15]),
-                "403": pd.concat([climateObsCR['T2'],climateForecast['403']['T2']-273.15])
+    air_temp = {"401": pd.concat([remove_nas(climateObsCR['T2']),climateForecast['401']['T2']-273.15]),
+                "402": pd.concat([remove_nas(climateObsCR['T2']),climateForecast['402']['T2']-273.15]),
+                "403": pd.concat([remove_nas(climateObsCR['T2']),climateForecast['403']['T2']-273.15])
      }
     
     logger.info(print_df(air_temp['401']))
@@ -703,9 +717,9 @@ def genclimatefiles(forecastDate, whichbay):
             np.square(climateForecast[zone]['V10'])
         )
         if zone == '403':
-            windspd[zone] = pd.concat([(climateObsCR['WSPEED'] * 0.75), windspd[zone]])
+            windspd[zone] = pd.concat([(remove_nas(climateObsCR['WSPEED']) * 0.75), windspd[zone]])
         else:
-            windspd[zone] = pd.concat([(climateObsCR['WSPEED'] * 0.65), windspd[zone]])
+            windspd[zone] = pd.concat([(remove_nas(climateObsCR['WSPEED']) * 0.65), windspd[zone]])
 
         #  a bit of trig to map the wind vector components into a direction
         #  𝜙 =180+(180/𝜋)*atan2(𝑢,𝑣)
@@ -713,7 +727,7 @@ def genclimatefiles(forecastDate, whichbay):
                 climateForecast[zone]['U10'],
                 climateForecast[zone]['V10']
             ) * 180 / np.pi
-        winddir[zone] = pd.concat([climateObsCR['WDIR'], winddir[zone]])
+        winddir[zone] = pd.concat([remove_nas(climateObsCR['WDIR']), winddir[zone]])
 
         logger.info(f'WINDSP for zone {zone}')
         logger.info(print_df(windspd[zone]))        
@@ -776,8 +790,9 @@ def genclimatefiles(forecastDate, whichbay):
     #     rhum_temp[rhum_temp>1] = 1
     #     rhum_temp[rhum_temp<0] = 0
     #     rhum[zone] = rhum_temp
-    rhum= {}
-    rhum['0'] = pd.concat([climateObsCR['RH2'] * .01, climateForecast['403']['RH2'] * .01])
+    rhum = {}
+    rhum['0'] = pd.concat([remove_nas(climateObsCR['RH2']) * .01, climateForecast['403']['RH2'] * .01])   
+    
     logger.info(f'RH2')
     logger.info(print_df(rhum['0']))
 
@@ -818,7 +833,7 @@ def genclimatefiles(forecastDate, whichbay):
         filename = f'SOLAR_{zone}.dat'
         logger.info('Generating Short Wave Radiation File: '+filename)
         
-        swdown_series = seriesIndexToOrdinalDate(pd.concat([climateObsCR['SWDOWN'], climateForecast[zone]['SWDOWN']]))
+        swdown_series = seriesIndexToOrdinalDate(pd.concat([remove_nas(climateObsCR['SWDOWN']), climateForecast[zone]['SWDOWN']]))
         logger.info(f'SWDOWN for zone {zone}')
         logger.info(print_df(swdown_series))
         
