@@ -2,8 +2,9 @@ import requests
 import json
 import pandas as pd
 import numpy as np
-import datetime
+import datetime as dt
 from datetime import date
+from lib import *
 
 def splitsky ( instring ) :
 	thestring = str(instring)
@@ -32,29 +33,37 @@ def create_final_df(df, colToKeep, index):
 	return pd.DataFrame(data={colToKeep: df[colToKeep].to_numpy()}, index=pd.DatetimeIndex(data=pd.to_datetime(df[index]), name='time'))
 
 def retrieve_data(startDate, endDate, variable):
-	requeststring = 'https://www.ncei.noaa.gov/access/services/data/v1/'+\
-							'?dataset=local-climatological-data'+\
-							'&stations=72617014742'+\
-							'&startDate='+\
-								str(startDate)+\
-							'&endDate='+\
-								str(endDate)+\
-							'&dataTypes='+\
-								variable+\
-							'&format=json' 
-	print(requeststring)
-	result = requests.get(requeststring)
+	# put this in loop since this fails frequently
+	resultReceived = False
+	while(not resultReceived):
+		requeststring = 'https://www.ncei.noaa.gov/access/services/data/v1/'+\
+								'?dataset=local-climatological-data'+\
+								'&stations=72617014742'+\
+								'&startDate='+\
+									str(startDate)+\
+								'&endDate='+\
+									str(endDate)+\
+								'&dataTypes='+\
+									variable+\
+								'&format=json' 
+		print(requeststring)
+		result = requests.get(requeststring)
+		if len(result.text) > 10:
+			resultReceived = True
 	
-	# print(result.text)
+	# logger.info('result.text')
+	# logger.info(result.text)
 
 	return pd.DataFrame(result.json())
 	
 
-def get_data () :
+def get_data (ForecastStartDate, SpinupStartDate) :
 
-		endday = date.today()
-		d = datetime.timedelta(days = 90)
-		startday = endday - d
+		# endday = date.today()
+		#d = datetime.timedelta(days = 90)
+		#startday = endday - d
+		endday = ForecastStartDate - dt.timedelta(days=1)
+		startday = SpinupStartDate - dt.timedelta(days=1)
 
 		# requeststring = 'https://www.ncei.noaa.gov/access/services/data/v1/'+\
 		#                         '?dataset=local-climatological-data'+\
@@ -73,8 +82,10 @@ def get_data () :
 		cloud_df = retrieve_data(startday, endday, 'HourlySkyConditions')
 		precip_df = retrieve_data(startday, endday, 'HourlyPrecipitation')
 		
-		# print(cloud_df)
-		# print(precip_df)
+		# logger.info('cloud_df in btv_met')
+		# logger.info(cloud_df)
+		# logger.info('precip_df in btv_met')		
+		# logger.info(precip_df)
 		
 		returnDict = {}
 

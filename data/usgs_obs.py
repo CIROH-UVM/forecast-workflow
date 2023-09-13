@@ -1,18 +1,25 @@
 import requests
 import json
 import pandas as pd
+import datetime as dt
 
 # USGS parameter codes
-# Streamflow: '00060',
-# Gage Height: '00065'
+# https://help.waterdata.usgs.gov/codes-and-parameters/parameters
+# https://help.waterdata.usgs.gov/parameter_cd?group_cd=PHY
+# Streamflow, mean. daily in cubic ft / sec: '00060',
+# Streamflow, instantaneous cubic ft / sec: '00061',
+# Gage Height, feet: '00065'
 
-def USGSstreamflow_function(station_id, parameter, period):
+def USGSstreamflow_function(station_id, parameter, startDate, endDate):
     gage = requests.get('https://waterservices.usgs.gov/nwis/iv/'
                       '?format=json'
                      f'&sites={station_id}'
-                     f'&period={period}'
+#                     f'&period={period}'
+                     f'&startDT={startDate.strftime("%Y-%m-%d")}'
+                     f'&endDT={endDate.strftime("%Y-%m-%d")}'                     
                      f'&parameterCd={parameter}'
                      )
+    #print(gage.text)
     values = gage.json()['value']['timeSeries'][0]['values'][0]['value']
     df = pd.DataFrame(values)
     # print(df)
@@ -21,9 +28,10 @@ def USGSstreamflow_function(station_id, parameter, period):
     # df = df.drop(['dateTime','qualifiers'],axis =1)
     # df.columns = ['streamflow']
     # df.to_csv(station_id+"_flow.csv", sep=',')
-    return pd.DataFrame(data={'streamflow': df['value'].values}, index=pd.to_datetime(df['dateTime']).dt.tz_localize(None))
+    # 'US/Eastern' is the other option, but what about fall daylight savings "fall back"
+    return pd.DataFrame(data={'streamflow': df['value'].values}, index=pd.to_datetime(df['dateTime'], utc=True).dt.tz_convert('Etc/GMT+4').dt.tz_localize(None))
 
-def get_data(station_ids = ['04294000', '04292810', '04292750']):
+def get_data(ForecastStartDate, SpinupStartDate, station_ids = ['04294000', '04292810', '04292750']):
 
     # 04294000 (MS), 04292810 (J-S), 04292750 (Mill)
     parameter = '00060'
@@ -32,6 +40,10 @@ def get_data(station_ids = ['04294000', '04292810', '04292750']):
     returnVal = {}
 
     for station_id in station_ids:
-        returnVal[station_id] = USGSstreamflow_function(station_id, parameter, period)
+        returnVal[station_id] = USGSstreamflow_function(station_id,
+                                                        parameter,
+                                                        SpinupStartDate - dt.timedelta(days=1),
+                                                        ForecastStartDate - dt.timedelta(days=1)
+                                                        )
     
     return returnVal

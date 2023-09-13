@@ -32,12 +32,13 @@ def main():
     #THEBAY = IAMBAY(settings['whichbay'])   # Create Bay Object for Bay specified
     THEBAY = IAMBAY(bayid='ILS')   # Create Bay Object for Bay specified
 
-    # Make today, today at midnight
-    #today = datetime.datetime.combine(datetime.date.today(), datetime.datetime.min.time())
-    today = datetime.datetime(2023,9,9)
+    # Make today and today at midnight
+    #today = datetime.date.today()
+    today = datetime.date(2023,9,12)
+    todayMidnight = datetime.datetime.combine(today, datetime.datetime.min.time())
 
-    THEBAY.FirstDate = datetimeToOrdinal(today - datetime.timedelta(days=90))
-    THEBAY.LastDate = datetimeToOrdinal(today + datetime.timedelta(days=7))
+    THEBAY.FirstDate = datetimeToOrdinal(datetime.datetime.combine(datetime.date(2023,1,2), datetime.datetime.min.time()))
+    THEBAY.LastDate = datetimeToOrdinal(todayMidnight + datetime.timedelta(days=7))
 
     ## Need dataframes for hydrology from Missisquoi, Mill, JewittStevens
     
