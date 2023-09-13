@@ -183,7 +183,7 @@ def genwqfiles (theBay):
         generate_file_from_template(templateFile,
                                     os.path.splitext(templateFile)[0]+'.dat',
                                     theBay,
-                                    {'year': theBay.FirstDate[0:5]})
+                                    {'year': theBay.FirstDate[0:4]})
     #
     # End of Phyto File Generation
     #
