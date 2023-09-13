@@ -1047,8 +1047,13 @@ def gentracerfiles(theBay):
     #
 
 
-def gencntlfile(theBay):
+def gencntlfile(forecastDate, theBay):
 
+    # Calculate iterations
+    iterations = int((forecastDate - dt.date(2023,1,2)).total_seconds() / 300)
+
+    logger.info(f'Configuring AEM3D to run {iterations} iterations')
+    
     with open(os.path.join(theBay.template_dir, 'aem3dcntl.template.txt'), 'r') as file:
         template = Template(file.read())
 
@@ -1059,7 +1064,7 @@ def gencntlfile(theBay):
             'start_date': theBay.FirstDate,
             # number of 300s steps in a 364 days (year minus 1 day, because 1st day is a start, not a step)
             # 27936 for 97 days (97*24*12)
-            'iter_max': 27936
+            'iter_max': iterations
             }))
 
         # update the control file with all generated input files
@@ -1108,6 +1113,6 @@ def AEM3D_prep_IAM(forecastDate, theBay):
     genwqfiles(theBay)
 
     # generate control file
-    gencntlfile(theBay)
+    gencntlfile(forecastDate, theBay)
 
     return 0
