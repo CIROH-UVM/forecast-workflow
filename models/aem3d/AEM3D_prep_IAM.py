@@ -555,7 +555,14 @@ def genclimatefiles(forecastDate, whichbay):
         # logger.info(print_df(climateForecast[zone]['RAIN']))
         
         # ['RAIN'] for BTV to get to a series
-        bay_rain[zone] = pd.concat([climateObsBTV['RAIN']['RAIN'],climateForecast[zone]['RAIN']])
+        # AEM3D wants meters/day
+        # BTV is in inches/hr so thats * 24 to get hr -> day and * 0.0254 to convert inches to meters
+        #   for a total of 0.6096
+        #   LCD Ref: https://www.ncei.noaa.gov/pub/data/cdo/documentation/LCD_documentation.pdf
+        # GFS is in kg/m^2/s. kg/m^2 is mm, so really mm/s. To convert, * 86400 to get sec -> day,
+        #   and / 1000 to get mm to m, so, in all, * 86.4
+        #   GFS Ref: https://www.nco.ncep.noaa.gov/pmb/products/gfs/gfs.t00z.pgrb2.0p25.f003.shtml
+        bay_rain[zone] = pd.concat([climateObsBTV['RAIN']['RAIN'] * 0.6096, climateForecast[zone]['RAIN'] * 86.4])
 
         ################################
         ## Resampling was an ok idea, but let's try reindexing temp to rain first -- see below
