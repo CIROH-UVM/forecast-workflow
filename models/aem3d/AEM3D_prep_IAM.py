@@ -633,7 +633,9 @@ def genclimatefiles(forecastDate, whichbay):
     # Write Precip Files for Bay
     #
     for zone in bay_rain.keys():
-        filename = f'PRECIP_{zone}.dat'
+        #################################
+        # Hardcode zone to 0 for now... only one precip station
+        filename = f'PRECIP_0.dat'
         logger.info('Generating Bay Precipitation File: '+filename)
 
         with open(os.path.join(THEBAY.infile_dir, filename), mode='w', newline='') as output_file:
