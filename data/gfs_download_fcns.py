@@ -39,7 +39,7 @@ def aggregate_df_dict(dates = [], hours = [], loc_dict = {}):
             vars_df = merge_subgrib_dfs(df_list, hour_file)
             extract_locs(vars_df, loc_dict, data_dict)
             print("successfully merged and extracted loc data from subgribs\n")
-        os.chdir('../../../')
+        os.chdir(fc_data_dir)
     os.chdir(origDir)
     return data_dict
 
@@ -90,12 +90,16 @@ def extract_subgrib(fname = '', args = {}):
 
 ### Creates a list of forecast dates to download
 # -- start_date : first date of forecast data to download
+# ---- should be a string in the format 'YYYYMMDD' or a datetime object
 # -- num_dates : the number of dates ahead or behind the start date you want to download
 # -- cast : str switch that determines whether to grab n dates ahead ("fore") or behind ("hind")
-def generate_date_strings(start_date, num_dates, cast="fore"):
+def generate_date_strings(start_date, num_dates = 1, cast="fore"):
     date_strings = []
-    current_date = datetime.strptime(start_date, "%Y%m%d")
-
+    # if not a datetime object, convert start_date to one
+    if not isinstance(start_date, datetime):
+        # strptime(str, format) converts a string to a datetime object
+        current_date = datetime.strptime(start_date, "%Y%m%d")
+    else: current_date = start_date
     for _ in range(num_dates):
         date_strings.append(current_date.strftime("%Y%m%d"))
         if cast == "hind":
@@ -127,22 +131,15 @@ def get_subgrib_df_list(fname = ''):
 
 
 ### Creates a list of forecast hours to be downloaded
-# -- num_days : how many days out of forecast data you want to download (i.e. 5, 7, 10, etc)
-# - may want to change this fcn so that it can generate a more precise hour list (i.e. specify how many hours out you want fc data)
-def generate_hours_list(num_days):
-    hours_list = []
-    hour = 0
-    hours_list.append(f"{hour:03}")
-    for day in range(1, num_days+1):
-        if day <= 5:
-            for h in range(24):
-                hour += 1
-                hours_list.append(f"{hour:03}")
-        else:
-            for h in range(8):
-                hour += 3
-                hours_list.append(f"{hour:03}")
-    return hours_list
+# -- num_hours: how many hours of forecast data you want: note that date goes up to 16 days out
+# -- archive: boolean flag indicating if data is going to be pulled from archives; if true returns only step = 3 list
+def generate_hours_list(num_hours = 168, archive = False):
+    if archive:
+        return [f"{hour:03}" for hour in range(0, num_hours+1, 3)]
+    if not archive:
+        if num_hours <= 120:
+            return [f"{hour:03}" for hour in range(0,num_hours+1)]
+        else: return [f"{hour:03}" for hour in range(0,120)] + [f"{hour:03}" for hour in range(120, num_hours+1, 3)]
 
 def merge_subgrib_dfs(df_list = [], fname = ''):
     cols_to_keep = ['2 metre temperature, K',
@@ -183,8 +180,10 @@ def merge_subgrib_dfs(df_list = [], fname = ''):
 # -- dates : list of forecast dates to download
 # -- hours : list of forecast hours to download
 def pull_gribs(dates = generate_date_strings('20230828',1), hours = generate_hours_list(0)):
+    
     # make the subdirectory for the raw data
     if not os.path.exists(fc_data_dir): os.makedirs(fc_data_dir)
+    origDir = os.getcwd()
     os.chdir(fc_data_dir)
     
     for d in dates:
@@ -200,8 +199,8 @@ def pull_gribs(dates = generate_date_strings('20230828',1), hours = generate_hou
                     print(path, end="")
                 print("Download Complete:",date_dir+fc_file+h,"\n")
                 # pull_call = sp.run(['curl', '-O', hour_url], capture_output = True, check = True)
-        os.chdir('../../../')
-    os.chdir('../')
+        os.chdir(fc_data_dir)
+    os.chdir(origDir)
     return
 
 
