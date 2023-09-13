@@ -87,11 +87,11 @@ class IAMBAY:
                 '202': {'name': 'MissisquoiRiverNE', 'wshed': 'msflow', 'prop': 0.15},
                 '203': {'name': 'MissisquoiRiverCE', 'wshed': 'msflow', 'prop': 0.14},
                 '204': {'name': 'MissisquoiRiverNW', 'wshed': 'msflow', 'prop': 0.14},
-                '21':  {'name': 'RockRiver',         'wshed': 'msflow', 'prop': 0.038},   # .03 of Total Miss Bay Inflow
-                '22':  {'name': 'PikeRiver',         'wshed': 'msflow', 'prop': 0.228}    # .18 of Total Miss Bay Inflow
+                '21':  {'name': 'RockRiver',         'wshed': 'msflow', 'prop': 0.038},     # .03 of Total Miss Bay Inflow
+                '22':  {'name': 'PikeRiver',         'wshed': 'msflow', 'prop': 0.228}      # .18 of Total Miss Bay Inflow
             },
             'STA': {
-                '17': {'name': 'MillRiver', 'wshed': 'mlflow', 'prop': 1.0},               # millriver flow
+                '17': {'name': 'MillRiver', 'wshed': 'mlflow', 'prop': 1.0},                # Mill River flow
                 '19': {'name': 'JewettStevens', 'wshed': 'jsflow', 'prop': 1.0}             # JewettStevens flow
             },
             'ILS': {
@@ -99,10 +99,10 @@ class IAMBAY:
                 '202': {'name': 'MissisquoiRiverNE', 'wshed': 'msflow', 'prop': 0.15},
                 '203': {'name': 'MissisquoiRiverCE', 'wshed': 'msflow', 'prop': 0.14},
                 '204': {'name': 'MissisquoiRiverNW', 'wshed': 'msflow', 'prop': 0.14},
-                '21':  {'name': 'RockRiver',         'wshed': 'msflow', 'prop': 0.038},   # .03 of Total Miss Bay Inflow
+                '21':  {'name': 'RockRiver',         'wshed': 'msflow', 'prop': 0.038},    # .03 of Total Miss Bay Inflow
                 '22':  {'name': 'PikeRiver',         'wshed': 'msflow', 'prop': 0.228},    # .18 of Total Miss Bay Inflow
-                '17':  {'name': 'MillRiver',         'wshed': 'mlflow', 'prop': 1.0},    #  about 1/3 volume of Rock
-                '19':  {'name': 'JewettStevens',     'wshed': 'jsflow', 'prop': 1.0}     #  about the volume of Rock
+                '17':  {'name': 'MillRiver',         'wshed': 'mlflow', 'prop': 1.0},      #  about 1/3 volume of Rock
+                '19':  {'name': 'JewettStevens',     'wshed': 'jsflow', 'prop': 1.0}       #  about the volume of Rock
             }
         }
 

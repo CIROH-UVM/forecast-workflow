@@ -28,7 +28,7 @@ import pandas as pd
 import numpy as np
 import glob
 import os
-import datetime
+import datetime as dt
 
 
 def print_df(df):
@@ -54,7 +54,7 @@ def datetimeToOrdinal(date):
     totseconds = date.hour * 3600 + \
                  date.minute * 60 + \
                  date.second
-    fracsec = totseconds / datetime.timedelta(days=1).total_seconds()  #Fraction of the day's seconds
+    fracsec = totseconds / dt.timedelta(days=1).total_seconds()  #Fraction of the day's seconds
 
     ordinaldate = yearday + str(fracsec)[1:6].ljust(5,'0')  # add the percentage seconds since noon
     return ordinaldate
@@ -202,7 +202,9 @@ def getflowfiles(forecastDate, whichbay):
     ######### TODO: Instead of from file below, get from data gathering functions
     
     # dict by id: 04294000 (MS), 04292810 (J-S), 04292750 (Mill)
-    observedUSGS = usgs_obs.get_data(station_ids = ['04294000', '04292810', '04292750'])
+    observedUSGS = usgs_obs.get_data(ForecastStartDate=forecastDate,
+                                     SpinupStartDate=dt.date(2023,1,2),
+                                     station_ids = ['04294000', '04292810', '04292750'])
     forecastNWM = nwm_forecast.get_data(ForecastStartDate = forecastDate.strftime('%Y%m%d'),
                                        ForecastStartTimestep = '00',
                                        download_base_path = '/data/forecastData/NWM'
@@ -211,10 +213,15 @@ def getflowfiles(forecastDate, whichbay):
     # logger.info(observedUSGS)
     # logger.info(forecastNWM)
     
-    # Need to adjust for column names
+    # Need to adjust for column names and convert from ft / s to m / s
     flowdf = pd.concat([observedUSGS['04294000'], forecastNWM['MS']]).rename_axis('time').astype('float')
     mlflow = pd.concat([observedUSGS['04292750'], forecastNWM['Mill']]).rename_axis('time').astype('float')
     jsflow = pd.concat([observedUSGS['04292810'], forecastNWM['J-S']]).rename_axis('time').astype('float')
+
+    # Convert from cubic ft / s to cubic m / s
+    flowdf = flowdf * 0.0283168
+    mlflow = mlflow * 0.0283168
+    jsflow = jsflow * 0.0283168
 
     # logger.info(flowdf)
     # logger.info(mlflow)
@@ -273,7 +280,6 @@ def getflowfiles(forecastDate, whichbay):
     THEBAY.LastDate = flowdf['ordinaldate'].iloc[-1]
     '''
 
-    ############## Hopefully, units converted... but, need to rename columns
     flowdf.columns = ['msflow']
     ## Have to merge the other two because USGS sometimes doesn't return all dates for all gauges
     jsflow.columns = ['jsflow']
@@ -328,9 +334,10 @@ def getflowfiles(forecastDate, whichbay):
     #       sourcemap defines the source name and proportion of hydromodel output flow
     for baysource in THEBAY.sourcelist :
         logger.info('Generating Bay Source File for Id: '+baysource)
-        bs_prop = THEBAY.sourcemap[baysource]['prop']       # proportion of input file for this source
-        wshed = THEBAY.sourcemap[baysource]['wshed']        # get column name of watershed flow source for this stream
-        flowdf[baysource] = flowdf[wshed] * bs_prop          # scale source from hydromodel flow (some are split)
+        bs_prop = THEBAY.sourcemap[baysource]['prop']           # proportion of input file for this source
+        wshed = THEBAY.sourcemap[baysource]['wshed']            # get column name of watershed flow source for this stream
+        flowdf[baysource] = flowdf[wshed] * bs_prop             # scale source from hydromodel flow (some are split)
+        flowdf.loc[flowdf[baysource] < 0.01, baysource] = 0.01  # Prevent very small / negative flows (was happening for Mill River)
         bs_name = THEBAY.sourcemap[baysource]['name']
         filename = bs_name + '_Flow.dat'
         logger.info('Bay Source File to Generate: '+filename)
@@ -377,28 +384,36 @@ def genclimatefiles(forecastDate, whichbay):
     #
     logger.info('Processing Meterological Data')
 
-    ######################## Have to get new climate
-
+    climateObsBTV = btv_met.get_data(ForecastStartDate=forecastDate,
+                                     SpinupStartDate=dt.date(2023,1,2)
+                                     )
+    # climateObsBTV = {'TCDC': pd.DataFrame(data={'TCDC': [.50, .75, .25, .50]},
+    #                                       index=pd.DatetimeIndex(data=pd.date_range('2021-09-08 20:45:00', periods=4, freq='H'), name='time')),
+    #                  'RAIN': pd.DataFrame(data={'RAIN': [.5, .3, .1, 0.0]},
+    #                                       index=pd.DatetimeIndex(data=pd.date_range('2021-09-08 20:00:00', periods=4, freq='H'), name='time'))
+    #                 }
+    
+    climateObsCR = colchester_reef_met.get_data(ForecastStartDate=forecastDate,
+                                                SpinupStartDate=dt.date(2023,1,2)
+                                                ).rename_axis('time')
+    
     # dates = gfs_download_fcns.generate_date_strings(forecastDate.strftime('%Y%m%d'), 1)
+    # Add [0:2] to generate_hours_list(7) to run shorter test model
     climateForecast = gfs_download_fcns.get_data(dates = [forecastDate.strftime('%Y%m%d')], 
-                                                 hours = gfs_download_fcns.generate_hours_list(7)[0:2],
+                                                 hours = gfs_download_fcns.generate_hours_list(7),
                                                  loc_dict = {'401': (45.00, -73.25),
                                                              '402': (44.75, -73.25),
                                                              '403': (44.75, -73.25)})
     for zone in climateForecast.keys():
         climateForecast[zone] = climateForecast[zone].rename_axis('time').astype('float')
         climateForecast[zone].to_csv(f'/data/forecastData/gfs{zone}.csv')
-    climateObsBTV = btv_met.get_data()
-    # climateObsBTV = {'TCDC': pd.DataFrame(data={'TCDC': [.50, .75, .25, .50]},
-    #                                       index=pd.DatetimeIndex(data=pd.date_range('2021-09-08 20:45:00', periods=4, freq='H'), name='time')),
-    #                  'RAIN': pd.DataFrame(data={'RAIN': [.5, .3, .1, 0.0]},
-    #                                       index=pd.DatetimeIndex(data=pd.date_range('2021-09-08 20:00:00', periods=4, freq='H'), name='time'))
-    #                 }
-    climateObsCR = colchester_reef_met.get_data().rename_axis('time')
 
-    logger.info(print_df(climateForecast['401']))
+    logger.info('BTV Data')
     logger.info(print_df(climateObsBTV['TCDC']))
+    logger.info('Colchester Data')
     logger.info(print_df(climateObsCR))
+    logger.info('GFS Data (Zone 401)')
+    logger.info(print_df(climateForecast['401']))
 
     '''
     climate = [
@@ -516,16 +531,35 @@ def genclimatefiles(forecastDate, whichbay):
     for zone in ['403']:
         ###bay_rain[zone] = climate['RAIN'][zone] * 24 / 1000.0     # want daily cummulative rate in meters
         
-        logger.info('BTV Rain')
-        logger.info(print_df(climateObsBTV['RAIN']))
+        # logger.info('BTV Rain')
+        # logger.info(print_df(climateObsBTV['RAIN']))
         
-        logger.info('GFS Rain')
-        logger.info(print_df(climateForecast[zone]['RAIN']))
+        # logger.info('GFS Rain')
+        # logger.info(print_df(climateForecast[zone]['RAIN']))
         
-        # 2 ['RAIN'] for BTV to get to a series
+        # ['RAIN'] for BTV to get to a series
         bay_rain[zone] = pd.concat([climateObsBTV['RAIN']['RAIN'],climateForecast[zone]['RAIN']])
+
+        ################################
+        ## Resampling was an ok idea, but let's try reindexing temp to rain first -- see below
+        # logger.info('Rain before resample')
+        # logger.info(print_df(bay_rain[zone]))
+        # # Need to nudge rain series to even hour... let's try resample first
+        # bay_rain[zone] = bay_rain[zone].resample('H').mean()
+        # logger.info('Rain after resample')
+        # logger.info(print_df(bay_rain[zone]))        
         
-        TEMP = air_temp[zone]
+        # logger.info('Air Temp before resample')
+        # logger.info(print_df(air_temp[zone]))
+        # # Colchester Reef Temp is every 15 minutes... but rain is hourly, so resample to hour... GFS forecast should stay the same
+        # TEMP = air_temp[zone].resample('H').mean()
+        # logger.info('Air Temp after resample')
+        # logger.info(print_df(TEMP))
+        #########################################
+        TEMP = air_temp[zone].reindex(bay_rain[zone].index, method='nearest')
+
+        logger.info('TEMP after reindex')
+        logger.info(print_df(TEMP))
 
         # Original Try: Use https://www.ncdc.noaa.gov/sites/default/files/attachments/Estimating_the_Water_Equivalent_of_Snow.pdf
         #   and fit a quadratic regression through it
@@ -565,12 +599,9 @@ def genclimatefiles(forecastDate, whichbay):
 
         # bay_snow[zone] = bay_rain[zone] * snowcoeff
         
-        logger.info('bay_snow')
-        logger.info(print_df(bay_snow[zone]))
-        
         # If too warm, no snow - Use -2.0 C to get mean snowfall for 2017-2020 close to calibration data
         #  NOAA table above uses 34 F (1.1 C)
-        bay_snow[zone].loc[air_temp['403'] > -2.0] = 0.0
+        bay_snow[zone].loc[TEMP > -2.0] = 0.0
         # In the WQS AEM3D calibration SNOW / RAIN data, RAIN looks like snow equivalent
         #   and SNOW is depth of snow, so we should have values for both when it snows
         # bay_rain[zone].loc[bay_snow[zone] > 0.0] = 0.0
@@ -580,6 +611,10 @@ def genclimatefiles(forecastDate, whichbay):
         # print('Rain Stats for zone ', zone)
         # print(bay_rain[zone].describe(percentiles=[]))
 
+        logger.info('bay_snow before write')
+        logger.info(print_df(bay_snow[zone]))        
+        logger.info('bay_rain before write')
+        logger.info(print_df(bay_rain[zone]))  
     #
     # Write Precip Files for Bay
     #
@@ -742,7 +777,7 @@ def genclimatefiles(forecastDate, whichbay):
     #     rhum_temp[rhum_temp<0] = 0
     #     rhum[zone] = rhum_temp
     rhum= {}
-    rhum['0'] = pd.concat([climateObsCR['RH2'], climateForecast['403']['RH2']])
+    rhum['0'] = pd.concat([climateObsCR['RH2'] * .01, climateForecast['403']['RH2'] * .01])
     logger.info(f'RH2')
     logger.info(print_df(rhum['0']))
 
@@ -893,9 +928,11 @@ def genclimatefiles(forecastDate, whichbay):
     logger.info(lakeLevel_df['LakeLevel_delta'].describe(percentiles=[]))
 
     ################### Fixing Lake_Level
-    lakeLevel_df = pd.DataFrame({'LakeLevel_delta': [1.0, 1.0],
-                                 'ordinaldate': [THEBAY.FirstDate, THEBAY.LastDate]},
-                                )
+    #### No longer needed... Conversion of streamflow from cubic ft / s to cubic m / s fixed this
+    # lakeLevel_df = pd.DataFrame({'LakeLevel_delta': [1.0, 1.0],
+    #                              'ordinaldate': [THEBAY.FirstDate, THEBAY.LastDate]},
+    #                             )
+    #####################################
 
     filename = 'Lake_Level.dat'
     logger.info('Writing Lake Level File '+filename)
