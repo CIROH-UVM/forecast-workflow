@@ -412,18 +412,24 @@ def genclimatefiles(forecastDate, whichbay):
     # dates = gfs_download_fcns.generate_date_strings(forecastDate.strftime('%Y%m%d'), 1)
     # Add [0:2] to generate_hours_list(7) to run shorter test model
 
-    # climateForecast = gfs_download_fcns.get_data(dates = [forecastDate.strftime('%Y%m%d')], 
-    #                                              hours = gfs_download_fcns.generate_hours_list(7),
-    #                                              loc_dict = {'401': (45.00, -73.25),
-    #                                                          '402': (44.75, -73.25),
-    #                                                          '403': (44.75, -73.25)})
-    # for zone in climateForecast.keys():
-    #     climateForecast[zone] = climateForecast[zone].rename_axis('time').astype('float')
-    #     climateForecast[zone].to_csv(f'/data/forecastData/gfs{zone}.csv')
+    ############## Use this bit to load forecast climate from original GRIB files and create .csvs for quick loading later
+    climateForecast = gfs_download_fcns.get_data(dates = [forecastDate.strftime('%Y%m%d')], 
+                                                 hours = gfs_download_fcns.generate_hours_list(7),
+                                                 loc_dict = {'401': (45.00, -73.25),
+                                                             '402': (44.75, -73.25),
+                                                             '403': (44.75, -73.25)})
+    for zone in climateForecast.keys():
+        climateForecast[zone] = climateForecast[zone].rename_axis('time').astype('float')
+        climateForecast[zone].to_csv(f'/data/forecastData/gfs/raw_fc_data/gfs.{forecastDate.strftime("%Y%m%d")}/gfs{zone}.csv')
+    ##############
 
-    climateForecast = {}
-    for zone in ['401', '402', '403']:
-        climateForecast[zone] = pd.read_csv(f'/data/forecastData/gfs{zone}.csv', index_col='time', parse_dates=True)
+    ############## Use this bit to load forecast climate from .csvs previously created above
+    # climateForecast = {}
+    # for zone in ['401', '402', '403']:
+    #     climateForecast[zone] = pd.read_csv(f'/data/forecastData/gfs/raw_fc_data/gfs.{forecastDate.strftime("%Y%m%d")}/gfs{zone}.csv',
+    #                                         index_col='time',
+    #                                         parse_dates=True)
+    ##############
 
     logger.info('BTV Data')
     logger.info(print_df(climateObsBTV['TCDC']))
@@ -1049,8 +1055,8 @@ def gentracerfiles(theBay):
 
 def gencntlfile(forecastDate, theBay):
 
-    # Calculate iterations
-    iterations = int((forecastDate - dt.date(2023,1,2)).total_seconds() / 300)
+    # Calculate iterations: Time between forecast date and spinup start + 7 more days
+    iterations = int((forecastDate - dt.date(2023,1,2)).total_seconds() / 300) + (7 * 24 * 12)
 
     logger.info(f'Configuring AEM3D to run {iterations} iterations')
     

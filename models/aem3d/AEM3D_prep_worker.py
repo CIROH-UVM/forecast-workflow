@@ -34,7 +34,7 @@ def main():
 
     # Make today and today at midnight
     #today = datetime.date.today()
-    today = datetime.date(2023,9,12)
+    today = datetime.date(2023,9,13)
     todayMidnight = datetime.datetime.combine(today, datetime.datetime.min.time())
 
     THEBAY.FirstDate = datetimeToOrdinal(datetime.datetime.combine(datetime.date(2023,1,2), datetime.datetime.min.time()))
