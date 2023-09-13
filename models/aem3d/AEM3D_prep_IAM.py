@@ -227,6 +227,10 @@ def getflowfiles(forecastDate, whichbay):
     mlflow = pd.concat([observedUSGS['04292750'], forecastNWM['Mill']]).rename_axis('time').astype('float')
     jsflow = pd.concat([observedUSGS['04292810'], forecastNWM['J-S']]).rename_axis('time').astype('float')
 
+    # Fix Mill... it seems to have some negative sensor readings
+    #temp = mlflow[mlflow > 0]
+    mlflow =  mlflow[mlflow['streamflow'] >= 0].reindex(flowdf.index, method='nearest')
+
     # Convert from cubic ft / s to cubic m / s
     flowdf = flowdf * 0.0283168
     mlflow = mlflow * 0.0283168
@@ -346,7 +350,6 @@ def getflowfiles(forecastDate, whichbay):
         bs_prop = THEBAY.sourcemap[baysource]['prop']           # proportion of input file for this source
         wshed = THEBAY.sourcemap[baysource]['wshed']            # get column name of watershed flow source for this stream
         flowdf[baysource] = flowdf[wshed] * bs_prop             # scale source from hydromodel flow (some are split)
-        flowdf.loc[flowdf[baysource] < 0.01, baysource] = 0.01  # Prevent very small / negative flows (was happening for Mill River)
         bs_name = THEBAY.sourcemap[baysource]['name']
         filename = bs_name + '_Flow.dat'
         logger.info('Bay Source File to Generate: '+filename)
