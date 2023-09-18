@@ -1,4 +1,4 @@
-from .gfs_download_fcns import *
+from gfs_download_fcns import *
 
 # locations to pull forcast data for
 loc_dict = {'401':(45.0, -73.25),
@@ -30,14 +30,13 @@ loc_dict = {'401':(45.0, -73.25),
 
 ### RUN PARAMS
 # home directory in which to run the program and store data
-run_dir = '/netfiles/ciroh/nbeckage/gfs_data/'
+run_dir = "/data/forecastData/gfs/"
 if not os.path.exists(run_dir): os.makedirs(run_dir)
 os.chdir(run_dir)
 
 # determine dates for which to get forecast data
-# date_str = datetime.today().strftime("%Y%m%d")
-date_str = '20230906'
-dates = generate_date_strings(date_str,2)
+date_str = datetime.today().strftime("%Y%m%d")
+dates = generate_date_strings(date_str,1)
 
 # determine how many days worth of forecasts to get
 hours = generate_hours_list(7)[0:3]
@@ -82,7 +81,7 @@ hours = generate_hours_list(7)[0:3]
 # pull_gribs(dates, hours)
 
 # 2. open each grib2 file, read the dataframes, merge them, and then return a dict of dfs for each station
-master_dict = aggregate_df_dict(dates, hours, loc_dict)
+master_dict = aggregate_df_dict()
 
 # 3. write out csv's for each dataframe in master_dict
-dict_to_csv(loc_dict, master_dict)
+dict_to_csv(loc_dict, master_dict) 
