@@ -20,8 +20,8 @@ location_data_dir = "loc_data/"
 
 
 # Define alias for aggreate_df_dict
-def get_data(dates=[], hours=[], loc_dict={}):
-    return aggregate_df_dict(dates, hours, loc_dict)
+def get_data(files, dates, loc_dict):
+    return aggregate_df_dict(files, dates, loc_dict)
 
 
 def aggregate_df_dict(
