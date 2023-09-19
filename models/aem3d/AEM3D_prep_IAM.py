@@ -413,11 +413,10 @@ def genclimatefiles(forecastDate, whichbay):
     # Add [0:2] to generate_hours_list(7) to run shorter test model
 
     ############## Use this bit to load forecast climate from original GRIB files and create .csvs for quick loading later
-    climateForecast = gfs_download_fcns.get_data(dates = [forecastDate.strftime('%Y%m%d')], 
-                                                 hours = gfs_download_fcns.generate_hours_list(7),
-                                                 loc_dict = {'401': (45.00, -73.25),
-                                                             '402': (44.75, -73.25),
-                                                             '403': (44.75, -73.25)})
+    climateForecast = gfs_download_fcns.get_data(forecast_date=forecastDate,
+                                                 location_dict={'401': (45.00, -73.25),
+                                                                '402': (44.75, -73.25),
+                                                                '403': (44.75, -73.25)})
     for zone in climateForecast.keys():
         climateForecast[zone] = climateForecast[zone].rename_axis('time').astype('float')
         climateForecast[zone].to_csv(f'/data/forecastData/gfs/raw_fc_data/gfs.{forecastDate.strftime("%Y%m%d")}/gfs{zone}.csv')

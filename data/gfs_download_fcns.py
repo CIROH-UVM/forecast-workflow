@@ -20,8 +20,13 @@ location_data_dir = "loc_data/"
 
 
 # Define alias for aggreate_df_dict
-def get_data(files, dates, loc_dict):
-    return aggregate_df_dict(files, dates, loc_dict)
+def get_data(forecast_date = datetime.today(),
+             location_dict = {"401": (45.0, -73.25),
+                              "402": (44.75, -73.25),
+                              "403": (44.75, -73.25)
+                             }
+):
+    return aggregate_df_dict(dates = [forecast_date.strftime("%Y%m%d")], loc_dict = location_dict)
 
 
 def aggregate_df_dict(
@@ -87,7 +92,7 @@ def aggregate_df_dict(
             )
             total_ds_list.append(ds)
 
-        print("succesfully opened all gribs")
+        print("successfully opened all gribs")
         # enumerate through arg_vars again to only keep the vars we want from each arg combo
         total_filtered_ds_list = []
 
@@ -109,19 +114,22 @@ def aggregate_df_dict(
         ).drop_vars(drop_coords)
         # convert to a dataframe and drop the time column - we only need valid_time, which contains the time series
         final_df = final_ds.to_dataframe().drop("time", axis=1)
+        # Rename valid_time (already an index, along with latitude) to time
+        #   to keep consistent with naming in old extraction algorithm
+        final_df.index = final_df.index.set_names('time', level=1)
 
-        print("succesfully aggregated all datasets")
+        print("successfully aggregated all datasets")
 
         # reset index to drop all duplicate rows, then reset and sort index
         final_df = (
             final_df.reset_index()
             .drop_duplicates()
-            .set_index(["valid_time", "latitude", "longitude"])
+            .set_index(["time", "latitude", "longitude"])
             .sort_index()
         )
         # group by unique valid time, lat/long combinations, collapse null values
         final_df = final_df.groupby(
-            ["valid_time", "latitude", "longitude"], as_index=True
+            ["time", "latitude", "longitude"], as_index=True
         ).first()
         # rename columns according to specified variable names
         final_df.columns = [
