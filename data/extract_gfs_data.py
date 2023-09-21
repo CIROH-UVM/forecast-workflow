@@ -81,7 +81,7 @@ hours = generate_hours_list(7)[0:3]
 # pull_gribs(dates, hours)
 
 # 2. open each grib2 file, read the dataframes, merge them, and then return a dict of dfs for each station
-master_dict = aggregate_df_dict()
+master_dict = get_data()
 
 # 3. write out csv's for each dataframe in master_dict
 dict_to_csv(loc_dict, master_dict) 

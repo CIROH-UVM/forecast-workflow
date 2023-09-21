@@ -88,7 +88,7 @@ def aggregate_df_dict(
                 preprocess=preprocess_with_args,
                 combine="nested",
                 concat_dim="valid_time",
-                backend_kwargs={"filter_by_keys": args},
+                backend_kwargs={"indexpath": "", "filter_by_keys": args},
             )
             total_ds_list.append(ds)
 

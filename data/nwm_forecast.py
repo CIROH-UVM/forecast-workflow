@@ -5,7 +5,7 @@ import xarray as xr
 import datetime as dt
 from datetime import datetime, timedelta
 from pathlib import Path
-
+import sh
 
 # StartDate = '20230907'
 StartDate = dt.datetime.now().strftime('%Y%m%d')
@@ -67,9 +67,14 @@ def GetForecastFile(Url, download_path='.'):
     
     print(f'Downloading {FileName}')
     # Lets make the request
-    r = requests.get(Url, allow_redirects=True)
+
+    # using sh.curl:
+    sh.curl('-o', FilePath,'-C','-', Url)
+
+    # using requests.get:
+    # r = requests.get(Url, allow_redirects=True)
     # Time to save the file to the download_dir. 
-    open(FilePath, 'wb').write(r.content)
+    # open(FilePath, 'wb').write(r.content)
     
     return FilePath
 
