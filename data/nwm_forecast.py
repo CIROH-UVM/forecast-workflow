@@ -69,7 +69,7 @@ def GetForecastFile(Url, download_path='.'):
     # Lets make the request
 
     # using sh.curl:
-    sh.curl('-o', FilePath,'-C','-', Url)
+    sh.curl('--silent', '-o', FilePath,'-C','-', Url)
 
     # using requests.get:
     # r = requests.get(Url, allow_redirects=True)

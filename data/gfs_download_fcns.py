@@ -392,7 +392,7 @@ def pull_gribs(
             if not os.path.exists(fc_file + h):
                 print("Downloading file from URL:", hour_url)
                 for path in execute(
-                    ["curl", "--connect-timeout", "120", "-O", hour_url]
+                    ["curl", "--silent", "--connect-timeout", "120", "-O", hour_url]
                 ):
                     print(path, end="")
                 print("Download Complete:", date_dir + fc_file + h, "\n")
