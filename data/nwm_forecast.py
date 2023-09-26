@@ -10,7 +10,7 @@ import sh
 # StartDate = '20230907'
 StartDate = dt.datetime.now().strftime('%Y%m%d')
 StartTimestep = '00'
-forecast_files_path = '/data/forecastData/NWM'
+forecast_files_path = '/data/forecastData/nwm'
 
 ## Example Uses
 #### To Download

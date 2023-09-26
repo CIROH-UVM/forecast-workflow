@@ -216,7 +216,7 @@ def getflowfiles(forecastDate, whichbay):
                                      station_ids = ['04294000', '04292810', '04292750'])
     forecastNWM = nwm_forecast.get_data(ForecastStartDate = forecastDate.strftime('%Y%m%d'),
                                        ForecastStartTimestep = '00',
-                                       download_base_path = '/data/forecastData/NWM'
+                                       download_base_path = '/data/forecastData/nwm'
     )
 
     # logger.info(observedUSGS)
