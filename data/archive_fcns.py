@@ -11,14 +11,19 @@ def archive_forecasts(source = "/data/forecastRuns/", destination = "/netfiles/c
 	print("Forecast archive process initiated")
 	today = datetime.today()
 	past5 = ['7dayforecast-'+(today - timedelta(days=i)).strftime('%Y%m%d') for i in range(past_n)]
-	# navigate to the forecast source dir
-	os.chdir(source)
-	all_dates = glob('7dayforecast-*')
-	to_archive = [date for date in all_dates if date not in past5]
+	
+	#### Old file list method
+	# # navigate to the forecast source dir
+	# os.chdir(source)
+	# all_dates = glob('7dayforecast-*')
+	# to_archive = [date for date in all_dates if date not in past5]
+	#### New file list method
+	to_archive = [file for file in os.listdir(source) if file not in past5]
+	
 	print('the following folders in {} will be moved to {}:\n{}'.format(source, destination, to_archive))
 	for folder in to_archive:
 		print('archiving {}'.format(folder))
-		sh.mv(folder, destination)
+		sh.rsync(folder, destination)
 		print('successfully archived {} in {}'.format(folder, destination))
 	print('Forecast archive process complete')
 	return
@@ -31,15 +36,20 @@ def archive_gfs(source, destination, past_n = 5):
 	print("GFS archive process initiated")
 	today = datetime.today()
 	past5 = ['gfs.'+(today - timedelta(days=i)).strftime('%Y%m%d') for i in range(past_n)]
-	# navigate to the gfs source dir
-	os.chdir(source)
-	# create glob to catch all gfs subfolders
-	all_dates = glob('gfs.*')
-	to_archive = [date for date in all_dates if date not in past5]
+	
+	#### Old file list method
+	# # navigate to the gfs source dir
+	# os.chdir(source)
+	# # create glob to catch all gfs subfolders
+	# all_dates = glob('gfs.*')
+	# to_archive = [date for date in all_dates if date not in past5]
+	#### New file list method
+	to_archive = [file for file in os.listdir(source) if file not in past5]
+
 	print('the following folders in {} will be moved to {}:\n{}'.format(source, destination, to_archive))
 	for folder in to_archive:
 		print('archiving {}'.format(folder))
-		sh.mv(folder, destination)
+		sh.rsync(folder, destination)
 		print('successfully archived {} in {}'.format(folder, destination))
 	print('GFS archive process complete')
 	return
@@ -52,14 +62,19 @@ def archive_nwm(source, destination, past_n = 5):
 	print("NWM archive process initiated")
 	today = datetime.today()
 	past5 = [(today - timedelta(days=i)).strftime('%Y%m%d') for i in range(past_n)]
-	# navigate to the nwm source dir
-	os.chdir(source)
-	all_dates = glob(today.strftime('%Y')+'*')
-	to_archive = [date for date in all_dates if date not in past5]
+	
+	#### Old file list method
+	# # navigate to the nwm source dir
+	# os.chdir(source)
+	# all_dates = glob(today.strftime('%Y')+'*')
+	# to_archive = [date for date in all_dates if date not in past5]
+	#### New file list method
+	to_archive = [file for file in os.listdir(source) if file not in past5]
+
 	print('the following folders in {} will be moved to {}:\n{}'.format(source, destination, to_archive))
 	for folder in to_archive:
 		print('archiving {}'.format(folder))
-		sh.mv(folder, destination)
+		#sh.rsync(folder, destination)
 		print('successfully archived {} in {}'.format(folder, destination))
 	print('NWM archive process complete')
 	return
