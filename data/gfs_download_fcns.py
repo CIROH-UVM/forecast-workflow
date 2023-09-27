@@ -169,6 +169,7 @@ def aggregate_df_dict(
 
         print("successfully merged and extracted loc data to dictionary\n")
 
+        # TODO: Can we remove this os.chdir on the next line?
         os.chdir(fc_data_dir)
     os.chdir(origDir)
     return data_dict
