@@ -29,6 +29,18 @@ def is_num(value):
 #     return '{}-AEM3D-inputs.tar.gz'.format(SCENARIO.id)
 
 def main():
+    prep_path = 'aem3d-run'
+
+    # for i in range(len(sys.argv)):
+    #     if sys.argv[i] == '--aem3d-dir':
+    #         logger.info(f'Setting path to {sys.argv[i+1]}')
+    #         prep_path=sys.argv[i+1]
+
+    # Create prep_path if doesn't exist
+    # if not os.path.exists(prep_path):
+    #     logger.info(f'Creating prep_path at {prep_path}')
+    #     os.makedirs(prep_path)
+    
     #THEBAY = IAMBAY(settings['whichbay'])   # Create Bay Object for Bay specified
     THEBAY = IAMBAY(bayid='ILS')   # Create Bay Object for Bay specified
 
@@ -57,7 +69,6 @@ def main():
     #             pkg_resources.resource_string('workers.prep_aem3d_worker.resources', f).decode('utf-8')
     #         )
 
-    prep_path = 'aem3d-run'
     THEBAY.infile_dir = os.path.join(prep_path, 'infiles')
     THEBAY.template_dir = os.path.join(prep_path, 'TEMPLATES')
     THEBAY.run_dir = prep_path
