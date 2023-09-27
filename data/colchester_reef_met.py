@@ -15,9 +15,9 @@ def get_data(ForecastStartDate, SpinupStartDate):
         #print(scr_df)
 
         #cr_df = pd.concat([hcr_df, scr_df], axis=0, ignore_index=True)   # ignore dupe time indexes (overlap)
-        cr_df = pd.concat([hcr_df, scr_df], axis=0) 
-
-        #print(cr_df)
+        cr_df = pd.concat([hcr_df, scr_df], axis=0)
+        # Drop duplicate time indices from overlap between 2 .csvs -- And sort
+        cr_df = cr_df[~cr_df.index.duplicated(keep='first')].sort_index()
 
         # Before: Keep the last 90 days (24h*4quarters*90days=8640) plus buffer
         # cr_df = cr_df.tail(8800)
