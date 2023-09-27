@@ -30,6 +30,7 @@ import glob
 import os
 import datetime as dt
 
+AEM3D_DEL_T = 240
 
 def print_df(df):
     logger.info('\n'
@@ -1083,18 +1084,37 @@ def gencntlfile(forecastDate, theBay):
             ' sparsedata_aem3d.unf                              3D_data_file\n')
         output_file.write(
             ' usedata_aem3d.unf                             preprocessor_file\n')
-        output_file.write(
-            ' datablock.xml                                     datablock_file\n')
+        # output_file.write(
+        #     ' datablock.xml                                     datablock_file\n')
 
         for f, t in theBay.bayfiles:        # for each filename, filetype
             output_file.write(' '+f+'              '+t+'\n')
 
         output_file.write(
                     '!  End                                                            !\n')
-
-
 # end of control file generation
 
+
+def gendatablockfile(forecastDate, theBay):
+
+    # Calculate 1 hour in iterations
+    hourIter = int(86400 / AEM3D_DEL_T / 24)
+    # Calculate iteration for forecast start: Time between forecast date and spinup start
+    forecastStartIter = int((forecastDate - dt.date(2023,1,2)).total_seconds() / AEM3D_DEL_T) + 1
+
+    logger.info(f'Configuring datablock.xml file')
+    generate_file_from_template('datablock.xml.template',
+                                'datablock.xml',
+                                theBay,
+                                {'hour': hourIter,
+                                 'sixhours': (hourIter * 6),
+                                 'day': (hourIter * 24),
+                                 'spinupEnd': (forecastStartIter - 1),
+                                 'forecastStart': forecastStartIter
+                                },
+                                'datablock_file')
+# end of datablock.xml generation
+ 
 def AEM3D_prep_IAM(forecastDate, theBay):
 
     #logger.info(f'Processing Bay: {theBay.bayid} for year {theBay.year}')
@@ -1116,6 +1136,9 @@ def AEM3D_prep_IAM(forecastDate, theBay):
 
     # generate the water quality files (waterquality.py script)
     genwqfiles(theBay)
+
+    # generate the datablock.xml file
+    gendatablockfile(forecastDate, theBay)
 
     # generate control file
     gencntlfile(forecastDate, theBay)
