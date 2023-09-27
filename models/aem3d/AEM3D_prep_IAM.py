@@ -30,7 +30,8 @@ import glob
 import os
 import datetime as dt
 
-AEM3D_DEL_T = 240
+AEM3D_DEL_T = 300
+USE_GFS_CSVS = False
 
 def print_df(df):
     logger.info('\n'
@@ -1055,8 +1056,10 @@ def gentracerfiles(theBay):
 
 def gencntlfile(forecastDate, theBay):
 
+    # Calculate 1 hour in iterations
+    hourIter = int(86400 / AEM3D_DEL_T / 24)
     # Calculate iterations: Time between forecast date and spinup start + 7 more days
-    iterations = int((forecastDate - dt.date(2023,1,2)).total_seconds() / 300) + (7 * 24 * 12)
+    iterations = int((forecastDate - dt.date(2023,1,2)).total_seconds() / AEM3D_DEL_T) + (7 * 24 * hourIter)
 
     logger.info(f'Configuring AEM3D to run {iterations} iterations')
     
@@ -1068,9 +1071,13 @@ def gencntlfile(forecastDate, theBay):
     with open(pathedfile, 'w') as output_file:
         output_file.write(template.substitute(**{
             'start_date': theBay.FirstDate,
+            'del_t': AEM3D_DEL_T,
             # number of 300s steps in a 364 days (year minus 1 day, because 1st day is a start, not a step)
             # 27936 for 97 days (97*24*12)
-            'iter_max': iterations
+            'iter_max': iterations,
+            'hour': hourIter,
+            'eighthours': (hourIter * 8),
+            'daysthirty': (hourIter * 24 * 30)
             }))
 
         # update the control file with all generated input files
