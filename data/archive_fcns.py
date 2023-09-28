@@ -6,7 +6,7 @@ import sh
 def remove_directories(dirs):
 	for dir in dirs:
 		print('Deleting {}'.format(dir))
-		#sh.rm('-rf', dir)
+		sh.rm('-rf', dir)
 		print('Successfully deleted {}'.format(dir))
 
 
