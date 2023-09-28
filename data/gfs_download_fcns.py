@@ -4,6 +4,7 @@ import glob
 import numpy as np
 import os
 import pandas as pd
+import sh
 import subprocess as sp
 import warnings
 import xarray as xr
@@ -174,19 +175,6 @@ def aggregate_df_dict(
     os.chdir(origDir)
     return data_dict
 
-
-def dict_to_csv(loc_dict={}, location_dataframes={}):
-    # make directory for location data
-    if not os.path.exists(location_data_dir):
-        os.makedirs(location_data_dir)
-    os.chdir(location_data_dir)
-    for station in loc_dict:
-        location = loc_dict[station]
-        filename = f"{station}_{location[0]}_{location[1]}.csv"
-        location_dataframes[station].to_csv(filename)
-    return
-
-
 # pulls just the desired lat/long pairs out of the datasets and isolat
 def concat_locs(ds, loc_dict):
     # initialize empty list to store ds for each station in loc_dict
@@ -200,6 +188,27 @@ def concat_locs(ds, loc_dict):
     concat_stations_ds = xr.concat(station_ds_list, dim="latitude")
     return concat_stations_ds
 
+### calls the curl command to the terminal to download a file from the web
+# -- url (str) [required]: complete url of the file to be downloaded
+# -- file_path (str) [required]: complete* path to the destination file. *should inlcude the desired name of the download file at the end of the path
+# -- silent (bool) [optional]: switch to turn off progress report. Default is false
+def curl(url, file_path, silent = False):
+	if not silent:
+		print(f'Downloading file from: {url}')
+		print(f'\tto destination: {file_path}')
+		# -C - enables curl to pickup download where it left off in case of connection disruption
+	sh.curl('-o',file_path, '-C', '-', url)
+	if not silent: print('Download complete\n')
+
+def dict_to_csv(loc_dict={}, location_dataframes={}):
+    # make directory for location data
+    if not os.path.exists(location_data_dir):
+        os.makedirs(location_data_dir)
+    os.chdir(location_data_dir)
+    for station in loc_dict:
+        location = loc_dict[station]
+        filename = f"{station}_{location[0]}_{location[1]}.csv"
+        location_dataframes[station].to_csv(filename)
 
 def execute(cmd):
     popen = sp.Popen(cmd, stdout=sp.PIPE, universal_newlines=True)
@@ -209,7 +218,6 @@ def execute(cmd):
     return_code = popen.wait()
     if return_code:
         raise sp.CalledProcessError(return_code, cmd)
-    return
 
 
 ### Given the transformed dataframe and a list of lat/long tuples to extract, returns new df containing just the rows for each lat/long pair
@@ -227,7 +235,6 @@ def extract_locs(df, loc_dict={}, location_dataframes={}):
             location_dataframes[station] = pd.concat(
                 [location_dataframes[station], extracted_df]
             )
-    return
 
 
 def extract_subgrib(fname="", args={}):
@@ -400,7 +407,6 @@ def pull_gribs(
                 # pull_call = sp.run(['curl', '-O', hour_url], capture_output = True, check = True)
         os.chdir(fc_data_dir)
     os.chdir(origDir)
-    return
 
 
 ### In-place function that transforms the longitude indices from 0-360 t0 -180-180

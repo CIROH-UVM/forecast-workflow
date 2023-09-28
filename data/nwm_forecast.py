@@ -6,6 +6,7 @@ import datetime as dt
 from datetime import datetime, timedelta
 from pathlib import Path
 import sh
+from gfs_download_fcns import curl
 
 # StartDate = '20230907'
 StartDate = dt.datetime.now().strftime('%Y%m%d')
@@ -69,7 +70,10 @@ def GetForecastFile(Url, download_path='.'):
     # Lets make the request
 
     # using sh.curl:
-    sh.curl('--silent', '-o', FilePath,'-C','-', Url)
+    # sh.curl('--silent', '-o', FilePath,'-C','-', Url)
+
+    # using custom curl fcn:
+    curl(Url, FilePath)
 
     # using requests.get:
     # r = requests.get(Url, allow_redirects=True)
