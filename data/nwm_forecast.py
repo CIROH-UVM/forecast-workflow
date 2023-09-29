@@ -8,6 +8,8 @@ from pathlib import Path
 import sh
 from gfs_download_fcns import curl
 
+# Adapted from python notebooks at https://www.hydroshare.org/resource/5949aec47b484e689573beeb004a2917/
+
 # StartDate = '20230907'
 StartDate = dt.datetime.now().strftime('%Y%m%d')
 StartTimestep = '00'
