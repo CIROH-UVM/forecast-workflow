@@ -15,9 +15,7 @@ gfs_root = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/"
 fc_time = "/00/atmos/"
 fc_file = "gfs.t00z.pgrb2.0p25.f"
 # where the raw grib2 files will be stored
-fc_data_dir = "/data/forecastData/gfs/raw_fc_data/"
-# where any csv files created for each location/station will be stored
-location_data_dir = "loc_data/"
+fc_data_dir = "/data/forecastData/gfs/"
 
 
 # Define alias for aggreate_df_dict
@@ -201,10 +199,6 @@ def curl(url, file_path, silent = False):
 	if not silent: print('Download complete\n')
 
 def dict_to_csv(loc_dict={}, location_dataframes={}):
-    # make directory for location data
-    if not os.path.exists(location_data_dir):
-        os.makedirs(location_data_dir)
-    os.chdir(location_data_dir)
     for station in loc_dict:
         location = loc_dict[station]
         filename = f"{station}_{location[0]}_{location[1]}.csv"
@@ -383,7 +377,7 @@ def preprocesses(ds, date, loc_dict):
 def pull_gribs(
     dates=generate_date_strings("20230828", 1), hours=generate_hours_list(0)
 ):
-    # make the subdirectory for the raw data
+    # make the subdirectory for the gfs data
     if not os.path.exists(fc_data_dir):
         os.makedirs(fc_data_dir)
     origDir = os.getcwd()
