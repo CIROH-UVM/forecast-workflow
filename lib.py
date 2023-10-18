@@ -1,4 +1,5 @@
 import os
+import sh
 import sys
 import logging, logging.config
 from contextlib import contextmanager
@@ -252,6 +253,31 @@ def get_calling_package():
     # print(f'Calling Package: {calling_package}')
     return calling_package
 
+### Downloads, via curl, a file from a url to a specified filepath. Records download progress to log
+# -- url (str) [required]: full url to the file that is to be downloaded
+# -- filepath (str) [required]: filepath to the download directory. should include desired name for file to be downloaded (ex /data/files/somedata.csv)
+# -- log (logger) [required]: logger object to log download progress to
+def download_data(url, filepath, log):
+	# need to add curl output to list the old-fashioned way (no list comp) in case curl download is interupted/fails
+	progress = []
+	log.info(f"Downloading file from URL: {url}")
+	# '-#' turns on progress bar, '-o' writes download to filepath
+	# _iter = '_err' allows us to iterate over the stderr produced by the call (for some reason progress bar is directed to stderr, not stdout)
+	# _err_bufsize = 0 returns stderr one character at a time rather than as one very long string
+	call = sh.curl(['-#','-o', filepath, url], _iter = 'err', _err_bufsize = 0)
+	try:
+		for line in call:
+			progress.append(line)
+	except Exception as e:
+		log.exception("Download failed:")
+		# if downloads fail, stop the run
+		raise e
+	else:
+		# join strings, split by carriage return
+		progress = ''.join(progress).split('\r')
+		# log the last progress bar update (should be 100% ir download was finished, otherwise will show the point at which download ceased)
+		log.info(progress[-1])
+		log.info(f"Download Complete: {filepath}\n")
 
 IAMLogger.setup_logging()
 logger = logging.getLogger(get_calling_package())
