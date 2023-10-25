@@ -9,12 +9,14 @@ import sh
 import subprocess as sp
 import warnings
 import xarray as xr
+from lib import download_data
 
 ### global vars that wouldn't change based on user; may change depending on what forecast data is being pulled
 gfs_file_template = "gfs.t00z.pgrb2.0p25.f"
 # where the raw grib2 files will be stored
 gfs_dir = "/data/forecastData/gfs/"
 
+############# Functions for Processing GFS grib data ############################
 
 # Define alias for aggreate_df_dict
 def get_data(gfs_dir = f'/data/forecastData/gfs/gfs.{datetime.today().strftime("%Y%m%d")}/00/atmos/',
@@ -61,18 +63,6 @@ def append_timestamp(sta_dict, loc_dict, loc_dfs):
 			sta_dict[stationID] = pd.concat([sta_dict[stationID], df_to_append])
 		else:
 			sta_dict[stationID] = df_to_append
-
-### calls the curl command to the terminal to download a file from the web
-# -- url (str) [required]: complete url of the file to be downloaded
-# -- file_path (str) [required]: complete* path to the destination file. *should inlcude the desired name of the download file at the end of the path
-# -- silent (bool) [optional]: switch to turn off progress report. Default is false
-def curl(url, file_path, silent = False):
-	if not silent:
-		print(f'Downloading file from: {url}')
-		print(f'\tto destination: {file_path}')
-		# -C - enables curl to pickup download where it left off in case of connection disruption
-	sh.curl('-o',file_path, '-C', '-', url)
-	if not silent: print('Download complete\n')
 
 def dict_to_csv(loc_dict={}, location_dataframes={}):
     for station in loc_dict:
@@ -146,6 +136,26 @@ def remap_longs(ds):
     remapped_longitudes = vector_fcn(longitudes)
     remapped_ds = ds.assign_coords(longitude=remapped_longitudes)
     return remapped_ds
+
+################## Function for downloading GFS data ##############################
+
+### will download the grib files for the specified dates and hours
+# -- dates (list of strs) [opt]: list of dates to download gribs for. Default is just the current date
+# -- hours (list of strs) [opt]: list of forecast hours to download gribs for. Default is 7 day forecast, or 168 hours
+# -- log (logger) [required]: logger track info and download progress
+# -- grib_data_dir (str) [opt]: directory in which to store gfs grib files
+def download_gfs(log, dates=generate_date_strings(start_date=datetime.today().strftime("%Y%m%d"), num_dates=1), hours=generate_hours_list(168), grib_data_dir="/data/forecastData/gfs"):
+	log.info(f'TASK INITIATED: Download {int(hours[-1])}-hour GFS forecasts for the following dates: {dates}')
+	for d in dates:
+		log.info(f'DOWNLOADING GFS DATA FOR DATE {d}')
+		date_dir = os.path.join(grib_data_dir, f'gfs.{d}/00/atmos')
+		if not os.path.exists(date_dir):
+			os.makedirs(date_dir)
+		for h in hours:
+			grib_destination = os.path.join(grib_data_dir, date_dir, f'gfs.t00z.pgrb2.0p25.f{h}')
+			grib_url = f"https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl?dir=%2Fgfs.{d}%2F00%2Fatmos&file=gfs.t00z.pgrb2.0p25.f{h}&var_CPOFP=on&var_DSWRF=on&var_PRATE=on&var_RH=on&var_TCDC=on&var_TMP=on&var_UGRD=on&var_VGRD=on&lev_2_m_above_ground=on&lev_10_m_above_ground=on&lev_surface=on&lev_entire_atmosphere=on&subregion=&toplat=47.5&leftlon=280&rightlon=293.25&bottomlat=40.25"
+			download_data(url=grib_url, filepath=grib_destination, log=log)
+	log.info('TASK COMPLETE: GFS DOWNLOAD')
 
 ############################# OLD FUNCTIONS - NOT TO BE USED ##########################
 
@@ -306,6 +316,18 @@ def remap_longs(ds):
 #     # concatenate all of the station datasets pulled
 #     concat_stations_ds = xr.concat(station_ds_list, dim="latitude")
 #     return concat_stations_ds
+
+# ### calls the curl command to the terminal to download a file from the web
+# # -- url (str) [required]: complete url of the file to be downloaded
+# # -- file_path (str) [required]: complete* path to the destination file. *should inlcude the desired name of the download file at the end of the path
+# # -- silent (bool) [optional]: switch to turn off progress report. Default is false
+# def curl(url, file_path, silent = False):
+# 	if not silent:
+# 		print(f'Downloading file from: {url}')
+# 		print(f'\tto destination: {file_path}')
+# 		# -C - enables curl to pickup download where it left off in case of connection disruption
+# 	sh.curl('-o',file_path, '-C', '-', url)
+# 	if not silent: print('Download complete\n')
 
 # ### Given the transformed dataframe and a list of lat/long tuples to extract, returns new df containing just the rows for each lat/long pair
 # # -- df : the grib2 df post-long-transform
