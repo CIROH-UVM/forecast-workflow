@@ -1,15 +1,12 @@
 import cfgrib
 from datetime import datetime, timedelta
-import functools
 import glob
+from lib import download_data
 import numpy as np
 import os
 import pandas as pd
-import sh
 import subprocess as sp
-import warnings
 import xarray as xr
-from lib import download_data
 
 ### global vars that wouldn't change based on user; may change depending on what forecast data is being pulled
 gfs_file_template = "gfs.t00z.pgrb2.0p25.f"
