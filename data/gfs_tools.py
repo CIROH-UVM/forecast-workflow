@@ -52,10 +52,28 @@ def aggregate_station_df_dict(gfs_dir = f'/data/forecastData/gfs/gfs.{datetime.t
 		append_timestamp(sta_dict=station_dict, loc_dict=location_dict, loc_dfs=location_dataframes)
 	return station_dict
 
+### calibrate_columns() - renames and reorders the variable names for GFS dataframes to the expected naming/order convention (in-place)
+# -- df (dataframe) [req]: dataframe to modify
+# -- ordered_names (list of str) [opt]: list of the expected desired variable names, in order
+# -- grib_to_expected_names (dict) [opt]: dictionary mapping default grib variable names to desired names
+def calibrate_columns(df,
+					  ordered_names=['time','T2','TCDC','SWDOWN','U10','V10','RH2','RAIN','CPOFP'],
+					  grib_to_expected_names = {'valid_time':'time', 't2m': 'T2', 'tcc':'TCDC', 'dswrf':'SWDOWN', 'u10':'U10', 'v10':'V10', 'r2':'RH2', 'prate':'RAIN', 'cpofp':'CPOFP'}):
+	# grapping the col names of the current dataframe
+	col_names = df.columns.to_list()
+	# new names, but not in the order we want
+	renamed_cols = [grib_to_expected_names[name] for name in col_names]
+	# sorting the new names so that they match the expected order
+	renamed_cols.sort(key=lambda x: ordered_names.index(x))
+	# reassign column names
+	df.columns = renamed_cols
+
 # This loop will append each timestamp row (f000, f001, etc) to the station dataframe dict
 def append_timestamp(sta_dict, loc_dict, loc_dfs):
 	for stationID, loc in loc_dict.items():
 		df_to_append = loc_dfs[loc].drop_duplicates().drop(columns = ['latitude','longitude'])
+        # reorder & rename columns to expected convention
+		calibrate_columns(df_to_append)
 		if stationID in sta_dict:
 			sta_dict[stationID] = pd.concat([sta_dict[stationID], df_to_append])
 		else:
@@ -76,7 +94,7 @@ def execute(cmd):
     if return_code:
         raise sp.CalledProcessError(return_code, cmd)
 
-### Creates a list of forecast dates to download
+### generate_date_strings() - Creates a list of forecast dates to download
 # -- start_date : first date of forecast data to download
 # ---- should be a string in the format 'YYYYMMDD' or a datetime object
 # -- num_dates : the number of dates ahead or behind the start date you want to download
@@ -98,7 +116,7 @@ def generate_date_strings(start_date, num_dates=1, cast="fore"):
 
     return date_strings
 
-### Creates a list of forecast hours to be downloaded
+### generate_hours_list() - Creates a list of forecast hours to be downloaded
 # -- num_hours: how many hours of forecast data you want: note that date goes up to 16 days out
 # -- archive: boolean flag indicating if data is going to be pulled from archives; if true returns only step = 3 list
 def generate_hours_list(num_hours=168, archive=False):
@@ -136,7 +154,7 @@ def remap_longs(ds):
 
 ################## Function for downloading GFS data ##############################
 
-### will download the grib files for the specified dates and hours
+### download_gfs() -will download the grib files for the specified dates and hours
 # -- dates (list of strs) [opt]: list of dates to download gribs for. Default is just the current date
 # -- hours (list of strs) [opt]: list of forecast hours to download gribs for. Default is 7 day forecast, or 168 hours
 # -- log (logger) [required]: logger track info and download progress
