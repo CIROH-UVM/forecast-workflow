@@ -5,6 +5,7 @@ from lib import download_data
 import numpy as np
 import os
 import pandas as pd
+import sh
 import subprocess as sp
 import xarray as xr
 
@@ -332,17 +333,17 @@ def download_gfs(log, dates=generate_date_strings(start_date=datetime.today().st
 #     concat_stations_ds = xr.concat(station_ds_list, dim="latitude")
 #     return concat_stations_ds
 
-# ### calls the curl command to the terminal to download a file from the web
-# # -- url (str) [required]: complete url of the file to be downloaded
-# # -- file_path (str) [required]: complete* path to the destination file. *should inlcude the desired name of the download file at the end of the path
-# # -- silent (bool) [optional]: switch to turn off progress report. Default is false
-# def curl(url, file_path, silent = False):
-# 	if not silent:
-# 		print(f'Downloading file from: {url}')
-# 		print(f'\tto destination: {file_path}')
-# 		# -C - enables curl to pickup download where it left off in case of connection disruption
-# 	sh.curl('-o',file_path, '-C', '-', url)
-# 	if not silent: print('Download complete\n')
+### calls the curl command to the terminal to download a file from the web
+# -- url (str) [required]: complete url of the file to be downloaded
+# -- file_path (str) [required]: complete* path to the destination file. *should inlcude the desired name of the download file at the end of the path
+# -- silent (bool) [optional]: switch to turn off progress report. Default is false
+def curl(url, file_path, silent = False):
+	if not silent:
+		print(f'Downloading file from: {url}')
+		print(f'\tto destination: {file_path}')
+		# -C - enables curl to pickup download where it left off in case of connection disruption
+	sh.curl('-o',file_path, '-C', '-', url)
+	if not silent: print('Download complete\n')
 
 # ### Given the transformed dataframe and a list of lat/long tuples to extract, returns new df containing just the rows for each lat/long pair
 # # -- df : the grib2 df post-long-transform
