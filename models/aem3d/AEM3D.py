@@ -71,6 +71,15 @@ def parse_config():
   pass
 
 def parse_args():
+  parser = argparse.ArgumentParser(description="command-line arguments for running the AEM3D-based HABs Forecast",
+                                   epilog="more details and documentation to come soon")
+  pass
+
+def get_settings():
+  # check if a config file is passed
+  # check if there are command line args passed
+  # Use default settings for any that were not passed in either of the methods above
+  # return settings dictionary
   pass
   
 def main():
@@ -80,11 +89,33 @@ def main():
   #Create model
 
 def test():
-  print('hello world')
+  SETTINGS_KEYS = ['forecast_start',
+                    'forecast_end',
+                    'spinup_start',
+                    'blending_variable',
+                    'blending_ratio',
+                    'weather_dataset_observed',
+                    'weather_dataset_forecast',
+                    'hydrology_dataset_observed',
+                    'hydrology_dataset_forecast']
+  config_fpath = '/data/users/n/b/nbeckage/forecast-workflow/test_settings.cfg'
+  config_file = configparser.ConfigParser()
+  # read the configuration file
+  config_file.read(config_fpath)
+  print(config_file.sections())
+  # the settings section should be the first and only section
+  settings_section = config_file.sections()[0]
+  print(settings_section)
+  # pull the settings section and make it a dictionary
+  config_settings = dict(config_file[settings_section])
+  print(config_settings)
+
+
 
 if __name__ == '__main__':
     # main()
-    test()
+    # test()
+    parse_args()
 
 
 
