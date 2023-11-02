@@ -1,4 +1,4 @@
-from default_config import defaults
+from .default_config import defaults
 import argparse
 import configparser
 
@@ -70,9 +70,24 @@ class Datetime:
 def parse_config():
   pass
 
-def parse_args():
+def get_args():
   parser = argparse.ArgumentParser(description="command-line arguments for running the AEM3D-based HABs Forecast",
                                    epilog="more details and documentation to come soon")
+  # adding an optional argument for a config file
+  parser.add_argument('--config', default=defaults, type=str, help="name of the configuration file containing model run settings")
+  parser.add_argument('--fc_start', type=str, help='forecast start date')
+  parser.add_argument('--fc_end', type=str, help='forecast end date')
+  parser.add_argument('--spinup', type=str, help='model spinup date')
+  parser.add_argument('--bl_var', type=str, help='name of the input variable to be blended')
+  parser.add_argument('--bl_ratio', type=float, help='blending ratio')
+  parser.add_argument('--wdo', type=str, help='observed weather dataset to use for model run')
+  parser.add_argument('--wdf', type=str, help='forecasted weather dataset to use for model run')
+  parser.add_argument('--hdo', type=str, help='observed hydrological dataset to use for model run')
+  parser.add_argument('--hdf', type=str, help='forecasted hydrological dataset to use for model run')
+
+  args = parser.parse_args()
+
+  print(args.config)
   pass
 
 def get_settings():
@@ -115,7 +130,7 @@ def test():
 if __name__ == '__main__':
     # main()
     # test()
-    parse_args()
+    get_args()
 
 
 
