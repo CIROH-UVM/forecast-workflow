@@ -1,4 +1,4 @@
-from .default_config import defaults
+from ...default_settings import defaults
 import argparse
 import configparser
 
