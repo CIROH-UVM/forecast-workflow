@@ -7,7 +7,7 @@
 
 from lib import cd, logger, IAMBAY
 from .AEM3D_prep_IAM import *
-from .default_config import defaults
+from ...default_settings import defaults
 from sh import cp
 import os
 import sys
