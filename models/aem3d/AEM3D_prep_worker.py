@@ -7,7 +7,6 @@
 
 from lib import cd, logger, IAMBAY
 from .AEM3D_prep_IAM import *
-from ...default_settings import defaults
 from sh import cp
 import os
 import sys
@@ -30,7 +29,6 @@ def is_num(value):
 #     return '{}-AEM3D-inputs.tar.gz'.format(SCENARIO.id)
 
 def main():
-    default_settings = defaults
     prep_path = 'aem3d-run'
 
     # for i in range(len(sys.argv)):
@@ -109,10 +107,5 @@ def main():
 
     logger.info('Fin')
 
-def test():
-    default_settings = defaults
-    print(default_settings)
-
 if __name__ == '__main__':
-    #main()
-    test()
+    main()

@@ -130,7 +130,8 @@ def test():
 if __name__ == '__main__':
     # main()
     # test()
-    get_args()
+    # get_args()
+    pass
 
 
 

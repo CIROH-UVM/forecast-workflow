@@ -1,12 +1,25 @@
-# from models.aem3d.default_settings import defaults
 import argparse
 from datetime import datetime, timedelta
 import json
 import os
 
-##### Hardcoded params ######
-# absolute filepath for the default_settings.json file
-default_settings_fpath = "/data/users/n/b/nbeckage/forecast-workflow/default_settings.json"
+"""
+Settings parser for AEM3D_prep_IAM.py. To get settings, simply import get_args(), define the path to your default
+settings json file, and call get_args():
+
+	from get_args import get_args
+
+	fpath = 'path/to/default_settings.json'
+
+	settings = get_args(fpath)
+
+Now when you call AEM3D_prep_IAM.py, you can include args in the command-line call:
+
+python -m models.aem3d.AEM3D_prep_IAM --conf config.json
+
+**NOTE: blending variable and dataset values are currently not being validated in check_values(). Establish a list of 
+valid dataset/blending var strings in order to do this.
+"""
 
 def check_keys(settings_dict):
 	SETTINGS_KEYS = get_settings_keys()
@@ -14,16 +27,32 @@ def check_keys(settings_dict):
 		if key not in SETTINGS_KEYS:
 			raise KeyError(f'invalid settings key: {key}')
 		
-def check_settings(sd):
-	if not isinstance(sd['forecast_start'], datetime):
-		sd['forecast_start'] = datetime.strptime(sd['forecast_start'], '%m/%d/%Y')
-	if not isinstance(sd['forecast_end'], datetime):
-		sd['forecast_end'] = datetime.strptime(sd['forecast_end'], '%m/%d/%Y')
-	sd['spinup_date'] = datetime.strptime(sd['spinup_date'], '%m/%d/%Y')
-
+def check_values(settings_dict):
+	# forecast start date must be datetime object
+	if not isinstance(settings_dict['forecast_start'], datetime):
+		settings_dict['forecast_start']  = make_datetime(settings_dict['forecast_start'])
+	# forecast end date must be datetime object
+	if not isinstance(settings_dict['forecast_end'], datetime):
+		settings_dict['forecast_end'] = make_datetime(settings_dict['forecast_end'])
+	settings_dict['spinup_date'] = make_datetime(settings_dict['spinup_date'])
+	# # check blending variable to make sure it's a valid var name
+	# if settings_dict['blending_variable'] not in valid_vars:
+	# 	raise ValueError(f'{settings_dict["blending_variable"]} is an invalid variable name.')
+	# blending ratio should be between 0 and 1
+	if not 0 <= settings_dict['blending_ratio'] <= 1.0:
+		raise ValueError(f"'{settings_dict['blending_ratio']}' is not a valid blending ratio; must be between 0 and 1.")
+	# # datasets should be validated
+	# if settings_dict['weather_dataset_observed'] not in valid_wdo:
+	# 	raise ValueError(f"'{settings_dict['weather_dataset_observed']}' is not a valid observational weather dataset")
+	# if settings_dict['weather_dataset_forecast'] not in valid_wdf:
+	# 	raise ValueError(f"'{settings_dict['weather_dataset_forecast']}' is not a valid forecast weather dataset")
+	# if settings_dict['hydrology_dataset_observed'] not in valid_hdo:
+	# 	raise ValueError(f"'{settings_dict['hydrology_dataset_observed']}' is not a valid observational hydrology dataset")
+	# if settings_dict['hydrology_dataset_forecast'] not in valid_hdf:
+	# 	raise ValueError(f"'{settings_dict['hydrology_dataset_forecast']}' is not a valid forecast hydrology dataset")
 
 # setting up command-line argument parser
-def get_args():
+def get_cmdln_args():
 	parser = argparse.ArgumentParser(description="command-line arguments for running the AEM3D-based HABs Forecast",
 									epilog="more details and documentation to come soon")
 	# adding an optional argument for a config file
@@ -42,13 +71,8 @@ def get_args():
 
 	return args
 
-def get_settings_keys():
-	return list(load_json(default_settings_fpath).keys())
-
-def load_json(fpath):
-	with open(fpath) as file:
-		data = json.load(file)
-	return data
+def get_settings_keys(default_fpath):
+	return list(load_json(default_fpath).keys())
 
 def load_config(config_fpath):
 	config_settings = load_json(config_fpath)
@@ -56,16 +80,30 @@ def load_config(config_fpath):
 	return config_settings
 
 # reads default settings json file and returns dictionary of default settings
-def load_defaults():
+def load_defaults(default_fpath):
 	today = datetime.today()
-	defaults = load_json(default_settings_fpath)
+	defaults = load_json(default_fpath)
 	# manually set the current date and 7 days from today - can't do this programmatically in json
 	defaults['forecast_start'] = today
 	defaults['forecast_end'] = today + timedelta(days=7)
 	return defaults
 
-def process_args(args):
-	SETTINGS_KEYS = get_settings_keys()
+def load_json(fpath):
+	with open(fpath) as file:
+		data = json.load(file)
+	return data
+
+def make_datetime(date_str):
+	try:
+		datetime_obj = datetime.strptime(date_str, '%m/%d/%Y')
+		return datetime_obj
+	except ValueError:
+		raise ValueError(f"'{date_str}' is not a valid date. Make sure dates are in the format: 'DD/MM/YYYY'")
+	except Exception as e:
+		raise e
+
+def process_args(args, default_fpath):
+	SETTINGS_KEYS = get_settings_keys(default_fpath)
 	# convert args from a Namespace to a dict
 	args = vars(args)
 	# we don't need the configuration file setting anymore
@@ -79,38 +117,35 @@ def process_args(args):
 	passed_args = {key:renamed_args[key] for key in renamed_args if renamed_args[key] is not None}
 	return passed_args
 
-def main():
-	config_fpath = "/data/users/n/b/nbeckage/forecast-workflow/custom_settings.json"
+"""
+Call get_args() to process arguments from the command-line. If no command-line args are passed, will revert to defaults
+
+Args:
+	default_fpath (str): filepath the the default settings json file
+
+Returns:
+	settings (dict): dictionary of settings
+
+"""
+
+def get_args(default_fpath):
 	# establish default settings first
-	settings = load_defaults()
+	settings = load_defaults(default_fpath)
 	# load command-line arguments
-	args = get_args()
+	args = get_cmdln_args()
 	# load settings from configuration file if given
 	if args.conf is not None:
 		custom_settings = load_config(args.conf)
 		settings.update(custom_settings)
-	cmd_args = process_args(args)
+	cmd_args = process_args(args, default_fpath)
 	settings.update(cmd_args)
-	check_settings(settings)
-	print(settings)
+	check_values(settings)
+	return settings
 
+def main():
+	# absolute filepath for the default_settings.json file
+	default_settings_fpath = "/data/users/n/b/nbeckage/forecast-workflow/default_settings.json"
+	print(f'SETTINGS:{get_args(default_settings_fpath)}')
 
 if __name__ == '__main__':
 	main()
-
-"""
-
-def get_config():
-	config_fpath = '/data/users/n/b/nbeckage/forecast-workflow/test_settings.cfg'
-	config_file = configparser.ConfigParser()
-	# read the configuration file
-	config_file.read(config_fpath)
-	print(config_file.sections())
-	# the settings section should be the first and only section
-	settings_section = config_file.sections()[0]
-	print(settings_section)
-	# pull the settings section and make it a dictionary
-	config_settings = dict(config_file[settings_section])
-	print(config_settings)
-
-"""
