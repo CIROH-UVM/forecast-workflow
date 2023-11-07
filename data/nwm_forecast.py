@@ -6,7 +6,7 @@ import datetime as dt
 from datetime import datetime, timedelta
 from pathlib import Path
 import sh
-from gfs_download_fcns import curl
+from data.gfs_tools import curl
 
 # Adapted from python notebooks at https://www.hydroshare.org/resource/5949aec47b484e689573beeb004a2917/
 
