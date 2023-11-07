@@ -5,8 +5,9 @@
 #   - the bay of interest (Missisquoi, St. Albans)
 #   - the hydrology model (SWAT, RHESSys)
 
-from lib import cd, logger, IAMBAY
-from .AEM3D_prep_IAM import *
+# from lib import cd, logger, IAMBAY
+# from .AEM3D_prep_IAM import *
+from .get_args import get_args
 from sh import cp
 import os
 import sys
@@ -30,6 +31,9 @@ def is_num(value):
 
 def main():
     prep_path = 'aem3d-run'
+
+    # read in settings
+    SETTINGS = get_args(default_fpath='default_settings.json')
 
     # for i in range(len(sys.argv)):
     #     if sys.argv[i] == '--aem3d-dir':
@@ -108,4 +112,5 @@ def main():
     logger.info('Fin')
 
 if __name__ == '__main__':
-    main()
+    # main()
+    print(get_args(default_fpath='default_settings.json'))
