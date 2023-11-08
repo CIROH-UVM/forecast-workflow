@@ -1,3 +1,32 @@
+New, Default format to switch "Data Getters" too:
+
+{'Station1':
+  {'TEMP': Series,
+   'RH2' : Series,
+   'RAIN': Series},
+ 'Station2':
+   {'TEMP': Series,
+   'RH2' : Series,
+   'RAIN': Series},
+ 'Station3:
+   {'TEMP': Series,
+   'RH2' : Series,
+   'RAIN': Series}
+}
+
+and... with "asDataFrame=true"
+
+{'Station1': DataFrame with variables as columns,
+ 'Station2': DataFrame with variables as columns,
+ 'Station3': DataFrame with variables as columns}
+
+Finally... as a potential 3rd option
+
+One DataFrame with Station as a second index
+
+---------------------------------
+Current / Original return dict formats:
+
 GFS (Noah)
 
 {'401' (45.035531,-73.127665): Dataframe w/ one column per variable + DT Index
