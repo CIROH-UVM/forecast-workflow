@@ -7,5 +7,7 @@
 	"weather_dataset_observed" : "NOAA_LCD+FEMC_CR",
 	"weather_dataset_forecast" : "NOAA_GFS",
 	"hydrology_dataset_observed" : "USGS_IV",
-	"hydrology_dataset_forecast" : "NOAA_NWM_PROD"
+	"hydrology_dataset_forecast" : "NOAA_NWM_PROD",
+	"csv" : false,
+	"root_dir" : "/data/"
 }
