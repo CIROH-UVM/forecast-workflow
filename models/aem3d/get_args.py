@@ -1,5 +1,5 @@
 import argparse
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import json
 import os
 
@@ -50,7 +50,10 @@ def check_values(settings_dict):
 	# 	raise ValueError(f"'{settings_dict['hydrology_dataset_observed']}' is not a valid observational hydrology dataset")
 	# if settings_dict['hydrology_dataset_forecast'] not in valid_hdf:
 	# 	raise ValueError(f"'{settings_dict['hydrology_dataset_forecast']}' is not a valid forecast hydrology dataset")
-
+	# don't need to check csv flag, as default is false, and if the flag is passed, it will change to true. Trying to pass a
+	#  string or number for --csv will throw an error as an unrecognized bool
+	# check to see if root dir exists
+	
 # setting up command-line argument parser
 def get_cmdln_args():
 	parser = argparse.ArgumentParser(description="command-line arguments for running the AEM3D-based HABs Forecast",
@@ -66,6 +69,8 @@ def get_cmdln_args():
 	parser.add_argument('--wdf', type=str, help='forecasted weather dataset to use for model run')
 	parser.add_argument('--hdo', type=str, help='observed hydrological dataset to use for model run')
 	parser.add_argument('--hdf', type=str, help='forecasted hydrological dataset to use for model run')
+	parser.add_argument('--csv', action='store_true', help="flag determining whether or not to use GFS/NWM CSV's. Default is False.")
+	parser.add_argument('--root', type=str, help='root dir containing forecastScripts, forecastRuns, forecastData')
 
 	args = parser.parse_args()
 
@@ -81,11 +86,11 @@ def load_config(config_fpath):
 
 # reads default settings json file and returns dictionary of default settings
 def load_defaults(default_fpath):
-	today = datetime.today()
+	today = date.today()
 	defaults = load_json(default_fpath)
 	# manually set the current date and 7 days from today - can't do this programmatically in json
-	defaults['forecast_start'] = today
-	defaults['forecast_end'] = today + timedelta(days=7)
+	defaults['forecast_start'] = datetime(today.year, today.month, today.day)
+	defaults['forecast_end'] = datetime(today.year, today.month, today.day) + timedelta(days=7)
 	return defaults
 
 def load_json(fpath):
@@ -146,6 +151,10 @@ def main():
 	# absolute filepath for the default_settings.json file
 	default_settings_fpath = "/data/users/n/b/nbeckage/forecast-workflow/default_settings.json"
 	print(f'SETTINGS:{get_args(default_settings_fpath)}')
+	# settings = load_defaults(default_settings_fpath)
+	# args = get_cmdln_args()
+	# cmd_args = process_args(args, default_settings_fpath)
+	# print(cmd_args)
 
 if __name__ == '__main__':
 	main()
