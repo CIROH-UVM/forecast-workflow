@@ -212,8 +212,9 @@ def getflowfiles(forecastDate, whichbay, root_dir):
     ######### TODO: Instead of from file below, get from data gathering functions
     
     # dict by id: 04294000 (MS), 04292810 (J-S), 04292750 (Mill)
-    print(forecastDate)
-    print(type(forecastDate))
+    print(THEBAY.FirstDate)
+    print(type(THEBAY.FirstDate))
+    # the below line is throwing an error - THEBAY.FirstDate is a str, should be datetime
     observedUSGS = usgs_obs.get_data(ForecastStartDate=forecastDate,
                                      SpinupStartDate=THEBAY.FirstDate,
                                      station_ids = ['04294000', '04292810', '04292750'])
