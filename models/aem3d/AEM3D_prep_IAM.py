@@ -33,7 +33,7 @@ import datetime as dt
 
 AEM3D_DEL_T = 300
 USE_GFS_CSVS = False
-USE_GFS_CSVS = True     #  reuse the csvs previously built
+#USE_GFS_CSVS = True     #  reuse the csvs previously built
 
 def print_df(df):
     logger.info('\n'
@@ -431,20 +431,20 @@ def genclimatefiles(forecastDate, whichbay):
         climateForecast = {}
         for zone in ['401', '402', '403']:
             climateForecast[zone] = pd.read_csv(
-                        f'/users/s/e/seturnbu/forecastData/gfs/raw_fc_data/gfs.{forecastDate.strftime("%Y%m%d")}/gfs{zone}.csv',
+                        f'/data/forecastData/gfs/gfs.{forecastDate.strftime("%Y%m%d")}/gfs{zone}.csv',
                         index_col='time',
                         parse_dates=True)
     ##############
     else:
     ############## Use this bit to load forecast climate from original GRIB files and create .csvs for quick loading later
         climateForecast = gfs_tools.get_data(
-                gfs_dir=f'/users/s/e/seturnbu/forecastData/gfs/raw_fc_data/gfs.{forecastDate.strftime("%Y%m%d")}/00/atmos/',
+                gfs_dir=f'/data/forecastData/gfs/gfs.{forecastDate.strftime("%Y%m%d")}/00/atmos/',
                 location_dict={'401': (45.00, -73.25),
                                '402': (44.75, -73.25),
                                '403': (44.75, -73.25)})
         for zone in climateForecast.keys():
             climateForecast[zone] = climateForecast[zone].rename_axis('time').astype('float')
-            climateForecast[zone].to_csv(f'/users/s/e/seturnbu/forecastData/raw_fc_data/gfs/gfs.{forecastDate.strftime("%Y%m%d")}/gfs{zone}.csv')
+            climateForecast[zone].to_csv(f'/data/forecastData/gfs/gfs.{forecastDate.strftime("%Y%m%d")}/gfs{zone}.csv')
     ##############
 
     logger.info('BTV Data')
@@ -864,7 +864,7 @@ def genclimatefiles(forecastDate, whichbay):
     #
 
     # Load the CSV that nudges SWR values based on Day Of Year
-    swradjust = pd.read_csv("/users/s/e/seturnbu/repos/forecast-workflow/models/aem3d/resources/SolarRadiationFactor_MB.csv")
+    swradjust = pd.read_csv(os.path.join(THEBAY.template_dir, 'SolarRadiationFactor_MB.csv'))
     # Use the passed forecast date to only nudge the observed values before the forecast
     swradjust['NudgeObs'] = swradjust['Ratio (MB/CR)']  # copy entire original nudge column
     dayofyear = int(forecastDate.strftime('%j'))
