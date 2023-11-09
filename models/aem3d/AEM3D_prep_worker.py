@@ -5,8 +5,8 @@
 #   - the bay of interest (Missisquoi, St. Albans)
 #   - the hydrology model (SWAT, RHESSys)
 
-# from lib import cd, logger, IAMBAY
-# from .AEM3D_prep_IAM import *
+from lib import cd, logger, IAMBAY
+from .AEM3D_prep_IAM import *
 from .get_args import get_args
 from sh import cp
 import os
@@ -33,7 +33,7 @@ def main():
     prep_path = 'aem3d-run'
 
     # read in settings
-    SETTINGS = get_args(default_fpath='default_settings.json')
+    SETTINGS = get_args(default_fpath='/data/users/n/b/nbeckage/forecast-workflow/default_settings.json')
 
     # for i in range(len(sys.argv)):
     #     if sys.argv[i] == '--aem3d-dir':
@@ -48,13 +48,24 @@ def main():
     #THEBAY = IAMBAY(settings['whichbay'])   # Create Bay Object for Bay specified
     THEBAY = IAMBAY(bayid='ILS')   # Create Bay Object for Bay specified
 
+
+    """ PRE-SETTINGS UPDATE
+         - these lines (I think?) hardcode the model's spinup date the last date of the model forecast
+
     # Make today and today at midnight
     today = datetime.date.today()
     #today = datetime.date(2023,9,13)
     todayMidnight = datetime.datetime.combine(today, datetime.datetime.min.time())
-
+    
     THEBAY.FirstDate = datetimeToOrdinal(datetime.datetime.combine(datetime.date(2023,1,2), datetime.datetime.min.time()))
     THEBAY.LastDate = datetimeToOrdinal(todayMidnight + datetime.timedelta(days=7))
+
+    POST-SETTINGS UPDATE BELOW
+    """
+    # These two settings return datetime objs set to midnight already
+    THEBAY.FirstDate = datetimeToOrdinal(SETTINGS['spinup_date'])
+    THEBAY.LastDate = datetimeToOrdinal(SETTINGS['forecast_end'])
+
 
     ## Need dataframes for hydrology from Missisquoi, Mill, JewittStevens
     
@@ -91,8 +102,11 @@ def main():
             if not os.path.exists(THEBAY.infile_dir):
                 os.makedirs(THEBAY.infile_dir)
 
-            # source the python file prep script
+            """
             preprc = AEM3D_prep_IAM(forecastDate=today, theBay=THEBAY)
+            """
+            # source the python file prep script
+            preprc = AEM3D_prep_IAM(settings=SETTINGS, theBay=THEBAY)
 
         except Exception as e:
             logger.info('AEM3D_prep_IAM.py failed. Exiting.')
@@ -112,5 +126,5 @@ def main():
     logger.info('Fin')
 
 if __name__ == '__main__':
-    # main()
-    print(get_args(default_fpath='default_settings.json'))
+    main()
+    print(get_args(default_fpath='/data/users/n/b/nbeckage/forecast-workflow/default_settings.json'))

@@ -31,7 +31,6 @@ import os
 import datetime as dt
 
 AEM3D_DEL_T = 300
-USE_GFS_CSVS = False
 
 def print_df(df):
     logger.info('\n'
@@ -188,7 +187,7 @@ def writeCloudCover(climate, THEBAY):
 ##########################################################################
 
 
-def getflowfiles(forecastDate, whichbay):
+def getflowfiles(forecastDate, whichbay, root_dir):
     '''
     getflowfiles : Get hydrology model flow file(s) for Bay Inflow
         Most information contained in passed Bay Object
@@ -213,12 +212,14 @@ def getflowfiles(forecastDate, whichbay):
     ######### TODO: Instead of from file below, get from data gathering functions
     
     # dict by id: 04294000 (MS), 04292810 (J-S), 04292750 (Mill)
+    print(forecastDate)
+    print(type(forecastDate))
     observedUSGS = usgs_obs.get_data(ForecastStartDate=forecastDate,
-                                     SpinupStartDate=dt.date(2023,1,2),
+                                     SpinupStartDate=THEBAY.FirstDate,
                                      station_ids = ['04294000', '04292810', '04292750'])
     forecastNWM = nwm_forecast.get_data(ForecastStartDate = forecastDate.strftime('%Y%m%d'),
                                        ForecastStartTimestep = '00',
-                                       download_base_path = '/data/forecastData/nwm'
+                                       download_base_path = os.path.join(root_dir, 'forecastData/nwm')
     )
 
     # logger.info(observedUSGS)
@@ -386,7 +387,7 @@ def getflowfiles(forecastDate, whichbay):
 ##########################################################################
 
 
-def genclimatefiles(forecastDate, whichbay):
+def genclimatefiles(forecastDate, whichbay, gfs_csv, root_dir):
 
     global SCENARIO
 
@@ -399,7 +400,7 @@ def genclimatefiles(forecastDate, whichbay):
     logger.info('Processing Meterological Data')
 
     climateObsBTV = btv_met.get_data(ForecastStartDate=forecastDate,
-                                     SpinupStartDate=dt.date(2023,1,2)
+                                     SpinupStartDate=THEBAY.FirstDate
                                      )
     # climateObsBTV = {'TCDC': pd.DataFrame(data={'TCDC': [.50, .75, .25, .50]},
     #                                       index=pd.DatetimeIndex(data=pd.date_range('2021-09-08 20:45:00', periods=4, freq='H'), name='time')),
@@ -415,24 +416,24 @@ def genclimatefiles(forecastDate, whichbay):
     # Add [0:2] to generate_hours_list(7) to run shorter test model
 
     ############## Use this bit to load forecast climate from .csvs previously created above
-    if USE_GFS_CSVS:
+    if gfs_csv:
         climateForecast = {}
         for zone in ['401', '402', '403']:
             climateForecast[zone] = pd.read_csv(
-                        f'/data/forecastData/gfs/gfs.{forecastDate.strftime("%Y%m%d")}/gfs{zone}.csv',
+                        os.path.join(root_dir, f'forecastData/gfs/gfs.{forecastDate.strftime("%Y%m%d")}/gfs{zone}.csv'),
                         index_col='time',
                         parse_dates=True)
     ##############
     else:
     ############## Use this bit to load forecast climate from original GRIB files and create .csvs for quick loading later
         climateForecast = gfs_tools.get_data(
-                gfs_dir=f'/data/forecastData/gfs/gfs.{forecastDate.strftime("%Y%m%d")}/00/atmos/',
+                gfs_dir=os.path.join(root_dir, f'forecastData/gfs/gfs.{forecastDate.strftime("%Y%m%d")}/00/atmos/'),
                 location_dict={'401': (45.00, -73.25),
                                '402': (44.75, -73.25),
                                '403': (44.75, -73.25)})
         for zone in climateForecast.keys():
             climateForecast[zone] = climateForecast[zone].rename_axis('time').astype('float')
-            climateForecast[zone].to_csv(f'/data/forecastData/gfs/gfs.{forecastDate.strftime("%Y%m%d")}/gfs{zone}.csv')
+            climateForecast[zone].to_csv(os.path.join(root_dir, f'forecastData/gfs/gfs.{forecastDate.strftime("%Y%m%d")}/gfs{zone}.csv'))
     ##############
 
     logger.info('BTV Data')
@@ -1125,15 +1126,20 @@ def gendatablockfile(forecastDate, theBay):
                                 'datablock_file')
 # end of datablock.xml generation
  
-def AEM3D_prep_IAM(forecastDate, theBay):
+def AEM3D_prep_IAM(settings, theBay):
+
+    # grab settings
+    forecastDate = settings['forecast_start']
+    USE_GFS_CSVS = settings['csv']
+    ROOT_DIR = settings['root_dir']
 
     #logger.info(f'Processing Bay: {theBay.bayid} for year {theBay.year}')
 
     # get flow files from hydrology model data
-    getflowfiles(forecastDate, theBay)
+    getflowfiles(forecastDate, theBay, ROOT_DIR)
 
     # generate climate files including lake levels
-    genclimatefiles(forecastDate, theBay)
+    genclimatefiles(forecastDate, theBay, USE_GFS_CSVS, ROOT_DIR)
 
     # generate salinity file
     gensalinefile(theBay)
