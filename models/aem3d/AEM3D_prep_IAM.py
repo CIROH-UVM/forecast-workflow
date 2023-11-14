@@ -32,11 +32,6 @@ import os
 import datetime as dt
 
 AEM3D_DEL_T = 300
-<<<<<<< HEAD
-USE_GFS_CSVS = False
-#USE_GFS_CSVS = True     #  reuse the csvs previously built
-=======
->>>>>>> 1a7a876 (implement root, csv, and date settings)
 
 def print_df(df):
     logger.info('\n'
