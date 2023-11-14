@@ -22,6 +22,7 @@ from data import (nwm_forecast,
                   colchester_reef_met,
                   btv_met
 )
+
 from .waterquality import *
 
 import pandas as pd
@@ -102,6 +103,16 @@ def seriesIndexToOrdinalDate(series):
     #ordinaldate = pandasDatetimeToOrdinal(series.index)
     #ordinaldate = pd.Series(wrfdf['ordinaldate'].array, index = wrfdf['wrftime'])
     return pd.Series(series.array, index = ordinaldate)
+
+def ordinalnudgerow(rowtonudge, columntonudge, nudgeframe):
+    # apply a proportional nudge value that is specific to the day of year in the passed row
+    #   rowtonudge - row from a dataframe with TIME column and a value column
+    #   columntonudge - the specific column name to apply the data adjustement to
+    #   nudgeframe - dataframe with days of year and proportions (NudgeObs) to apply to the data that needs nudging
+
+    DOY = int(rowtonudge['TIME'].split('.')[0][-3:])    # pull the day of year from ordinal date
+    nudged = rowtonudge[columntonudge] * nudgeframe.loc[nudgeframe['Day of Year'] == DOY]['NudgeObs']
+    return nudged.reset_index(drop=True)
 
 def writeFile(filename, bayid, zone, varName, dataSeries):
     with open(filename, mode='w', newline='') as output_file:
@@ -851,21 +862,45 @@ def genclimatefiles(forecastDate, whichbay, gfs_csv, root_dir, spinupDate):
     #swdown = climate['SWDOWN'] # * 0.875         # Scale Solar based on matching observed for 2018
     #
 
+    # Load the CSV that nudges SWR values based on Day Of Year
+    swradjust = pd.read_csv(os.path.join(THEBAY.template_dir, 'SolarRadiationFactor_MB.csv'))
+    # Use the passed forecast date to only nudge the observed values before the forecast
+    swradjust['NudgeObs'] = swradjust['Ratio (MB/CR)']  # copy entire original nudge column
+    dayofyear = int(forecastDate.strftime('%j'))
+    swradjust.loc[swradjust['Day of Year'] >= dayofyear,'NudgeObs'] = 1.0   # don't adjust forecast data
+
     for zone in climateForecast.keys():
         filename = f'SOLAR_{zone}.dat'
         logger.info('Generating Short Wave Radiation File: '+filename)
-        
+                
         swdown_series = seriesIndexToOrdinalDate(pd.concat([remove_nas(climateObsCR['SWDOWN']), climateForecast[zone]['SWDOWN']]))
+        
+        # build a dataframe to nudge the data series
+        swdown_df = pd.concat([swdown_series.index.to_series(),swdown_series], axis = 1)
+        swdown_df.columns = ['TIME', 'SWDOWN']
+        swdown_df['SWNUDGED'] = swdown_df.apply(ordinalnudgerow, args = ('SWDOWN', swradjust), axis = 1)
+
         logger.info(f'SWDOWN for zone {zone}')
-        logger.info(print_df(swdown_series))
+        logger.info(print_df(swdown_df))
         
         writeFile(
             os.path.join(THEBAY.infile_dir, filename),
             THEBAY.bayid,
             zone,
             "SOLAR_RAD",
+            swdown_df['SWNUDGED']
+        )
+
+        # this is the raw solar_rad data, without the data nudge
+        filenameorig = 'raw'+filename
+        writeFile(
+            os.path.join(THEBAY.infile_dir, filenameorig),
+            THEBAY.bayid,
+            zone,
+            "SOLAR_RAD",
             swdown_series
         )
+
         THEBAY.addfile(fname=filename)
 
 
@@ -1133,7 +1168,7 @@ def AEM3D_prep_IAM(settings, theBay):
     USE_GFS_CSVS = settings['csv']
     ROOT_DIR = settings['root_dir']
 
-    #logger.info(f'Processing Bay: {theBay.bayid} for year {theBay.year}')
+    logger.info(f'Processing Bay: {theBay.bayid} for year {theBay.year}')
 
     # get flow files from hydrology model data
     getflowfiles(FORECASTDATE, theBay, ROOT_DIR, SPINUP)
