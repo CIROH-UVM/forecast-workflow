@@ -187,7 +187,7 @@ def writeCloudCover(climate, THEBAY):
 ##########################################################################
 
 
-def getflowfiles(forecastDate, whichbay, root_dir):
+def getflowfiles(forecastDate, whichbay, root_dir, spinupDate):
     '''
     getflowfiles : Get hydrology model flow file(s) for Bay Inflow
         Most information contained in passed Bay Object
@@ -212,11 +212,9 @@ def getflowfiles(forecastDate, whichbay, root_dir):
     ######### TODO: Instead of from file below, get from data gathering functions
     
     # dict by id: 04294000 (MS), 04292810 (J-S), 04292750 (Mill)
-    print(THEBAY.FirstDate)
-    print(type(THEBAY.FirstDate))
     # the below line is throwing an error - THEBAY.FirstDate is a str, should be datetime
-    observedUSGS = usgs_obs.get_data(ForecastStartDate=forecastDate,
-                                     SpinupStartDate=THEBAY.FirstDate,
+    observedUSGS = usgs_obs.get_data(ForecastStartDate=forecastDate.date(),
+                                     SpinupStartDate=(spinupDate + dt.timedelta(days=1)).date(),
                                      station_ids = ['04294000', '04292810', '04292750'])
     forecastNWM = nwm_forecast.get_data(ForecastStartDate = forecastDate.strftime('%Y%m%d'),
                                        ForecastStartTimestep = '00',
@@ -388,7 +386,7 @@ def getflowfiles(forecastDate, whichbay, root_dir):
 ##########################################################################
 
 
-def genclimatefiles(forecastDate, whichbay, gfs_csv, root_dir):
+def genclimatefiles(forecastDate, whichbay, gfs_csv, root_dir, spinupDate):
 
     global SCENARIO
 
@@ -400,8 +398,8 @@ def genclimatefiles(forecastDate, whichbay, gfs_csv, root_dir):
     #
     logger.info('Processing Meterological Data')
 
-    climateObsBTV = btv_met.get_data(ForecastStartDate=forecastDate,
-                                     SpinupStartDate=THEBAY.FirstDate
+    climateObsBTV = btv_met.get_data(ForecastStartDate=forecastDate.date(),
+                                     SpinupStartDate=(spinupDate+dt.timedelta(days=1)).date()
                                      )
     # climateObsBTV = {'TCDC': pd.DataFrame(data={'TCDC': [.50, .75, .25, .50]},
     #                                       index=pd.DatetimeIndex(data=pd.date_range('2021-09-08 20:45:00', periods=4, freq='H'), name='time')),
@@ -409,8 +407,8 @@ def genclimatefiles(forecastDate, whichbay, gfs_csv, root_dir):
     #                                       index=pd.DatetimeIndex(data=pd.date_range('2021-09-08 20:00:00', periods=4, freq='H'), name='time'))
     #                 }
     
-    climateObsCR = colchester_reef_met.get_data(ForecastStartDate=forecastDate,
-                                                SpinupStartDate=dt.date(2023,1,2)
+    climateObsCR = colchester_reef_met.get_data(ForecastStartDate=forecastDate.date(),
+                                                SpinupStartDate=(spinupDate+dt.timedelta(days=1)).date()
                                                 ).rename_axis('time')
     
     # dates = gfs_tools.generate_date_strings(forecastDate.strftime('%Y%m%d'), 1)
@@ -1059,12 +1057,12 @@ def gentracerfiles(theBay):
     #
 
 
-def gencntlfile(forecastDate, theBay):
+def gencntlfile(forecastDate, theBay, spinupDate):
 
     # Calculate 1 hour in iterations
     hourIter = int(86400 / AEM3D_DEL_T / 24)
     # Calculate iterations: Time between forecast date and spinup start + 7 more days
-    iterations = int((forecastDate - dt.date(2023,1,2)).total_seconds() / AEM3D_DEL_T) + (7 * 24 * hourIter)
+    iterations = int((forecastDate - (spinupDate + dt.timedelta(days=1))).total_seconds() / AEM3D_DEL_T) + (7 * 24 * hourIter)
 
     logger.info(f'Configuring AEM3D to run {iterations} iterations')
     
@@ -1107,12 +1105,12 @@ def gencntlfile(forecastDate, theBay):
 # end of control file generation
 
 
-def gendatablockfile(forecastDate, theBay):
+def gendatablockfile(forecastDate, theBay, spinupDate):
 
     # Calculate 1 hour in iterations
     hourIter = int(86400 / AEM3D_DEL_T / 24)
     # Calculate iteration for forecast start: Time between forecast date and spinup start
-    forecastStartIter = int((forecastDate - dt.date(2023,1,2)).total_seconds() / AEM3D_DEL_T) + 1
+    forecastStartIter = int((forecastDate - (spinupDate + dt.timedelta(days=1))).total_seconds() / AEM3D_DEL_T) + 1
 
     logger.info(f'Configuring datablock.xml file')
     generate_file_from_template('datablock.xml.template',
@@ -1130,17 +1128,18 @@ def gendatablockfile(forecastDate, theBay):
 def AEM3D_prep_IAM(settings, theBay):
 
     # grab settings
-    forecastDate = settings['forecast_start']
+    FORECASTDATE = settings['forecast_start']
+    SPINUP = settings['spinup_date']
     USE_GFS_CSVS = settings['csv']
     ROOT_DIR = settings['root_dir']
 
     #logger.info(f'Processing Bay: {theBay.bayid} for year {theBay.year}')
 
     # get flow files from hydrology model data
-    getflowfiles(forecastDate, theBay, ROOT_DIR)
+    getflowfiles(FORECASTDATE, theBay, ROOT_DIR, SPINUP)
 
     # generate climate files including lake levels
-    genclimatefiles(forecastDate, theBay, USE_GFS_CSVS, ROOT_DIR)
+    genclimatefiles(FORECASTDATE, theBay, USE_GFS_CSVS, ROOT_DIR, SPINUP)
 
     # generate salinity file
     gensalinefile(theBay)
@@ -1155,9 +1154,9 @@ def AEM3D_prep_IAM(settings, theBay):
     genwqfiles(theBay)
 
     # generate the datablock.xml file
-    gendatablockfile(forecastDate, theBay)
+    gendatablockfile(FORECASTDATE, theBay, SPINUP)
 
     # generate control file
-    gencntlfile(forecastDate, theBay)
+    gencntlfile(FORECASTDATE, theBay, SPINUP)
 
     return 0

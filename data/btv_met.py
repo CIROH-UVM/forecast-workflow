@@ -82,10 +82,10 @@ def get_data (ForecastStartDate, SpinupStartDate) :
 		cloud_df = retrieve_data(startday, endday, 'HourlySkyConditions')
 		precip_df = retrieve_data(startday, endday, 'HourlyPrecipitation')
 		
-		# logger.info('cloud_df in btv_met')
-		# logger.info(cloud_df)
-		# logger.info('precip_df in btv_met')		
-		# logger.info(precip_df)
+		logger.info('cloud_df in btv_met')
+		logger.info(cloud_df)
+		logger.info('precip_df in btv_met')		
+		logger.info(precip_df)
 		
 		returnDict = {}
 
