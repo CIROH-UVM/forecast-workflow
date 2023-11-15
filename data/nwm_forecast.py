@@ -1,17 +1,13 @@
-import pandas as pd
-import os
-import requests
-import xarray as xr
-import datetime as dt
 from datetime import datetime, timedelta
-from pathlib import Path
-import sh
-from data.gfs_tools import curl
+from lib import download_data
+import os
+import pandas as pd
+import xarray as xr
 
 # Adapted from python notebooks at https://www.hydroshare.org/resource/5949aec47b484e689573beeb004a2917/
 
 # StartDate = '20230907'
-StartDate = dt.datetime.now().strftime('%Y%m%d')
+StartDate = datetime.datetime.now().strftime('%Y%m%d')
 StartTimestep = '00'
 forecast_files_path = '/data/forecastData/nwm'
 
@@ -45,14 +41,15 @@ def GetForecastFileName(ForecastStartDate = '20230907', ForecastStartTimestep='0
     return BaseName + ForecastStartDate + '/medium_range_mem' + ForecastMember + '/nwm.t' + ForecastStartTimestep + 'z.medium_range.channel_rt_' + ForecastMember + '.f' + TimeStep + '.conus.nc'
 
   
-def GetForecastFile(Url, download_path='.'):
+def GetForecastFile(Log, Url, download_dir='.'):
     """
     
     A Function to download the given forecast url from NOAA NWM.
 
     Args:
+    Log          : logging.Logger object - to log messages for data download
     Url          : The URL of the forecast file to be downloaded, should be string.
-    download_dir : The directory where the file should be saved. 
+    download_path: The directory where the file should be saved. 
 
     Returns:
     A String Path of the Downloaded File. 
@@ -60,44 +57,43 @@ def GetForecastFile(Url, download_path='.'):
     """
     FileName = os.path.basename(Url)
     # Lets construct the complete file path
-    FilePath = os.path.join(download_path, FileName)
+    FilePath = os.path.join(download_dir, FileName)
     # Lets create download_path if it doesn't exist yet
-    if not os.path.exists(download_path):
-        os.makedirs(download_path)    
-    # Lets make sure the file is not already downloaded - If yes, we will remove the old file and download the latest one.
+    if not os.path.exists(download_dir):
+        os.makedirs(download_dir)    
+    # Lets make sure the file is not already downloaded - If yes, we will not download it again.
     if os.path.exists(FilePath):
-        os.remove(FilePath)
-    
+        Log.info(f'Skipping download: "{FilePath}" already exists')
+        return None
+       
     print(f'Downloading {FileName}')
-    # Lets make the request
 
-    # using sh.curl:
-    # sh.curl('--silent', '-o', FilePath,'-C','-', Url)
-
-    # using custom curl fcn:
-    curl(Url, FilePath)
-
-    # using requests.get:
+    # Lets do the download
     # r = requests.get(Url, allow_redirects=True)
-    # Time to save the file to the download_dir. 
+    # # Time to save the file to the download_dir. 
     # open(FilePath, 'wb').write(r.content)
+    
+    # sh.curl('-o', FilePath,'-C','-', Url)
+
+    download_data(Url, FilePath, Log)
     
     return FilePath
 
 # Next we will define a function which will call these two function and download the data. 
-def download_forecast_files(ForecastStartDate='20230907', ForecastStartTimestep='00', 
-                            ForecastType='medium_range', ForecastMember='1', download_dir=forecast_files_path):
+def download_forecast_files(Log, ForecastStartDate, ForecastStartTimestep='00', 
+                            ForecastType='medium_range', ForecastMember='1', data_dir='forecastData/nwm/'):
     """
     
     A Function to download the forecast data for a given start date and start time step. It will first call the GetForecastFileName()
     to get the URL of the Filename to be downloaded. That URL will further be passed to GetForecastFile() to download the file. 
 
     Args:
+    Log                  : logging.Logger object - to log messages for data download
     ForecastStartDate    : The starting date for which forecasts are to be downloaded.
     ForecastStartTimestep: The starting time for the forecasts.
     ForecastType         : The type of forecast (default is 'medium_range').
     ForecastMember       : The member of the forecast model.
-    download_dir         : The path where the forecast files will be downloaded.
+    data_dir             : Path in which to build the NWM data download subdirectroy structure.
 
     Returns:
     List of paths of downloaded files.
@@ -106,21 +102,25 @@ def download_forecast_files(ForecastStartDate='20230907', ForecastStartTimestep=
     # First define the timestamps
     time_stamps = ['%03d' % (i+1) for i in range(240)]  # For 10 days time Stamps
 
+    Log.info(f'TASK INITIATED: Download {int(time_stamps[-1])}-hour NWM hydrology forecasts for the following date: {ForecastStartDate[4:6]}/{ForecastStartDate[6:8]}/{ForecastStartDate[0:4]}')
     # Lets create an empty list to store the complete path of downloaded files
     download_files = []
     for time_stamp in time_stamps:
         # Getting the URL
         url = GetForecastFileName(ForecastStartDate=ForecastStartDate, TimeStep=time_stamp)
+        # create the directroy structure in which to download the data - mirrors the NWM URL structure
+        download_dir = os.path.join(data_dir, f'nwm.{ForecastStartDate}/{ForecastType}_mem{ForecastMember}')
         # Lets download the url file - The function will return the filepath which we will append to download_files
-        file_path = GetForecastFile(url, os.path.join(download_dir, ForecastStartDate))
-        download_files.append(file_path)
-
+        file_path = GetForecastFile(Log=Log, Url=url, download_path=download_dir)
+        if file_path is not None:
+            download_files.append(file_path)
+    Log.info('TASK COMPLETE: NWM DOWNLOAD')
     # Lets return the list
     return download_files
 
 # Lastly, lets read all the downloaded files and process them into a nice Dictionary, where the Key will be the Reach Name and 
 # values will be Pandas Series
-def get_data(ForecastStartDate, ForecastStartTimestep, download_base_path):
+def get_data(ForecastStartDate, ForecastStartTimestep, data_dir='forecastData/nwm/', save_csv=True, ForecastType='medium_range', ForecastMember='1'):
     """
 
     A Function to Process the Downloaded data. It will read each individual file, extract the Stream Value and Add it to 
@@ -129,14 +129,16 @@ def get_data(ForecastStartDate, ForecastStartTimestep, download_base_path):
     Args:
     ForecastStartDate     : The date for which the forecast is needed - This is needed to extract the Datetime value.
     ForecastStartTimestep : The starting time for the forecasts - This is needed to extract the Datetime value. 
-    download_base_path    : Path for the downloaded files (minus the time stamp / ForecastStartDate)
-    reaches               : A Reach Dictionary where Key is Reach ID and Value is Reach Name
+    data_dir              : Path in which to build the NWM data download subdirectroy structure.
+    save_csv              : Flag indicating whether or not dataframes should be saved as CSV files.
+    ForecastType          : The type of forecast (default is 'medium_range').
+    ForecastMember        : The member of the forecast model.
     
     """
     # Lets define an empty dictionary to store the Results.
     results  = {}
     # Append ForecastStartDate to download_base_path
-    download_base_path = os.path.join(download_base_path, ForecastStartDate)
+    download_base_path = os.path.join(data_dir, f'nwm.{ForecastStartDate}/{ForecastType}_mem{ForecastMember}')
 
     # Get the filenames from download_base_path
     download_files = [f for f in os.listdir(download_base_path) if f.endswith('.nc')]
@@ -174,6 +176,9 @@ def get_data(ForecastStartDate, ForecastStartTimestep, download_base_path):
     # At step we have all the data need to get the final format - which {'Reach_Name':pd.Series(streamflow, index=timestamp)}
     for reach_name, series_data in data_dict.items():
         results[reach_name] = pd.DataFrame(data={'streamflow': series_data}, index=timestamps)
+        if save_csv:
+            filename = os.path.join(data_dir, f'nwm.{ForecastStartDate}/nwm_{reach_name}.csv')
+            results[reach_name].to_csv(filename)
 
     # Simply return the results
     return results
