@@ -230,6 +230,10 @@ def genwqfiles (theBay):
         phosdf['ordinaldate'] = flowdf['ordinaldate']
         cqVersion = 'BREE2021Quad'
 
+        # if phosdf.isna().any().any():
+        #     print(phosdf[phosdf.isna().any(axis=1)])
+        #     raise Exception(f"NA's detected in phos df for bs_name: {bs_name}")
+
         #TODO: Implement BREE2021Seg
         #TODO: Move all this junk to THEBAY, choose cqVersion at THEBAY creation
 
@@ -245,12 +249,26 @@ def genwqfiles (theBay):
             bs_name.startswith('RockRiver') or
             bs_name.startswith('PikeRiver')
             ):
+                flowdf['msflow'] = flowdf['msflow'].apply(lambda x: 0.01 if x < 0.01 else x)
                 logQ = np.log10(flowdf['msflow'])
                 phosdf['TP'] = np.power(10, (1.6884 - 0.7758 * logQ + 0.3952 * logQ * logQ)) * p_redux / 1000
             elif bs_name.startswith('JewettStevens'):
+                flowdf['jsflow'] = flowdf['jsflow'].apply(lambda x: 0.01 if x < 0.01 else x)
                 logQ = np.log10(flowdf['jsflow'])
                 phosdf['TP'] = np.power(10, (2.2845 + 0.5185 * logQ + 0.1995 * logQ * logQ)) * p_redux / 1000
+                # will throw an error and log data if NA's are returned - gonna keep this code in case we need to debug similar issues again
+                if phosdf['TP'].isna().any():
+                    logger.info("flowdf['jsflow'] indices that became NA")
+                    logger.info(flowdf[phosdf.isna().any(axis=1)])
+                    logger.info("logQ indices that became NA's:")
+                    logger.info(logQ[phosdf.isna().any(axis=1)])
+                    logger.info("phosdf with NA's:")
+                    logger.info(phosdf[phosdf.isna().any(axis=1)])
+                    e = Exception(f"NA's detected in phosdf['TP'] bs_name: {bs_name}")
+                    logger.exception(e)
+                    raise e
             elif bs_name.startswith('MillRiver'):
+                flowdf['mlflow'] = flowdf['mlflow'].apply(lambda x: 0.01 if x < 0.01 else x)
                 logQ = np.log10(flowdf['mlflow'])
                 phosdf['TP'] = np.power(10, (1.7935 + 0.4052 * logQ + 0.1221 * logQ * logQ)) * p_redux / 1000
             else:
@@ -261,6 +279,7 @@ def genwqfiles (theBay):
             # phosdf['TP'].loc[flowdf['msflow'].copy() < 0.1] = 0.0
         else:
             raise Exception(f'cqVersion {cqVersion} not defined')
+
 
         # Same for cqVersion = Clelia or BREE2021
         #   Updated 2021.05.27 per WQS Docs

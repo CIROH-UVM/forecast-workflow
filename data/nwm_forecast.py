@@ -7,7 +7,7 @@ import xarray as xr
 # Adapted from python notebooks at https://www.hydroshare.org/resource/5949aec47b484e689573beeb004a2917/
 
 # StartDate = '20230907'
-StartDate = datetime.datetime.now().strftime('%Y%m%d')
+StartDate = datetime.now().strftime('%Y%m%d')
 StartTimestep = '00'
 forecast_files_path = '/data/forecastData/nwm'
 
@@ -120,7 +120,7 @@ def download_forecast_files(Log, ForecastStartDate, ForecastStartTimestep='00',
 
 # Lastly, lets read all the downloaded files and process them into a nice Dictionary, where the Key will be the Reach Name and 
 # values will be Pandas Series
-def get_data(ForecastStartDate, ForecastStartTimestep, data_dir='forecastData/nwm/', save_csv=True, ForecastType='medium_range', ForecastMember='1'):
+def get_data(ForecastStartDate, ForecastStartTimestep, data_dir='forecastData/nwm/', save_csv=True, ForecastType='medium_range', ForecastMember='1', directory_flag = True):
     """
 
     A Function to Process the Downloaded data. It will read each individual file, extract the Stream Value and Add it to 
@@ -137,8 +137,14 @@ def get_data(ForecastStartDate, ForecastStartTimestep, data_dir='forecastData/nw
     """
     # Lets define an empty dictionary to store the Results.
     results  = {}
+
+    if directory_flag:
+        nwm_download_path = f'nwm.{ForecastStartDate}/{ForecastType}_mem{ForecastMember}'
+    else:
+        nwm_download_path = f'{ForecastStartDate}/'
+
     # Append ForecastStartDate to download_base_path
-    download_base_path = os.path.join(data_dir, f'nwm.{ForecastStartDate}/{ForecastType}_mem{ForecastMember}')
+    download_base_path = os.path.join(data_dir, nwm_download_path)
 
     # Get the filenames from download_base_path
     download_files = [f for f in os.listdir(download_base_path) if f.endswith('.nc')]
