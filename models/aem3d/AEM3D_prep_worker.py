@@ -34,7 +34,9 @@ def main():
 
     # read in settings
     # Need to incorporate root_dir as a setting in which will contain forecast*/ dirs, including forecast-workflow
-    SETTINGS = get_args(default_fpath='/data/forecast-workflow/default_settings.json')
+    # SETTINGS = get_args(default_fpath='/data/forecast-workflow/default_settings.json')
+    SETTINGS = get_args(default_fpath='/data/users/n/b/nbeckage/forecast-workflow/default_settings.json')
+
 
     # for i in range(len(sys.argv)):
     #     if sys.argv[i] == '--aem3d-dir':

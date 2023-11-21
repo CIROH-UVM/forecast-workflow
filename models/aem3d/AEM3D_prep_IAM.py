@@ -198,7 +198,7 @@ def writeCloudCover(climate, THEBAY):
 ##########################################################################
 
 
-def getflowfiles(forecastDate, whichbay, root_dir, spinupDate):
+def getflowfiles(forecastDate, whichbay, root_dir, spinupDate, directory_flag):
     '''
     getflowfiles : Get hydrology model flow file(s) for Bay Inflow
         Most information contained in passed Bay Object
@@ -229,7 +229,8 @@ def getflowfiles(forecastDate, whichbay, root_dir, spinupDate):
                                      station_ids = ['04294000', '04292810', '04292750'])
     forecastNWM = nwm_forecast.get_data(ForecastStartDate = forecastDate.strftime('%Y%m%d'),
                                        ForecastStartTimestep = '00',
-                                       download_base_path = os.path.join(root_dir, 'forecastData/nwm')
+                                       data_dir=os.path.join(root_dir, 'forecastData/nwm'),
+                                       directory_flag=directory_flag
     )
 
     # logger.info(observedUSGS)
@@ -242,6 +243,7 @@ def getflowfiles(forecastDate, whichbay, root_dir, spinupDate):
 
     # Fix Mill... it seems to have some negative sensor readings
     #temp = mlflow[mlflow > 0]
+    mlflow = mlflow.sort_index()
     mlflow =  mlflow[mlflow['streamflow'] >= 0].reindex(flowdf.index, method='nearest')
 
     # Convert from cubic ft / s to cubic m / s
@@ -397,7 +399,7 @@ def getflowfiles(forecastDate, whichbay, root_dir, spinupDate):
 ##########################################################################
 
 
-def genclimatefiles(forecastDate, whichbay, gfs_csv, root_dir, spinupDate):
+def genclimatefiles(forecastDate, whichbay, gfs_csv, root_dir, spinupDate, directory_flag):
 
     global SCENARIO
 
@@ -425,25 +427,33 @@ def genclimatefiles(forecastDate, whichbay, gfs_csv, root_dir, spinupDate):
     # dates = gfs_tools.generate_date_strings(forecastDate.strftime('%Y%m%d'), 1)
     # Add [0:2] to generate_hours_list(7) to run shorter test model
 
+    # if flag is true, use new (post-update) dir struture. This is the default behavior
+    if directory_flag:
+        # new dir structure
+        gfs_download_dir = f'forecastData/gfs/gfs.{forecastDate.strftime("%Y%m%d")}'
+    else:
+        # old dir structure
+        gfs_download_dir = f'forecastData/gfs/raw_fc_data/gfs.{forecastDate.strftime("%Y%m%d")}'
+
     ############## Use this bit to load forecast climate from .csvs previously created above
     if gfs_csv:
         climateForecast = {}
         for zone in ['401', '402', '403']:
             climateForecast[zone] = pd.read_csv(
-                        os.path.join(root_dir, f'forecastData/gfs/gfs.{forecastDate.strftime("%Y%m%d")}/gfs{zone}.csv'),
+                        os.path.join(root_dir, gfs_download_dir, f'gfs{zone}.csv'),
                         index_col='time',
                         parse_dates=True)
     ##############
     else:
     ############## Use this bit to load forecast climate from original GRIB files and create .csvs for quick loading later
         climateForecast = gfs_tools.get_data(
-                gfs_dir=os.path.join(root_dir, f'forecastData/gfs/gfs.{forecastDate.strftime("%Y%m%d")}/00/atmos/'),
+                gfs_dir=os.path.join(root_dir, gfs_download_dir, '/00/atmos/'),
                 location_dict={'401': (45.00, -73.25),
                                '402': (44.75, -73.25),
                                '403': (44.75, -73.25)})
         for zone in climateForecast.keys():
             climateForecast[zone] = climateForecast[zone].rename_axis('time').astype('float')
-            climateForecast[zone].to_csv(os.path.join(root_dir, f'forecastData/gfs/gfs.{forecastDate.strftime("%Y%m%d")}/gfs{zone}.csv'))
+            climateForecast[zone].to_csv(os.path.join(root_dir, gfs_download_dir, f'gfs{zone}.csv'))
     ##############
 
     logger.info('BTV Data')
@@ -1167,14 +1177,15 @@ def AEM3D_prep_IAM(settings, theBay):
     SPINUP = settings['spinup_date']
     USE_GFS_CSVS = settings['csv']
     ROOT_DIR = settings['root_dir']
+    DIRFLAG = settings['new_dirs']
 
     logger.info(f'Processing Bay: {theBay.bayid} for year {theBay.year}')
 
     # get flow files from hydrology model data
-    getflowfiles(FORECASTDATE, theBay, ROOT_DIR, SPINUP)
+    getflowfiles(FORECASTDATE, theBay, ROOT_DIR, SPINUP, DIRFLAG)
 
     # generate climate files including lake levels
-    genclimatefiles(FORECASTDATE, theBay, USE_GFS_CSVS, ROOT_DIR, SPINUP)
+    genclimatefiles(FORECASTDATE, theBay, USE_GFS_CSVS, ROOT_DIR, SPINUP, DIRFLAG)
 
     # generate salinity file
     gensalinefile(theBay)

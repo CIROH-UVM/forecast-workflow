@@ -9,5 +9,6 @@
 	"hydrology_dataset_observed" : "USGS_IV",
 	"hydrology_dataset_forecast" : "NOAA_NWM_PROD",
 	"csv" : false,
-	"root_dir" : "/data/"
+	"root_dir" : "/data/",
+	"new_dirs": true
 }

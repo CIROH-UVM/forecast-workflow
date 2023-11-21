@@ -17,6 +17,10 @@ Now when you call AEM3D_prep_IAM.py, you can include args in the command-line ca
 
 python -m models.aem3d.AEM3D_prep_IAM --conf config.json
 
+To add new arguments:
+	1. add arg and default value to default_settings.json
+	2. 
+
 **NOTE: blending variable and dataset values are currently not being validated in check_values(). Establish a list of 
 valid dataset/blending var strings in order to do this.
 """
@@ -53,6 +57,8 @@ def check_values(settings_dict):
 	# don't need to check csv flag, as default is false, and if the flag is passed, it will change to true. Trying to pass a
 	#  string or number for --csv will throw an error as an unrecognized bool
 	# check to see if root dir exists
+	# don't need to check --old_dirs flag, as default is false, and if the flag is passed, it will change to true. Trying to pass a
+	#  string or number for --old_dirs will throw an error as an unrecognized bool
 	
 # setting up command-line argument parser
 def get_cmdln_args():
@@ -71,6 +77,7 @@ def get_cmdln_args():
 	parser.add_argument('--hdf', type=str, help='forecasted hydrological dataset to use for model run')
 	parser.add_argument('--csv', action='store_true', help="flag determining whether or not to use GFS/NWM CSV's. Default is False.")
 	parser.add_argument('--root', type=str, help='root dir containing forecastScripts, forecastRuns, forecastData')
+	parser.add_argument('--old_dirs', action='store_false', help="flag determining whether or not to use post-update dir structure. Default is True. IOW, pass this flag to use old dir structure")
 
 	args = parser.parse_args()
 
