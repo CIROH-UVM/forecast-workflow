@@ -11,7 +11,7 @@ from .get_args import get_args
 from sh import cp
 import os
 import sys
-import datetime
+import datetime as dt
 import traceback
 
 
@@ -66,7 +66,7 @@ def main():
     POST-SETTINGS UPDATE BELOW
     """
     # These two settings return datetime objs set to midnight already
-    THEBAY.FirstDate = datetimeToOrdinal(SETTINGS['spinup_date'])
+    THEBAY.FirstDate = datetimeToOrdinal(SETTINGS['spinup_date'] + dt.timedelta(days=1))
     THEBAY.LastDate = datetimeToOrdinal(SETTINGS['forecast_end'])
 
 
