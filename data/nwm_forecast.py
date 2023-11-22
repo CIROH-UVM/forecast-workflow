@@ -120,7 +120,7 @@ def download_forecast_files(Log, ForecastStartDate, ForecastStartTimestep='00',
 
 # Lastly, lets read all the downloaded files and process them into a nice Dictionary, where the Key will be the Reach Name and 
 # values will be Pandas Series
-def get_data(ForecastStartDate, ForecastStartTimestep, data_dir='forecastData/nwm/', save_csv=True, ForecastType='medium_range', ForecastMember='1', directory_flag = True):
+def get_data(ForecastStartDate, ForecastStartTimestep, data_dir='forecastData/nwm/', save_csv=False, ForecastType='medium_range', ForecastMember='1', directory_flag = True):
     """
 
     A Function to Process the Downloaded data. It will read each individual file, extract the Stream Value and Add it to 
@@ -140,8 +140,10 @@ def get_data(ForecastStartDate, ForecastStartTimestep, data_dir='forecastData/nw
 
     if directory_flag:
         nwm_download_path = f'nwm.{ForecastStartDate}/{ForecastType}_mem{ForecastMember}'
+        nwm_csv_save_path = f'nwm.{ForecastStartDate}'
     else:
         nwm_download_path = f'{ForecastStartDate}/'
+        nwm_csv_save_path = f'{ForecastStartDate}'
 
     # Append ForecastStartDate to download_base_path
     download_base_path = os.path.join(data_dir, nwm_download_path)
@@ -183,7 +185,7 @@ def get_data(ForecastStartDate, ForecastStartTimestep, data_dir='forecastData/nw
     for reach_name, series_data in data_dict.items():
         results[reach_name] = pd.DataFrame(data={'streamflow': series_data}, index=timestamps)
         if save_csv:
-            filename = os.path.join(data_dir, f'nwm.{ForecastStartDate}/nwm_{reach_name}.csv')
+            filename = os.path.join(data_dir, f'{nwm_csv_save_path}/nwm_{reach_name}.csv')
             results[reach_name].to_csv(filename)
 
     # Simply return the results
