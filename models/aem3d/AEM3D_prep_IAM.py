@@ -437,6 +437,7 @@ def genclimatefiles(forecastDate, whichbay, gfs_csv, root_dir, spinupDate, direc
 
     ############## Use this bit to load forecast climate from .csvs previously created above
     if gfs_csv:
+        logger.info("Loading GFS From CSVs")
         climateForecast = {}
         for zone in ['401', '402', '403']:
             climateForecast[zone] = pd.read_csv(
@@ -446,14 +447,16 @@ def genclimatefiles(forecastDate, whichbay, gfs_csv, root_dir, spinupDate, direc
     ##############
     else:
     ############## Use this bit to load forecast climate from original GRIB files and create .csvs for quick loading later
+        gfs_dir = os.path.join(root_dir, gfs_download_dir, '00/atmos/')
+        logger.info("Loading GFS From original GRIBs at {gfs_dir}")
         climateForecast = gfs_tools.get_data(
-                gfs_dir=os.path.join(root_dir, gfs_download_dir, '/00/atmos/'),
+                gfs_dir=gfs_dir,
                 location_dict={'401': (45.00, -73.25),
                                '402': (44.75, -73.25),
                                '403': (44.75, -73.25)})
-        for zone in climateForecast.keys():
-            climateForecast[zone] = climateForecast[zone].rename_axis('time').astype('float')
-            climateForecast[zone].to_csv(os.path.join(root_dir, gfs_download_dir, f'gfs{zone}.csv'))
+        # for zone in climateForecast.keys():
+        #     climateForecast[zone] = climateForecast[zone].rename_axis('time').astype('float')
+        #     climateForecast[zone].to_csv(os.path.join(root_dir, gfs_download_dir, f'gfs{zone}.csv'))
     ##############
 
     logger.info('BTV Data')
