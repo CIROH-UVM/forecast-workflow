@@ -60,14 +60,10 @@ def aggregate_station_df_dict(gfs_dir = f'/data/forecastData/gfs/gfs.{datetime.t
 def calibrate_columns(df,
 					  ordered_names=['time','T2','TCDC','SWDOWN','U10','V10','RH2','RAIN','CPOFP'],
 					  grib_to_expected_names = {'valid_time':'time', 't2m': 'T2', 'tcc':'TCDC', 'dswrf':'SWDOWN', 'u10':'U10', 'v10':'V10', 'r2':'RH2', 'prate':'RAIN', 'cpofp':'CPOFP'}):
-	# grapping the col names of the current dataframe
-	col_names = df.columns.to_list()
-	# new names, but not in the order we want
-	renamed_cols = [grib_to_expected_names[name] for name in col_names]
-	# sorting the new names so that they match the expected order
-	renamed_cols.sort(key=lambda x: ordered_names.index(x))
-	# reassign column names
-	df.columns = renamed_cols
+	# renaming the columns
+	df.rename(grib_to_expected_names, axis=1, inplace=True)
+	# Make time the index
+	df.set_index('time', inplace=True)
 
 # This loop will append each timestamp row (f000, f001, etc) to the station dataframe dict
 def append_timestamp(sta_dict, loc_dict, loc_dfs):
