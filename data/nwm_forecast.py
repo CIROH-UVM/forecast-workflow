@@ -49,7 +49,7 @@ def GetForecastFile(Log, Url, download_dir='.'):
     Args:
     Log          : logging.Logger object - to log messages for data download
     Url          : The URL of the forecast file to be downloaded, should be string.
-    download_path: The directory where the file should be saved. 
+    download_dir: The directory where the file should be saved. 
 
     Returns:
     A String Path of the Downloaded File. 
@@ -111,7 +111,7 @@ def download_forecast_files(Log, ForecastStartDate, ForecastStartTimestep='00',
         # create the directroy structure in which to download the data - mirrors the NWM URL structure
         download_dir = os.path.join(data_dir, f'nwm.{ForecastStartDate}/{ForecastType}_mem{ForecastMember}')
         # Lets download the url file - The function will return the filepath which we will append to download_files
-        file_path = GetForecastFile(Log=Log, Url=url, download_path=download_dir)
+        file_path = GetForecastFile(Log=Log, Url=url, download_dir=download_dir)
         if file_path is not None:
             download_files.append(file_path)
     Log.info('TASK COMPLETE: NWM DOWNLOAD')

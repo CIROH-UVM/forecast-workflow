@@ -448,7 +448,7 @@ def genclimatefiles(forecastDate, whichbay, gfs_csv, root_dir, spinupDate, direc
     else:
     ############## Use this bit to load forecast climate from original GRIB files and create .csvs for quick loading later
         gfs_dir = os.path.join(root_dir, gfs_download_dir, '00/atmos/')
-        logger.info("Loading GFS From original GRIBs at {gfs_dir}")
+        logger.info(f"Loading GFS From original GRIBs at {gfs_dir}")
         climateForecast = gfs_tools.get_data(
                 gfs_dir=gfs_dir,
                 location_dict={'401': (45.00, -73.25),
