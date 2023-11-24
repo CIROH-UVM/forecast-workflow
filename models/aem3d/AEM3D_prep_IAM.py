@@ -244,7 +244,8 @@ def getflowfiles(forecastDate, whichbay, root_dir, spinupDate, directory_flag):
     # Fix Mill... it seems to have some negative sensor readings
     #temp = mlflow[mlflow > 0]
     mlflow = mlflow.sort_index()
-    mlflow =  mlflow[mlflow['streamflow'] >= 0].reindex(flowdf.index, method='nearest')
+    mlflow_index = mlflow.index
+    mlflow =  mlflow[mlflow['streamflow'] >= 0].reindex(mlflow_index, method='nearest')
 
     # Convert from cubic ft / s to cubic m / s
     flowdf = flowdf * 0.0283168
