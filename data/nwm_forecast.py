@@ -149,7 +149,7 @@ def get_data(ForecastStartDate, ForecastStartTimestep, data_dir='forecastData/nw
     download_base_path = os.path.join(data_dir, nwm_download_path)
 
     # Get the filenames from download_base_path
-    download_files = [f for f in os.listdir(download_base_path) if f.endswith('.nc')]
+    download_files = sorted([f for f in os.listdir(download_base_path) if f.endswith('.nc')])
 
     # Lets initiate an another dictionary where key is reach name from reaches and value is an empty list. 
     # We will add the StreamFlow values later to this list.
@@ -180,6 +180,7 @@ def get_data(ForecastStartDate, ForecastStartTimestep, data_dir='forecastData/nw
         time_stamp = os.path.basename(file).split('f')[-1].split('.')[0]
         hour_value = int(time_stamp)
         timestamps.append(datetime.strptime(ForecastStartDate + ForecastStartTimestep, '%Y%m%d%H') + timedelta(hours=hour_value))
+        print(f'NWMFile: {file} | TimeStamp: {datetime.strptime(ForecastStartDate + ForecastStartTimestep, "%Y%m%d%H") + timedelta(hours=hour_value)}')
 
     # At step we have all the data need to get the final format - which {'Reach_Name':pd.Series(streamflow, index=timestamp)}
     for reach_name, series_data in data_dict.items():
