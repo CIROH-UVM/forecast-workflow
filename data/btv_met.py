@@ -34,8 +34,8 @@ def create_final_df(df, colToKeep, index):
 
 def retrieve_data(startDate, endDate, variable):
 	# put this in loop since this fails frequently
-	resultReceived = False
-	while(not resultReceived):
+	returnValue = None
+	while(returnValue is None):
 		requeststring = 'https://www.ncei.noaa.gov/access/services/data/v1/'+\
 								'?dataset=local-climatological-data'+\
 								'&stations=72617014742'+\
@@ -48,13 +48,20 @@ def retrieve_data(startDate, endDate, variable):
 								'&format=json' 
 		print(requeststring)
 		result = requests.get(requeststring)
-		if len(result.text) > 10:
-			resultReceived = True
-	
+		# Old way to test for valid response
+		# if len(result.text) > 10:
+		# 	resultReceived = True
+		
+		# New way to test for valid response
+		try:
+			returnValue = result.json()
+		except:
+			print("NOAA Local Climatological Data Request Failed... Will retry")
+			print(result.text)
 	# logger.info('result.text')
 	# logger.info(result.text)
 
-	return pd.DataFrame(result.json())
+	return pd.DataFrame(returnValue)
 	
 
 def get_data (ForecastStartDate, SpinupStartDate) :
