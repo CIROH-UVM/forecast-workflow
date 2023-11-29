@@ -18,12 +18,12 @@ gfs_dir = "/data/forecastData/gfs/"
 
 # Define alias for aggreate_df_dict
 def get_data(gfs_dir = f'/data/forecastData/gfs/gfs.{datetime.today().strftime("%Y%m%d")}/00/atmos/',
-             location_dict = {"401": (45.0, -73.25),
-                              "402": (44.75, -73.25),
-                              "403": (44.75, -73.25)
-                             }
+			 location_dict = {"401": (45.0, -73.25),
+							  "402": (44.75, -73.25),
+							  "403": (44.75, -73.25)
+							 }
 ):
-    return aggregate_station_df_dict(gfs_dir=gfs_dir, location_dict=location_dict)
+	return aggregate_station_df_dict(gfs_dir=gfs_dir, location_dict=location_dict)
 
 def aggregate_station_df_dict(gfs_dir = f'/data/forecastData/gfs/gfs.{datetime.today().strftime("%Y%m%d")}/00/atmos/',
 							location_dict = {"401": (45.0, -73.25),"402": (44.75, -73.25),"403": (44.75, -73.25)}
@@ -69,7 +69,7 @@ def calibrate_columns(df,
 def append_timestamp(sta_dict, loc_dict, loc_dfs):
 	for stationID, loc in loc_dict.items():
 		df_to_append = loc_dfs[loc].drop_duplicates().drop(columns = ['latitude','longitude'])
-        # reorder & rename columns to expected convention
+		# reorder & rename columns to expected convention
 		calibrate_columns(df_to_append)
 		if stationID in sta_dict:
 			sta_dict[stationID] = pd.concat([sta_dict[stationID], df_to_append])
@@ -77,19 +77,19 @@ def append_timestamp(sta_dict, loc_dict, loc_dfs):
 			sta_dict[stationID] = df_to_append
 
 def dict_to_csv(loc_dict={}, location_dataframes={}):
-    for station in loc_dict:
-        location = loc_dict[station]
-        filename = f"{station}_{location[0]}_{location[1]}.csv"
-        location_dataframes[station].to_csv(filename)
+	for station in loc_dict:
+		location = loc_dict[station]
+		filename = f"{station}_{location[0]}_{location[1]}.csv"
+		location_dataframes[station].to_csv(filename)
 
 def execute(cmd):
-    popen = sp.Popen(cmd, stdout=sp.PIPE, universal_newlines=True)
-    for stdout_line in iter(popen.stdout.readline, ""):
-        yield stdout_line
-    popen.stdout.close
-    return_code = popen.wait()
-    if return_code:
-        raise sp.CalledProcessError(return_code, cmd)
+	popen = sp.Popen(cmd, stdout=sp.PIPE, universal_newlines=True)
+	for stdout_line in iter(popen.stdout.readline, ""):
+		yield stdout_line
+	popen.stdout.close
+	return_code = popen.wait()
+	if return_code:
+		raise sp.CalledProcessError(return_code, cmd)
 
 ### generate_date_strings() - Creates a list of forecast dates to download
 # -- start_date : first date of forecast data to download
@@ -97,77 +97,84 @@ def execute(cmd):
 # -- num_dates : the number of dates ahead or behind the start date you want to download
 # -- cast : str switch that determines whether to grab n dates ahead ("fore") or behind ("hind")
 def generate_date_strings(start_date, num_dates=1, cast="fore"):
-    date_strings = []
-    # if not a datetime object, convert start_date to one
-    if not isinstance(start_date, datetime):
-        # strptime(str, format) converts a string to a datetime object
-        current_date = datetime.strptime(start_date, "%Y%m%d")
-    else:
-        current_date = start_date
-    for _ in range(num_dates):
-        date_strings.append(current_date.strftime("%Y%m%d"))
-        if cast == "hind":
-            current_date -= timedelta(days=1)
-        else:
-            current_date += timedelta(days=1)
+	date_strings = []
+	# if not a datetime object, convert start_date to one
+	if not isinstance(start_date, datetime):
+		# strptime(str, format) converts a string to a datetime object
+		current_date = datetime.strptime(start_date, "%Y%m%d")
+	else:
+		current_date = start_date
+	for _ in range(num_dates):
+		date_strings.append(current_date.strftime("%Y%m%d"))
+		if cast == "hind":
+			current_date -= timedelta(days=1)
+		else:
+			current_date += timedelta(days=1)
 
-    return date_strings
+	return date_strings
 
 ### generate_hours_list() - Creates a list of forecast hours to be downloaded
 # -- num_hours: how many hours of forecast data you want: note that date goes up to 16 days out
 # -- archive: boolean flag indicating if data is going to be pulled from archives; if true returns only step = 3 list
 def generate_hours_list(num_hours=168, archive=False):
-    if archive:
-        return [f"{hour:03}" for hour in range(0, num_hours + 1, 3)]
-    if not archive:
-        if num_hours <= 120:
-            return [f"{hour:03}" for hour in range(0, num_hours + 1)]
-        else:
-            return [f"{hour:03}" for hour in range(0, 120)] + [
-                f"{hour:03}" for hour in range(120, num_hours + 1, 3)
-            ]
-        
+	if archive:
+		return [f"{hour:03}" for hour in range(0, num_hours + 1, 3)]
+	if not archive:
+		if num_hours <= 120:
+			return [f"{hour:03}" for hour in range(0, num_hours + 1)]
+		else:
+			return [f"{hour:03}" for hour in range(0, 120)] + [
+				f"{hour:03}" for hour in range(120, num_hours + 1, 3)
+			]
+		
 # pulls just the desired lat/long pairs out of the datasets and isolat
 def isolate_loc_rows(ds, loc_dict):
-    # initialize empty list to store ds for each station in loc_dict
-    station_ds_list = []
-    for coords in loc_dict.values():
-        # grab the ds for the lat/long pair
-        station_ds = ds.sel({"latitude": coords[0], "longitude": coords[1]})
-        # add the pulled ds to the station ds list
-        station_ds_list.append(station_ds)
-    # concatenate all of the station datasets pulled
-    concat_stations_ds = xr.concat(station_ds_list, dim="latitude")
-    return concat_stations_ds
+	# initialize empty list to store ds for each station in loc_dict
+	station_ds_list = []
+	for coords in loc_dict.values():
+		# grab the ds for the lat/long pair
+		station_ds = ds.sel({"latitude": coords[0], "longitude": coords[1]})
+		# add the pulled ds to the station ds list
+		station_ds_list.append(station_ds)
+	# concatenate all of the station datasets pulled
+	concat_stations_ds = xr.concat(station_ds_list, dim="latitude")
+	return concat_stations_ds
 
 ### In-place function that transforms the longitude indices from 0-360 t0 -180-180
 def remap_longs(ds):
-    map_function = lambda lon: (lon - 360) if (lon > 180) else lon
-    vector_fcn = np.vectorize(map_function)
-    longitudes = ds.coords["longitude"].values
-    remapped_longitudes = vector_fcn(longitudes)
-    remapped_ds = ds.assign_coords(longitude=remapped_longitudes)
-    return remapped_ds
+	map_function = lambda lon: (lon - 360) if (lon > 180) else lon
+	vector_fcn = np.vectorize(map_function)
+	longitudes = ds.coords["longitude"].values
+	remapped_longitudes = vector_fcn(longitudes)
+	remapped_ds = ds.assign_coords(longitude=remapped_longitudes)
+	return remapped_ds
 
 ################## Function for downloading GFS data ##############################
 
-### download_gfs() -will download the grib files for the specified dates and hours
-# -- dates (list of strs) [opt]: list of dates to download gribs for. Default is just the current date
-# -- hours (list of strs) [opt]: list of forecast hours to download gribs for. Default is 7 day forecast, or 168 hours
-# -- log (logger) [required]: logger track info and download progress
-# -- grib_data_dir (str) [opt]: directory in which to store gfs grib files
-def download_gfs(log, dates=generate_date_strings(start_date=datetime.today().strftime("%Y%m%d"), num_dates=1), hours=generate_hours_list(168), grib_data_dir="/data/forecastData/gfs"):
-	log.info(f'TASK INITIATED: Download {int(hours[-1])}-hour GFS forecasts for the following dates: {dates}')
+def download_gfs(dates=generate_date_strings(start_date=datetime.today().strftime("%Y%m%d"), num_dates=1),
+				 hours=generate_hours_list(168),
+				 grib_data_dir="/data/forecastData/gfs"):
+	"""
+	Downloads the grib files for the specified dates and hours
+
+	Args:
+	-- dates (list of strs) [opt]: list of dates to download gribs for. Default is just the current date
+	-- hours (list of strs) [opt]: list of forecast hours to download gribs for. Default is 7 day forecast, or 168 hours
+	-- log (logger) [required]: logger track info and download progress
+	-- grib_data_dir (str) [opt]: directory in which to store gfs grib files
+	
+	"""
+	print(f'TASK INITIATED: Download {int(hours[-1])}-hour GFS forecasts for the following dates: {dates}')
 	for d in dates:
-		log.info(f'DOWNLOADING GFS DATA FOR DATE {d}')
+		print(f'DOWNLOADING GFS DATA FOR DATE {d}')
 		date_dir = os.path.join(grib_data_dir, f'gfs.{d}/00/atmos')
 		if not os.path.exists(date_dir):
 			os.makedirs(date_dir)
 		for h in hours:
 			grib_destination = os.path.join(grib_data_dir, date_dir, f'gfs.t00z.pgrb2.0p25.f{h}')
 			grib_url = f"https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl?dir=%2Fgfs.{d}%2F00%2Fatmos&file=gfs.t00z.pgrb2.0p25.f{h}&var_CPOFP=on&var_DSWRF=on&var_PRATE=on&var_RH=on&var_TCDC=on&var_TMP=on&var_UGRD=on&var_VGRD=on&lev_2_m_above_ground=on&lev_10_m_above_ground=on&lev_surface=on&lev_entire_atmosphere=on&subregion=&toplat=47.5&leftlon=280&rightlon=293.25&bottomlat=40.25"
-			download_data(url=grib_url, filepath=grib_destination, log=log)
-	log.info('TASK COMPLETE: GFS DOWNLOAD')
+			download_data(url=grib_url, filepath=grib_destination)
+	print('TASK COMPLETE: GFS DOWNLOAD')
 
 ############################# OLD FUNCTIONS - NOT TO BE USED ##########################
 
@@ -333,13 +340,13 @@ def download_gfs(log, dates=generate_date_strings(start_date=datetime.today().st
 # -- url (str) [required]: complete url of the file to be downloaded
 # -- file_path (str) [required]: complete* path to the destination file. *should inlcude the desired name of the download file at the end of the path
 # -- silent (bool) [optional]: switch to turn off progress report. Default is false
-def curl(url, file_path, silent = False):
-	if not silent:
-		print(f'Downloading file from: {url}')
-		print(f'\tto destination: {file_path}')
-		# -C - enables curl to pickup download where it left off in case of connection disruption
-	sh.curl('-o',file_path, '-C', '-', url)
-	if not silent: print('Download complete\n')
+# def curl(url, file_path, silent = False):
+# 	if not silent:
+# 		print(f'Downloading file from: {url}')
+# 		print(f'\tto destination: {file_path}')
+# 		# -C - enables curl to pickup download where it left off in case of connection disruption
+# 	sh.curl('-o',file_path, '-C', '-', url)
+# 	if not silent: print('Download complete\n')
 
 # ### Given the transformed dataframe and a list of lat/long tuples to extract, returns new df containing just the rows for each lat/long pair
 # # -- df : the grib2 df post-long-transform
