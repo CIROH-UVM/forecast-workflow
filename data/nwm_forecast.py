@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from lib import download_data
+from lib import download_data, multithreaded_download
 import os
 import pandas as pd
 import xarray as xr
@@ -19,16 +19,19 @@ forecast_files_path = '/data/forecastData/nwm'
 # reach_Series_Data = get_data(ForecastStartDate=StartDate, ForecastStartTimestep=StartTimestep, download_files=download_files)
 
 
-def GetForecastFileName(ForecastStartDate = '20230907', ForecastStartTimestep='00', 
-						ForecastType = 'medium_range', ForecastMember='1', TimeStep = '001'):
+def GetForecastFileName(ForecastStartDate = datetime.today().strftime("%Y%m%d"),
+						ForecastStartTimestep='00', 
+						ForecastType = 'medium_range',
+						ForecastMember='1',
+						TimeStep = '001'):
   
 	"""
 	
 	A Function to construct a URL for Downloading a Specific Forecast File from NOAA NWM
 	
 	Args:
-	ForecastStartDate     : The date for which the forecast is needed. Default is '20230907'.
-	ForecastStartTimestep : The hour at which the forecast starts. Default is '00' (midnight).
+	ForecastStartDate     : The date for which the forecast is needed. Default is today's date'.
+	ForecastStartTimestep: The starting time for the forecasts.
 	ForecastType          : Specifies the type of forecast, Default is medium_range.
 	ForecastMember        : Represents which member of the forecast model we want. Default is '1' ---> 'medium_range_mem1'. 
 	TimeStep              : Represents the specific forecast file within the range. 
@@ -38,7 +41,8 @@ def GetForecastFileName(ForecastStartDate = '20230907', ForecastStartTimestep='0
 	
 	"""
 	BaseName = 'https://nomads.ncep.noaa.gov/pub/data/nccf/com/nwm/prod/nwm.'
-	return BaseName + ForecastStartDate + '/medium_range_mem' + ForecastMember + '/nwm.t' + ForecastStartTimestep + 'z.medium_range.channel_rt_' + ForecastMember + '.f' + TimeStep + '.conus.nc'
+	return BaseName + ForecastStartDate + '/' + ForecastMember + '_mem' + ForecastMember + '/nwm.t' + ForecastStartTimestep + 'z.medium_range.channel_rt_' + ForecastMember + '.f' + TimeStep + '.conus.nc'
+
 
   
 def GetForecastFile(Url, download_dir='.'):
@@ -79,6 +83,26 @@ def GetForecastFile(Url, download_dir='.'):
 	
 	return FilePath
 
+def GetForecastFilePath(Url, download_dir='.'):
+	"""
+	
+	A Function that returns the destination path of the NOAA NWM forecast file to be downloaded
+
+	Args:
+	Log          : logging.Logger object - to log messages for data download
+	Url          : The URL of the forecast file to be downloaded, should be string.
+	download_dir: The directory where the file should be saved. 
+
+	Returns:
+	A String Path of the Downloaded File. 
+	
+	"""
+	FileName = os.path.basename(Url)
+	# Lets construct the complete file path
+	FilePath = os.path.join(download_dir, FileName)
+		
+	return FilePath
+
 # Next we will define a function which will call these two function and download the data. 
 def download_forecast_files(ForecastStartDate, ForecastStartTimestep='00', 
 							ForecastType='medium_range', ForecastMember='1', data_dir='forecastData/nwm/'):
@@ -117,6 +141,62 @@ def download_forecast_files(ForecastStartDate, ForecastStartTimestep='00',
 	print('TASK COMPLETE: NWM DOWNLOAD')
 	# Lets return the list
 	return download_files
+
+# Next we will define a function which will call these two function and download the data. 
+def download_nwm_threaded(ForecastStartDate=datetime.today(),
+						  ForecastHoursOut=240,
+						  ForecastStartTimestep='00',
+						  ForecastType='medium_range',
+						  ForecastMember='1',
+						  num_threads=int(os.cpu_count()/2),
+						  data_dir='forecastData/nwm/'):
+	"""
+	
+	A Function to download the forecast data for a given start date and start time step. It will first call the GetForecastFileName()
+	to get the URL of the Filename to be downloaded. That URL will further be passed to GetForecastFilePath() to download the file. 
+
+	Args:
+	Log                  : logging.Logger object - to log messages for data download
+	ForecastStartDate    : The starting date for which forecasts are to be downloaded.
+	ForecastHoursOut	 : Number of hours of forecast data to download
+	ForecastStartTimestep: The starting time for the forecasts.
+	ForecastType         : The type of forecast (default is 'medium_range').
+	ForecastMember       : The member of the forecast model.
+	num_threads 		 : number of threads to use.
+	data_dir             : Path in which to build the NWM data download subdirectroy structure.
+
+	Returns:
+	List of paths of downloaded files.
+	
+	"""
+	# if a datetime object, convert ForecastStartDate to a string
+	if isinstance(ForecastStartDate, datetime):
+		ForecastStartDate = ForecastStartDate.strftime("%Y%m%d")
+
+	# First define the timestamps
+	time_stamps = ['%03d' % (i+1) for i in range(ForecastHoursOut)]  # For 10 days time Stamps
+
+	print(f'TASK INITIATED: Download {int(time_stamps[-1])}-hour NWM hydrology forecasts for the following date: {ForecastStartDate[4:6]}/{ForecastStartDate[6:8]}/{ForecastStartDate[0:4]}')
+	# Lets create an empty list to store the complete path of downloaded files
+	download_list = []
+	print(f'DOWNLOADING NWM DATA FOR DATE {ForecastStartDate}')
+	for time_stamp in time_stamps:
+		# create the directroy structure in which to download the data - mirrors the NWM URL structure
+		download_dir = os.path.join(data_dir, f'nwm.{ForecastStartDate}/{ForecastType}_mem{ForecastMember}')
+		
+		# Getting the URL
+		url = GetForecastFileName(ForecastStartDate=ForecastStartDate, TimeStep=time_stamp)
+		# Lets get the destination path for the file download
+		fpath = GetForecastFilePath(Url=url, download_dir=download_dir)
+
+		# if the grib file isn't downloaded already, then download it
+		if not os.path.exists(fpath):
+			download_list.append((url, fpath))
+		else:
+			print(f'Skipping download; {os.path.basename(fpath)} found at: {fpath}')
+	if download_list:
+		multithreaded_download(download_list, num_threads)
+	print('TASK COMPLETE: NWM DOWNLOAD')
 
 # Lastly, lets read all the downloaded files and process them into a nice Dictionary, where the Key will be the Reach Name and 
 # values will be Pandas Series

@@ -1,7 +1,7 @@
 import cfgrib
 from datetime import datetime, timedelta
 import glob
-from lib import download_data
+from lib import download_data, multithreaded_download
 import numpy as np
 import os
 import pandas as pd
@@ -174,6 +174,42 @@ def download_gfs(dates=generate_date_strings(start_date=datetime.today().strftim
 			grib_destination = os.path.join(grib_data_dir, date_dir, f'gfs.t00z.pgrb2.0p25.f{h}')
 			grib_url = f"https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl?dir=%2Fgfs.{d}%2F00%2Fatmos&file=gfs.t00z.pgrb2.0p25.f{h}&var_CPOFP=on&var_DSWRF=on&var_PRATE=on&var_RH=on&var_TCDC=on&var_TMP=on&var_UGRD=on&var_VGRD=on&lev_2_m_above_ground=on&lev_10_m_above_ground=on&lev_surface=on&lev_entire_atmosphere=on&subregion=&toplat=47.5&leftlon=280&rightlon=293.25&bottomlat=40.25"
 			download_data(url=grib_url, filepath=grib_destination)
+	print('TASK COMPLETE: GFS DOWNLOAD')
+
+def download_gfs_threaded(dates=generate_date_strings(start_date=datetime.today(),
+						  num_dates=1),
+				 		  hours=generate_hours_list(168),
+						  num_threads=int(os.cpu_count()/2),
+				 		  grib_data_dir="/data/forecastData/gfs"):
+	"""
+	Downloads the grib files for the specified dates and hours
+
+	Args:
+	-- dates (list of strs) [opt]: list of dates to download gribs for. Default is just the current date
+	-- hours (list of strs) [opt]: list of forecast hours to download gribs for. Default is 7 day forecast, or 168 hours
+	-- log (logger) [required]: logger track info and download progress
+	-- num_threads (int) [opt]: number of threads to use.
+	-- grib_data_dir (str) [opt]: directory in which to store gfs grib files
+	
+	"""
+	download_list = []
+	print(f'TASK INITIATED: Download {int(hours[-1])}-hour GFS forecasts for the following dates: {dates}')
+	for d in dates:
+		print(f'DOWNLOADING GFS DATA FOR DATE {d}')
+		date_dir = os.path.join(grib_data_dir, f'gfs.{d}/00/atmos')
+		if not os.path.exists(date_dir):
+			os.makedirs(date_dir)
+		for h in hours:
+			grib_fpath = os.path.join(grib_data_dir, date_dir, f'gfs.t00z.pgrb2.0p25.f{h}')
+			# if the grib file isn't downloaded already, then download it
+			if not os.path.exists(grib_fpath):
+				grib_url = f"https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl?dir=%2Fgfs.{d}%2F00%2Fatmos&file=gfs.t00z.pgrb2.0p25.f{h}&var_CPOFP=on&var_DSWRF=on&var_PRATE=on&var_RH=on&var_TCDC=on&var_TMP=on&var_UGRD=on&var_VGRD=on&lev_2_m_above_ground=on&lev_10_m_above_ground=on&lev_surface=on&lev_entire_atmosphere=on&subregion=&toplat=47.5&leftlon=280&rightlon=293.25&bottomlat=40.25"
+				download_list.append((grib_url, grib_fpath))
+			else:
+				print(f'Skipping download; {os.path.basename(grib_fpath)} found at: {os.path.join(grib_data_dir, date_dir)}')
+	# if download_list isn't empty:
+	if download_list:
+		multithreaded_download(download_list, num_threads)
 	print('TASK COMPLETE: GFS DOWNLOAD')
 
 ############################# OLD FUNCTIONS - NOT TO BE USED ##########################
