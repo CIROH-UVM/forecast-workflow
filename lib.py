@@ -2,6 +2,7 @@ import os
 import sh
 import sys
 import logging, logging.config
+import concurrent.futures
 from contextlib import contextmanager
 from string import Template
 
@@ -282,6 +283,19 @@ def download_data(url, filepath):
 		# log the last progress bar update (should be 100% ir download was finished, otherwise will show the point at which download ceased)
 		print(progress[-1])
 		print(f"Download Complete: {filepath}\n")
+
+def multithreaded_download(download_list, num_threads=int(os.cpu_count()/2)):
+	"""
+	Implements download_data() with mulithreading to speed up downloads
+
+	Args:
+	-- download_list (list) [required]: a list containing tuples of (url_to_download, download_destination_path)
+	-- num_threads (int) [opt]: number of threads to use.
+	"""
+	urls, paths = zip(*download_list)
+	print(f'Using {num_threads} threads for downloads')
+	with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+		executor.map(download_data, urls, paths)
 
 IAMLogger.setup_logging()
 logger = logging.getLogger(get_calling_package())
