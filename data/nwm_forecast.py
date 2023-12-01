@@ -104,8 +104,11 @@ def GetForecastFilePath(Url, download_dir='.'):
 	return FilePath
 
 # Next we will define a function which will call these two function and download the data. 
-def download_forecast_files(ForecastStartDate, ForecastStartTimestep='00', 
-							ForecastType='medium_range', ForecastMember='1', data_dir='forecastData/nwm/'):
+def download_forecast_files(ForecastStartDate,
+							ForecastStartTimestep='00', 
+							ForecastType='medium_range',
+							ForecastMember='1',
+							data_dir='/data/forecastData/nwm/'):
 	"""
 	
 	A Function to download the forecast data for a given start date and start time step. It will first call the GetForecastFileName()
@@ -127,13 +130,17 @@ def download_forecast_files(ForecastStartDate, ForecastStartTimestep='00',
 	time_stamps = ['%03d' % (i+1) for i in range(240)]  # For 10 days time Stamps
 
 	print(f'TASK INITIATED: Download {int(time_stamps[-1])}-hour NWM hydrology forecasts for the following date: {ForecastStartDate[4:6]}/{ForecastStartDate[6:8]}/{ForecastStartDate[0:4]}')
+
+	# create the directroy structure in which to download the data - mirrors the NWM URL structure
+	download_dir = os.path.join(data_dir, f'nwm.{ForecastStartDate}/{ForecastType}_mem{ForecastMember}')
+	if not os.path.exists(download_dir):
+		os.makedirs(download_dir)
+	
 	# Lets create an empty list to store the complete path of downloaded files
 	download_files = []
 	for time_stamp in time_stamps:
 		# Getting the URL
 		url = GetForecastFileName(ForecastStartDate=ForecastStartDate, TimeStep=time_stamp)
-		# create the directroy structure in which to download the data - mirrors the NWM URL structure
-		download_dir = os.path.join(data_dir, f'nwm.{ForecastStartDate}/{ForecastType}_mem{ForecastMember}')
 		# Lets download the url file - The function will return the filepath which we will append to download_files
 		file_path = GetForecastFile(Url=url, download_dir=download_dir)
 		if file_path is not None:
@@ -149,11 +156,15 @@ def download_nwm_threaded(ForecastStartDate=datetime.today(),
 						  ForecastType='medium_range',
 						  ForecastMember='1',
 						  num_threads=int(os.cpu_count()/2),
-						  data_dir='forecastData/nwm/'):
+						  data_dir='/data/forecastData/nwm/'):
 	"""
 	
 	A Function to download the forecast data for a given start date and start time step. It will first call the GetForecastFileName()
-	to get the URL of the Filename to be downloaded. That URL will further be passed to GetForecastFilePath() to download the file. 
+	to get the URL of the Filename to be downloaded. That URL will further be passed to GetForecastFilePath() to download the file.
+
+	!!!  NOMADS has a 120 hits / minute limit that this code will quickly overwhelm.  We need to build in a rate limiter.
+	TODO: Ideas for rate limiting code?  Maybe break the file list into 120 file sections and submit those to the
+	      parallel download code once every 1 minute or so?
 
 	Args:
 	Log                  : logging.Logger object - to log messages for data download
@@ -177,15 +188,23 @@ def download_nwm_threaded(ForecastStartDate=datetime.today(),
 	time_stamps = ['%03d' % (i+1) for i in range(ForecastHoursOut)]  # For 10 days time Stamps
 
 	print(f'TASK INITIATED: Download {int(time_stamps[-1])}-hour NWM hydrology forecasts for the following date: {ForecastStartDate[4:6]}/{ForecastStartDate[6:8]}/{ForecastStartDate[0:4]}')
+
+	# create the directroy structure in which to download the data - mirrors the NWM URL structure
+	download_dir = os.path.join(data_dir, f'nwm.{ForecastStartDate}/{ForecastType}_mem{ForecastMember}')
+	if not os.path.exists(download_dir):
+		os.makedirs(download_dir)
+
 	# Lets create an empty list to store the complete path of downloaded files
 	download_list = []
 	print(f'DOWNLOADING NWM DATA FOR DATE {ForecastStartDate}')
 	for time_stamp in time_stamps:
-		# create the directroy structure in which to download the data - mirrors the NWM URL structure
-		download_dir = os.path.join(data_dir, f'nwm.{ForecastStartDate}/{ForecastType}_mem{ForecastMember}')
-		
 		# Getting the URL
-		url = GetForecastFileName(ForecastStartDate=ForecastStartDate, TimeStep=time_stamp)
+		url = GetForecastFileName(ForecastStartDate=ForecastStartDate,
+									ForecastStartTimestep=ForecastStartTimestep,
+									ForecastType=ForecastType,
+									ForecastMember=ForecastMember,
+									TimeStep=time_stamp)
+		
 		# Lets get the destination path for the file download
 		fpath = GetForecastFilePath(Url=url, download_dir=download_dir)
 
