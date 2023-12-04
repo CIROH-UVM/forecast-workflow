@@ -41,7 +41,8 @@ def GetForecastFileName(ForecastStartDate = datetime.today().strftime("%Y%m%d"),
 	
 	"""
 	BaseName = 'https://nomads.ncep.noaa.gov/pub/data/nccf/com/nwm/prod/nwm.'
-	return BaseName + ForecastStartDate + '/' + ForecastMember + '_mem' + ForecastMember + '/nwm.t' + ForecastStartTimestep + 'z.medium_range.channel_rt_' + ForecastMember + '.f' + TimeStep + '.conus.nc'
+	return BaseName + ForecastStartDate + '/' + ForecastType + '_mem' + ForecastMember + '/nwm.t' + ForecastStartTimestep + 'z.medium_range.channel_rt_' + ForecastMember + '.f' + TimeStep + '.conus.nc'
+
 
 
   
