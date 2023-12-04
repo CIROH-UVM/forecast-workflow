@@ -72,7 +72,7 @@ def append_timestamp(sta_dict, loc_dict, loc_dfs):
 		# reorder & rename columns to expected convention
 		calibrate_columns(df_to_append)
 		if stationID in sta_dict:
-			sta_dict[stationID] = pd.concat([sta_dict[stationID], df_to_append])
+			sta_dict[stationID] = pd.concat([sta_dict[stationID], df_to_append]).sort_index()
 		else:
 			sta_dict[stationID] = df_to_append
 
