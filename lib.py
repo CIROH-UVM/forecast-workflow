@@ -297,5 +297,24 @@ def multithreaded_download(download_list, num_threads=int(os.cpu_count()/2)):
 	with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
 		executor.map(download_data, urls, paths)
 
+def multithreaded_loading(load_func, file_list, num_threads=int(os.cpu_count()/2)):
+	"""
+	The idea here is to pass the function that reads datasets (xr.open_dataset, cfgrib) with multithreading, 
+	and return a dictionary with the structure {fname : dataset}
+
+	Args:
+	-- load_func (function) [required]: the function to use to open the datasets
+	-- file_list (list) [required]: list of file names to load
+	-- num_threads (int) [opt]: number of threads to use for mulithreading
+
+	Returns:
+	a dictionary where every key is a filename in file_list, and each corresponding value is the datastruct loaded for that file
+	"""
+	with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+		datasets = executor.map(load_func, file_list)
+		dataset_list = [d for d in datasets]
+
+	return dict(zip(file_list, dataset_list))
+
 IAMLogger.setup_logging()
 logger = logging.getLogger(get_calling_package())
