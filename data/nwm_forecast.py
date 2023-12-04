@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from lib import download_data, multithreaded_download
+from lib import download_data, multithreaded_download, multithreaded_loading
 import os
 import pandas as pd
 import xarray as xr
@@ -220,7 +220,13 @@ def download_nwm_threaded(ForecastStartDate=datetime.today(),
 
 # Lastly, lets read all the downloaded files and process them into a nice Dictionary, where the Key will be the Reach Name and 
 # values will be Pandas Series
-def get_data(ForecastStartDate, ForecastStartTimestep, data_dir='forecastData/nwm/', save_csv=False, ForecastType='medium_range', ForecastMember='1', directory_flag = True):
+def get_data(ForecastStartDate=datetime.today(),
+			 ForecastStartTimestep='00',
+			 ForecastType='medium_range',
+			 data_dir='forecastData/nwm/',
+			 save_csv=False,
+			 ForecastMember='1',
+			 directory_flag = True):
 	"""
 
 	A Function to Process the Downloaded data. It will read each individual file, extract the Stream Value and Add it to 
@@ -228,11 +234,12 @@ def get_data(ForecastStartDate, ForecastStartTimestep, data_dir='forecastData/nw
 	
 	Args:
 	ForecastStartDate     : The date for which the forecast is needed - This is needed to extract the Datetime value.
-	ForecastStartTimestep : The starting time for the forecasts - This is needed to extract the Datetime value. 
+	ForecastStartTimestep : The starting time for the forecasts - This is needed to extract the Datetime value.
+	ForecastStartTimestep : The starting time for the forecasts. 
 	data_dir              : Path in which to build the NWM data download subdirectroy structure.
 	save_csv              : Flag indicating whether or not dataframes should be saved as CSV files.
-	ForecastType          : The type of forecast (default is 'medium_range').
 	ForecastMember        : The member of the forecast model.
+	directory_flag		  : Wether or not to use the post-Thanksgiving update dir structure for NWM data. If true, use new dir structure
 	
 	"""
 	# Lets define an empty dictionary to store the Results.
@@ -248,8 +255,9 @@ def get_data(ForecastStartDate, ForecastStartTimestep, data_dir='forecastData/nw
 	# Append ForecastStartDate to download_base_path
 	download_base_path = os.path.join(data_dir, nwm_download_path)
 
-	# Get the filenames from download_base_path
-	download_files = sorted([f for f in os.listdir(download_base_path) if f.endswith('.nc')])
+	# Get the filenames from download_base_path - in chronological order
+	download_files = sorted([os.path.join(download_base_path, fname) for fname in os.listdir(download_base_path) if fname.endswith('.nc')])
+
 
 	# Lets initiate an another dictionary where key is reach name from reaches and value is an empty list. 
 	# We will add the StreamFlow values later to this list.
@@ -262,13 +270,15 @@ def get_data(ForecastStartDate, ForecastStartTimestep, data_dir='forecastData/nw
 	
 	data_dict = {reach_name:[] for reach_id, reach_name in reaches.items()}
    
+	# load the NWM data with multithreading
+	# dataset_list will be in the same order as file list submitted, download_files
+	dataset_dict = multithreaded_loading(xr.open_dataset, download_files)
 
 	# Lets initiate an empty list to store the timestamps info
 	timestamps = []
 
 	# Time to read the data files
-	for file in download_files:
-		data = xr.open_dataset(os.path.join(download_base_path, file))
+	for file, data in dataset_dict.items():
 
 		# Time to extract the relevent reach id data from data
 		for reach_id, reach_name in reaches.items():

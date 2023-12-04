@@ -1,7 +1,7 @@
 import cfgrib
 from datetime import datetime, timedelta
 import glob
-from lib import download_data, multithreaded_download
+from lib import download_data, multithreaded_download, multithreaded_loading
 import numpy as np
 import os
 import pandas as pd
@@ -29,9 +29,11 @@ def aggregate_station_df_dict(gfs_dir = f'/data/forecastData/gfs/gfs.{datetime.t
 							location_dict = {"401": (45.0, -73.25),"402": (44.75, -73.25),"403": (44.75, -73.25)}
 							):
 	station_dict = {}
-	grib_file_list = glob.glob(f'{gfs_dir}gfs.t00z.pgrb2.0p25.f[0-9][0-9][0-9]')
-	for grib_file in grib_file_list:
-		grib_datasets = cfgrib.open_datasets(grib_file)
+	grib_file_list = glob(f'{gfs_dir}gfs.t00z.pgrb2.0p25.f[0-9][0-9][0-9]')
+	# seems like the optimal number of threads to use is 2-4 - any more actually slows down the function
+	datasets_dict = multithreaded_loading(cfgrib.open_datasets, grib_file_list, num_threads=2)
+	for grib_file, grib_datasets in datasets_dict.items():
+		# grib_datasets = cfgrib.open_datasets(grib_file)
 		datasets_indices_to_drop = []
 		coords_to_drop = ["step", "atmosphere", "heightAboveGround", "surface", "time", "t"]
 		grib_datasets = [ds.drop_vars(coords_to_drop, errors='ignore') for ds in grib_datasets]
