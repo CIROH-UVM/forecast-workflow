@@ -202,7 +202,7 @@ def download_gfs_threaded(dates=generate_date_strings(start_date=datetime.today(
 		if not os.path.exists(date_dir):
 			os.makedirs(date_dir)
 		for h in hours:
-			grib_fpath = os.path.join(grib_data_dir, date_dir, f'gfs.t00z.pgrb2.0p25.f{h}')
+			grib_fpath = os.path.join(date_dir, f'gfs.t00z.pgrb2.0p25.f{h}')
 			# if the grib file isn't downloaded already, then download it
 			if not os.path.exists(grib_fpath):
 				grib_url = f"https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl?dir=%2Fgfs.{d}%2F00%2Fatmos&file=gfs.t00z.pgrb2.0p25.f{h}&var_CPOFP=on&var_DSWRF=on&var_PRATE=on&var_RH=on&var_TCDC=on&var_TMP=on&var_UGRD=on&var_VGRD=on&lev_2_m_above_ground=on&lev_10_m_above_ground=on&lev_surface=on&lev_entire_atmosphere=on&subregion=&toplat=47.5&leftlon=280&rightlon=293.25&bottomlat=40.25"
