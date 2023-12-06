@@ -4,6 +4,7 @@ import glob
 from lib import download_data, multithreaded_download, multithreaded_loading
 import numpy as np
 import os
+import time
 import pandas as pd
 import sh
 import subprocess as sp
@@ -29,7 +30,7 @@ def aggregate_station_df_dict(gfs_dir = f'/data/forecastData/gfs/gfs.{datetime.t
 							location_dict = {"401": (45.0, -73.25),"402": (44.75, -73.25),"403": (44.75, -73.25)}
 							):
 	station_dict = {}
-	grib_file_list = glob(f'{gfs_dir}gfs.t00z.pgrb2.0p25.f[0-9][0-9][0-9]')
+	grib_file_list = sorted(glob(f'{gfs_dir}gfs.t00z.pgrb2.0p25.f[0-9][0-9][0-9]'))
 	# seems like the optimal number of threads to use is 2-4 - any more actually slows down the function
 	datasets_dict = multithreaded_loading(cfgrib.open_datasets, grib_file_list, num_threads=2)
 	for grib_file, grib_datasets in datasets_dict.items():
@@ -206,12 +207,15 @@ def download_gfs_threaded(dates=generate_date_strings(start_date=datetime.today(
 			# if the grib file isn't downloaded already, then download it
 			if not os.path.exists(grib_fpath):
 				grib_url = f"https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl?dir=%2Fgfs.{d}%2F00%2Fatmos&file=gfs.t00z.pgrb2.0p25.f{h}&var_CPOFP=on&var_DSWRF=on&var_PRATE=on&var_RH=on&var_TCDC=on&var_TMP=on&var_UGRD=on&var_VGRD=on&lev_2_m_above_ground=on&lev_10_m_above_ground=on&lev_surface=on&lev_entire_atmosphere=on&subregion=&toplat=47.5&leftlon=280&rightlon=293.25&bottomlat=40.25"
-				download_list.append((grib_url, grib_fpath))
+				# Ending False is to now use a google bucket -- that's not an option for GFS
+				download_list.append((grib_url, grib_fpath, False))
 			else:
 				print(f'Skipping download; {os.path.basename(grib_fpath)} found at: {os.path.join(grib_data_dir, date_dir)}')
 	# if download_list isn't empty:
 	if download_list:
-		multithreaded_download(download_list, num_threads)
+		multithreaded_download(download_list[0:75], num_threads)
+		time.sleep(60)
+		multithreaded_download(download_list[-75:], num_threads)
 	print('TASK COMPLETE: GFS DOWNLOAD')
 
 ############################# OLD FUNCTIONS - NOT TO BE USED ##########################

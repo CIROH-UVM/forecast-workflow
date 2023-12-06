@@ -23,7 +23,8 @@ def GetForecastFileName(ForecastStartDate = datetime.today().strftime("%Y%m%d"),
 						ForecastStartTimestep='00', 
 						ForecastType = 'medium_range',
 						ForecastMember='1',
-						TimeStep = '001'):
+						TimeStep = '001',
+						use_google_bucket=False):
   
 	"""
 	
@@ -40,9 +41,11 @@ def GetForecastFileName(ForecastStartDate = datetime.today().strftime("%Y%m%d"),
 	Complete URL for the File. 
 	
 	"""
-	BaseName = 'https://nomads.ncep.noaa.gov/pub/data/nccf/com/nwm/prod/nwm.'
+	if use_google_bucket:
+		BaseName = 'gs://national-water-model/nwm.'
+	else:
+		BaseName = 'https://nomads.ncep.noaa.gov/pub/data/nccf/com/nwm/prod/nwm.'
 	return BaseName + ForecastStartDate + '/' + ForecastType + '_mem' + ForecastMember + '/nwm.t' + ForecastStartTimestep + 'z.medium_range.channel_rt_' + ForecastMember + '.f' + TimeStep + '.conus.nc'
-
 
 
   
@@ -157,7 +160,8 @@ def download_nwm_threaded(ForecastStartDate=datetime.today(),
 						  ForecastType='medium_range',
 						  ForecastMember='1',
 						  num_threads=int(os.cpu_count()/2),
-						  data_dir='/data/forecastData/nwm/'):
+						  data_dir='/data/forecastData/nwm/',
+						  use_google_bucket=False):
 	"""
 	
 	A Function to download the forecast data for a given start date and start time step. It will first call the GetForecastFileName()
@@ -204,14 +208,15 @@ def download_nwm_threaded(ForecastStartDate=datetime.today(),
 									ForecastStartTimestep=ForecastStartTimestep,
 									ForecastType=ForecastType,
 									ForecastMember=ForecastMember,
-									TimeStep=time_stamp)
+									TimeStep=time_stamp,
+									use_google_bucket=use_google_bucket)
 		
 		# Lets get the destination path for the file download
 		fpath = GetForecastFilePath(Url=url, download_dir=download_dir)
 
 		# if the grib file isn't downloaded already, then download it
 		if not os.path.exists(fpath):
-			download_list.append((url, fpath))
+			download_list.append((url, fpath, use_google_bucket))
 		else:
 			print(f'Skipping download; {os.path.basename(fpath)} found at: {fpath}')
 	if download_list:

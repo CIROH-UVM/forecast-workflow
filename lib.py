@@ -254,7 +254,7 @@ def get_calling_package():
 	# print(f'Calling Package: {calling_package}')
 	return calling_package
 
-def download_data(url, filepath):
+def download_data(url, filepath, use_google_bucket=False):
 	"""
 	Downloads, via curl, a file from a url to a specified filepath. Prints download progress.
 
@@ -265,11 +265,15 @@ def download_data(url, filepath):
 	"""
 	# need to add curl output to list the old-fashioned way (no list comp) in case curl download is interupted/fails
 	progress = []
-	print(f"Downloading file from URL: {url}")
 	# '-#' turns on progress bar, '-o' writes download to filepath
 	# _iter = '_err' allows us to iterate over the stderr produced by the call (for some reason progress bar is directed to stderr, not stdout)
 	# _err_bufsize = 0 returns stderr one character at a time rather than as one very long string
-	call = sh.curl(['-#','-o', filepath, url], _iter = 'err', _err_bufsize = 0)
+	if use_google_bucket:
+		print(f"Downloading file from URL: {url} using gsutil")
+		call = sh.gsutil(['-m', 'cp', url, filepath], _iter = True, _out_bufsize = 100)
+	else:
+		print(f"Downloading file from URL: {url} using curl")
+		call = sh.curl(['-#','-o', filepath, url], _iter = 'err', _err_bufsize = 0)
 	try:
 		for line in call:
 			progress.append(line)
@@ -292,10 +296,10 @@ def multithreaded_download(download_list, num_threads=int(os.cpu_count()/2)):
 	-- download_list (list) [required]: a list containing tuples of (url_to_download, download_destination_path)
 	-- num_threads (int) [opt]: number of threads to use.
 	"""
-	urls, paths = zip(*download_list)
+	urls, paths, use_google_buckets = zip(*download_list)
 	print(f'Using {num_threads} threads for downloads')
 	with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-		executor.map(download_data, urls, paths)
+		executor.map(download_data, urls, paths, use_google_buckets)
 
 def multithreaded_loading(load_func, file_list, num_threads=int(os.cpu_count()/2)):
 	"""
