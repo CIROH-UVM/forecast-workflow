@@ -19,7 +19,7 @@ def archive_directories(source_dirs, destination_dir):
 # -- source (str) [required]: absolute path to the directory in which the forecast data are located
 # -- destination (str) [required]: absolute path to the directory in which the forecast data will be archived
 # -- past_n (int) [optional]: the number of past days to keep in source directory. current date included in count.
-def archive_forecasts(source = "/data/forecastRuns/", destination = "/netfiles/ciroh/forecastArchive/", past_n = 10):
+def archive_forecasts(source, destination, past_n = 10):
 	print("Forecast archive process initiated")
 	today = datetime.today()
 	past5 = ['7dayforecast-'+(today - timedelta(days=i)).strftime('%Y%m%d') for i in range(past_n)]
