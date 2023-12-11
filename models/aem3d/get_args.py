@@ -129,28 +129,36 @@ def process_args(args, default_fpath):
 	passed_args = {key:renamed_args[key] for key in renamed_args if renamed_args[key] is not None}
 	return passed_args
 
-"""
-Call get_args() to process arguments from the command-line. If no command-line args are passed, will revert to defaults
-
-Args:
-	default_fpath (str): filepath the the default settings json file
-
-Returns:
-	settings (dict): dictionary of settings
-
-"""
 
 def get_args(default_fpath):
+	"""
+	Main method to read and parse settings for forecast-workflow.
+	Hierachy of settings is as follows:
+		- Command-line args override configuration file args
+		- Configuration file args override default args
+		- Default args are loaded by, of course, default
+
+	Args:
+	-- default_fpath (str) [required]: path of the default settings configuration file. Said file is stored in ../forecast-workflow/ currently.
+	
+	Returns:
+	a dictionary of settings
+	"""
 	# establish default settings first
 	settings = load_defaults(default_fpath)
 	# load command-line arguments
 	args = get_cmdln_args()
-	# load settings from configuration file if given
+	# load settings from configuration file if config file is given
 	if args.conf is not None:
+		# loading config file settings
 		custom_settings = load_config(args.conf)
+		# updating settings dict with config file settings
 		settings.update(custom_settings)
+	# processing cmd line args to match cmd line arg names with json arg names
 	cmd_args = process_args(args, default_fpath)
+	# update settings with cmd line arguments
 	settings.update(cmd_args)
+	# check settings to ensure all values are valid
 	check_values(settings)
 	return settings
 
