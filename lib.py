@@ -5,6 +5,7 @@ import logging, logging.config
 import concurrent.futures
 from contextlib import contextmanager
 from string import Template
+import inspect
 
 
 class IAMBAY:
@@ -190,6 +191,7 @@ class IAMLogger(logging.Logger):
 		calling_package = get_calling_package()
 		if(calling_package is not None):
 			log_name = calling_package.split('.')[-1]
+			log_name = calling_package
 		logging_config = {
 			"version": 1,
 			"disable_existing_loggers": False,
@@ -234,6 +236,22 @@ class IAMLogger(logging.Logger):
 		return logging.getLogger(name)
 
 
+class StreamToLogger(object):
+    """
+    Fake file-like stream object that redirects writes to a logger instance.
+    """
+    def __init__(self, logger, level):
+       self.logger = logger
+       self.level = level
+       self.linebuf = ''
+
+    def write(self, buf):
+       for line in buf.rstrip().splitlines():
+          self.logger.log(self.level, line.rstrip())
+
+    def flush(self):
+        pass
+
 def check_frame(frame):
 	if(frame.f_globals['__package__'] is None):
 		return False
@@ -242,7 +260,8 @@ def check_frame(frame):
 		return True
 	return False
 
-
+# old get_calling_package() - doesn't work
+"""
 def get_calling_package():
 	calling_package = None
 
@@ -253,6 +272,20 @@ def get_calling_package():
 	calling_package = current_frame.f_globals['__package__']
 	# print(f'Calling Package: {calling_package}')
 	return calling_package
+"""
+
+# New get_calling_package()
+def get_calling_package():
+	stack = inspect.stack()
+	# iterating through the stack in reverse order to check the bottom first and work back up
+	for frame_info in reversed(stack):
+		# I don't know if this is a bullet-proof check, but it seems to work
+		if frame_info.code_context is not None:
+			# print(f'Outermost frame is: {frame_info.frame}')
+			# print(f'Corresponding filename is: {frame_info.filename}')
+			module = os.path.splitext(os.path.basename(frame_info.filename))[0]
+			# print(f'module name is {module}')
+			return module
 
 def download_data(url, filepath, use_google_bucket=False):
 	"""
@@ -322,3 +355,5 @@ def multithreaded_loading(load_func, file_list, num_threads=int(os.cpu_count()/2
 
 IAMLogger.setup_logging()
 logger = logging.getLogger(get_calling_package())
+# implementing StreamToLogger will forward standard output (such as from print statements) to the logger
+sys.stdout = StreamToLogger(logger, logging.INFO)
