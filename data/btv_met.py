@@ -30,7 +30,9 @@ def leavenotrace (precip) :
 def create_final_df(df, colToKeep, index):
 	# print(f'Creating final df for {colToKeep}')
 	# print(df[colToKeep])
-	return pd.DataFrame(data={colToKeep: df[colToKeep].to_numpy()}, index=pd.DatetimeIndex(data=pd.to_datetime(df[index]), name='time'))
+	
+	# 20231211 - set index as datetime with timezone suffix set to UTC
+	return pd.DataFrame(data={colToKeep: df[colToKeep].to_numpy()}, index=pd.DatetimeIndex(data=pd.to_datetime(df[index]), name='time')).tz_localize('EST').tz_convert('UTC')
 
 def retrieve_data(startDate, endDate, variable):
 	# put this in loop since this fails frequently
@@ -69,8 +71,9 @@ def get_data (ForecastStartDate, SpinupStartDate) :
 		# endday = date.today()
 		#d = datetime.timedelta(days = 90)
 		#startday = endday - d
-		endday = ForecastStartDate - dt.timedelta(days=1)
-		startday = SpinupStartDate - dt.timedelta(days=1)
+		# 20231211 - Do not adjust passed dates to a previous day, that's a caller concern if that data buffer is needed
+		endday = ForecastStartDate
+		startday = SpinupStartDate
 
 		# requeststring = 'https://www.ncei.noaa.gov/access/services/data/v1/'+\
 		#                         '?dataset=local-climatological-data'+\

@@ -22,9 +22,16 @@ def get_data(ForecastStartDate, SpinupStartDate):
         # Before: Keep the last 90 days (24h*4quarters*90days=8640) plus buffer
         # cr_df = cr_df.tail(8800)
         # Now: Keep the days from SpinupStartDate to present
-        cr_df = cr_df[cr_df.index > dt.datetime.combine(SpinupStartDate - dt.timedelta(days=1), dt.datetime.min.time())]
+
+        # 12231211 - remove shift of start date to the previous day. That's an AEM3D specific concern
+        cr_df = cr_df[cr_df.index > dt.datetime.combine(SpinupStartDate, dt.datetime.min.time())]
+
         # Drop rows after midnight today to prevent duplicate entries with forecast
         cr_df = cr_df[cr_df.index < dt.datetime.combine(ForecastStartDate, dt.datetime.min.time())]
+
+        # generate index as datetime with timezone suffix in UTC time
+        cr_df.set_index(cr_df.index.tz_localize('EST').tz_convert('UTC'), inplace = True)
+        
         # Subset to the columns of interest
         cr_df = cr_df[['38m_AIRTEMP','PYRANOM','38m_RELHUMID', 'NRG_38m_MEAN_RESULTANT_WINDSPEED','NRG_38m_MEAN_WIND_DIRECTION']]
         cr_df.columns = ['T2', 'SWDOWN', 'RH2', 'WSPEED', 'WDIR']

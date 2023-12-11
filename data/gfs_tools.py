@@ -66,7 +66,8 @@ def calibrate_columns(df,
 	# renaming the columns
 	df.rename(grib_to_expected_names, axis=1, inplace=True)
 	# Make time the index
-	df.set_index('time', inplace=True)
+	# 20231211 - Add timezone suffix set to UTC
+	df.set_index('time', inplace=True).tz_localize('UTC')
 
 # This loop will append each timestamp row (f000, f001, etc) to the station dataframe dict
 def append_timestamp(sta_dict, loc_dict, loc_dfs):

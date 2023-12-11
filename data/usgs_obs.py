@@ -29,7 +29,9 @@ def USGSstreamflow_function(station_id, parameter, startDate, endDate):
     # df.columns = ['streamflow']
     # df.to_csv(station_id+"_flow.csv", sep=',')
     # 'US/Eastern' is the other option, but what about fall daylight savings "fall back"
-    return pd.DataFrame(data={'streamflow': df['value'].values}, index=pd.to_datetime(df['dateTime'], utc=True).dt.tz_convert('Etc/GMT+4').dt.tz_localize(None))
+    #return pd.DataFrame(data={'streamflow': df['value'].values}, index=pd.to_datetime(df['dateTime'], utc=True).dt.tz_convert('Etc/GMT+4').dt.tz_localize(None))
+    # 20231211 - set index as datetime with timezone suffix set to UTC
+    return pd.DataFrame(data={'streamflow': df['value'].values}, index=pd.to_datetime(df['dateTime'], utc=True))
 
 def get_data(ForecastStartDate, SpinupStartDate, station_ids = ['04294000', '04292810', '04292750']):
 
@@ -39,11 +41,12 @@ def get_data(ForecastStartDate, SpinupStartDate, station_ids = ['04294000', '042
     period = 'P90D'
     returnVal = {}
 
+    # 20231211 - do not adjust passed dates to a previous day. that is a caller concern if that additional data buffer is needed.
     for station_id in station_ids:
         returnVal[station_id] = USGSstreamflow_function(station_id,
                                                         parameter,
-                                                        SpinupStartDate - dt.timedelta(days=1),
-                                                        ForecastStartDate - dt.timedelta(days=1)
+                                                        SpinupStartDate,
+                                                        ForecastStartDate
                                                         )
     
     return returnVal

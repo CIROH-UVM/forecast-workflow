@@ -299,7 +299,8 @@ def get_data(ForecastStartDate=datetime.today(),
 
 	# At step we have all the data need to get the final format - which {'Reach_Name':pd.Series(streamflow, index=timestamp)}
 	for reach_name, series_data in data_dict.items():
-		results[reach_name] = pd.DataFrame(data={'streamflow': series_data}, index=timestamps)
+		# 20231211 - add index timezone suffix set to UTC
+		results[reach_name] = pd.DataFrame(data={'streamflow': series_data}, index=timestamps, utc=True)
 		if save_csv:
 			filename = os.path.join(data_dir, f'{nwm_csv_save_path}/nwm_{reach_name}.csv')
 			results[reach_name].to_csv(filename)
