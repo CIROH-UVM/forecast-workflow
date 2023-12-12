@@ -1,6 +1,6 @@
 import cfgrib
 from datetime import datetime, timedelta
-import glob
+from glob import glob
 from lib import download_data, multithreaded_download, multithreaded_loading
 import numpy as np
 import os
