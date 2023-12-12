@@ -190,7 +190,6 @@ class IAMLogger(logging.Logger):
 		log_name = 'workers.lib'
 		calling_package = get_calling_package()
 		if(calling_package is not None):
-			log_name = calling_package.split('.')[-1]
 			log_name = calling_package
 		logging_config = {
 			"version": 1,
@@ -276,16 +275,29 @@ def get_calling_package():
 
 # New get_calling_package()
 def get_calling_package():
+	"""
+	Returns the package name of the original caller in the call stack
+	"""
 	stack = inspect.stack()
 	# iterating through the stack in reverse order to check the bottom first and work back up
 	for frame_info in reversed(stack):
-		# I don't know if this is a bullet-proof check, but it seems to work
+		# I don't know if this is a bullet-proof check, but it seems to work in my tests
 		if frame_info.code_context is not None:
-			# print(f'Outermost frame is: {frame_info.frame}')
-			# print(f'Corresponding filename is: {frame_info.filename}')
 			module = os.path.splitext(os.path.basename(frame_info.filename))[0]
-			# print(f'module name is {module}')
 			return module
+		
+def report_stack():
+	"""
+	Helper function to provide execution frame information for the current call stack.
+	"""
+	stack = inspect.stack()
+	print('Frame order: first is top of stack, last is bottom')
+	for i, frame_info in enumerate(stack):
+		print(f'For frame number {i+1}')
+		print(f'\tframe: {frame_info.frame}')
+		print(f'\tframe filename: {frame_info.filename}')
+		print(f'\tframe function: {frame_info.function}')
+		print(f'\tframe code context: {frame_info.code_context}')
 
 def download_data(url, filepath, use_google_bucket=False):
 	"""
@@ -354,6 +366,8 @@ def multithreaded_loading(load_func, file_list, num_threads=int(os.cpu_count()/2
 	return dict(zip(file_list, dataset_list))
 
 IAMLogger.setup_logging()
+# initializing the logger; Logger name will be the calling package, IOW the py file that is originally called from the command line.
+# i.e. if "python -m models.aem3d.AEM3D_prep_worker" is called, logger will be named "AEM3D_prep_worker"
 logger = logging.getLogger(get_calling_package())
 # implementing StreamToLogger will forward standard output (such as from print statements) to the logger
 sys.stdout = StreamToLogger(logger, logging.INFO)
