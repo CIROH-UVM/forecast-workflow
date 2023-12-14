@@ -1,38 +1,28 @@
 import cfgrib
-from datetime import datetime, timedelta
+import datetime as dt
 import glob
-from lib import download_data, multithreaded_download, multithreaded_loading
+from lib import (download_data,
+				 multithreaded_download,
+				 multithreaded_loading,
+				 parse_to_datetime,
+				 get_hour_diff)
 import numpy as np
 import os
+import tempfile as tf
 import time
 import pandas as pd
-import sh
 import subprocess as sp
 import xarray as xr
 
-### global vars that wouldn't change based on user; may change depending on what forecast data is being pulled
-gfs_file_template = "gfs.t00z.pgrb2.0p25.f"
-# where the raw grib2 files will be stored
-gfs_dir = "/data/forecastData/gfs/"
-
 ############# Functions for Processing GFS grib data ############################
 
-# Define alias for aggreate_df_dict
-def get_data(gfs_dir = f'/data/forecastData/gfs/gfs.{datetime.today().strftime("%Y%m%d")}/00/atmos/',
-			 location_dict = {"401": (45.0, -73.25),
-							  "402": (44.75, -73.25),
-							  "403": (44.75, -73.25)
-							 }
-):
-	return aggregate_station_df_dict(gfs_dir=gfs_dir, location_dict=location_dict)
-
-def aggregate_station_df_dict(gfs_dir = f'/data/forecastData/gfs/gfs.{datetime.today().strftime("%Y%m%d")}/00/atmos/',
-							location_dict = {"401": (45.0, -73.25),"402": (44.75, -73.25),"403": (44.75, -73.25)}
-							):
+def aggregate_station_df_dict(location_dict,
+							  gfs_data_dir,
+							  num_threads):
 	station_dict = {}
-	grib_file_list = sorted(glob(f'{gfs_dir}gfs.t00z.pgrb2.0p25.f[0-9][0-9][0-9]'))
+	grib_file_list = sorted(glob(f'{gfs_data_dir}/gfs.t00z.pgrb2.0p25.f[0-9][0-9][0-9]'))
 	# seems like the optimal number of threads to use is 2-4 - any more actually slows down the function
-	datasets_dict = multithreaded_loading(cfgrib.open_datasets, grib_file_list, num_threads=2)
+	datasets_dict = multithreaded_loading(cfgrib.open_datasets, grib_file_list, num_threads)
 	for grib_file, grib_datasets in datasets_dict.items():
 		# grib_datasets = cfgrib.open_datasets(grib_file)
 		datasets_indices_to_drop = []
@@ -56,25 +46,39 @@ def aggregate_station_df_dict(gfs_dir = f'/data/forecastData/gfs/gfs.{datetime.t
 		append_timestamp(sta_dict=station_dict, loc_dict=location_dict, loc_dfs=location_dataframes)
 	return station_dict
 
-### calibrate_columns() - renames and reorders the variable names for GFS dataframes to the expected naming/order convention (in-place)
-# -- df (dataframe) [req]: dataframe to modify
-# -- ordered_names (list of str) [opt]: list of the expected desired variable names, in order
-# -- grib_to_expected_names (dict) [opt]: dictionary mapping default grib variable names to desired names
 def calibrate_columns(df,
-					  ordered_names=['time','T2','TCDC','SWDOWN','U10','V10','RH2','RAIN','CPOFP'],
 					  grib_to_expected_names = {'valid_time':'time', 't2m': 'T2', 'tcc':'TCDC', 'dswrf':'SWDOWN', 'u10':'U10', 'v10':'V10', 'r2':'RH2', 'prate':'RAIN', 'cpofp':'CPOFP'}):
+	"""
+	Renames and reorders the variable names for GFS dataframes to the expected naming/order convention
+
+	Args:
+	-- df (dataframe) [req]: dataframe to modify
+	-- grib_to_expected_names (dict) [opt]: dictionary mapping default grib variable names to desired names
+
+	Returns
+	The dataframe to append with calibrated columns and index
+	"""
 	# renaming the columns
 	df.rename(grib_to_expected_names, axis=1, inplace=True)
 	# Make time the index
 	# 20231211 - Add timezone suffix set to UTC
-	df.set_index('time', inplace=True).tz_localize('UTC')
+	df.set_index('time', inplace=True)
+	df = df.tz_localize('UTC')
+	return df
 
-# This loop will append each timestamp row (f000, f001, etc) to the station dataframe dict
 def append_timestamp(sta_dict, loc_dict, loc_dfs):
+	"""
+	An in-place function that appends each timestamp row (f000, f001, etc) to the station dataframe dict
+
+	Args:
+	-- sta_dict (dict) [req]: the dictionary that will contain a dataframe for each station ID
+	-- loc_dict (dict) [req]: the dictionary where keys are the station ID and value is the corresponding lat/long tuple
+	-- loc_dfs (dict) [req]: the dictionary where keys are the lat/long tuple and values are the corresponding data for the given timestamp (f00, f001, ect.) for that location
+	"""
 	for stationID, loc in loc_dict.items():
 		df_to_append = loc_dfs[loc].drop_duplicates().drop(columns = ['latitude','longitude'])
 		# reorder & rename columns to expected convention
-		calibrate_columns(df_to_append)
+		df_to_append = calibrate_columns(df_to_append)
 		if stationID in sta_dict:
 			sta_dict[stationID] = pd.concat([sta_dict[stationID], df_to_append]).sort_index()
 		else:
@@ -103,24 +107,28 @@ def execute(cmd):
 def generate_date_strings(start_date, num_dates=1, cast="fore"):
 	date_strings = []
 	# if not a datetime object, convert start_date to one
-	if not isinstance(start_date, datetime):
+	if not isinstance(start_date, dt.datetime):
 		# strptime(str, format) converts a string to a datetime object
-		current_date = datetime.strptime(start_date, "%Y%m%d")
+		current_date = dt.datetime.strptime(start_date, "%Y%m%d")
 	else:
 		current_date = start_date
 	for _ in range(num_dates):
 		date_strings.append(current_date.strftime("%Y%m%d"))
 		if cast == "hind":
-			current_date -= timedelta(days=1)
+			current_date -= dt.timedelta(days=1)
 		else:
-			current_date += timedelta(days=1)
+			current_date += dt.timedelta(days=1)
 
 	return date_strings
 
-### generate_hours_list() - Creates a list of forecast hours to be downloaded
-# -- num_hours: how many hours of forecast data you want: note that date goes up to 16 days out
-# -- archive: boolean flag indicating if data is going to be pulled from archives; if true returns only step = 3 list
 def generate_hours_list(num_hours=168, archive=False):
+	"""
+	Creates a list of forecast hours to be downloaded
+
+	Args:
+	-- num_hours (int) [opt]: how many hours of forecast data you want: note that date goes up to 16 days out
+	-- archive (bool) [opt]: boolean flag indicating if data is going to be pulled from archives; if true returns only step = 3 list
+	"""
 	if archive:
 		return [f"{hour:03}" for hour in range(0, num_hours + 1, 3)]
 	if not archive:
@@ -155,7 +163,7 @@ def remap_longs(ds):
 
 ################## Function for downloading GFS data ##############################
 
-def download_gfs(dates=generate_date_strings(start_date=datetime.today().strftime("%Y%m%d"), num_dates=1),
+def download_gfs(dates=generate_date_strings(start_date=dt.datetime.today().strftime("%Y%m%d"), num_dates=1),
 				 hours=generate_hours_list(168),
 				 grib_data_dir="/data/forecastData/gfs"):
 	"""
@@ -180,11 +188,10 @@ def download_gfs(dates=generate_date_strings(start_date=datetime.today().strftim
 			download_data(url=grib_url, filepath=grib_destination)
 	print('TASK COMPLETE: GFS DOWNLOAD')
 
-def download_gfs_threaded(dates=generate_date_strings(start_date=datetime.today(),
-						  num_dates=1),
-				 		  hours=generate_hours_list(168),
-						  num_threads=int(os.cpu_count()/2),
-				 		  grib_data_dir="/data/forecastData/gfs"):
+def download_gfs_threaded(date,
+				 		  hours,
+				 		  gfs_data_dir,
+						  num_threads):
 	"""
 	Downloads the grib files for the specified dates and hours
 
@@ -197,21 +204,16 @@ def download_gfs_threaded(dates=generate_date_strings(start_date=datetime.today(
 	
 	"""
 	download_list = []
-	print(f'TASK INITIATED: Download {int(hours[-1])}-hour GFS forecasts for the following dates: {dates}')
-	for d in dates:
-		print(f'DOWNLOADING GFS DATA FOR DATE {d}')
-		date_dir = os.path.join(grib_data_dir, f'gfs.{d}/00/atmos')
-		if not os.path.exists(date_dir):
-			os.makedirs(date_dir)
-		for h in hours:
-			grib_fpath = os.path.join(date_dir, f'gfs.t00z.pgrb2.0p25.f{h}')
-			# if the grib file isn't downloaded already, then download it
-			if not os.path.exists(grib_fpath):
-				grib_url = f"https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl?dir=%2Fgfs.{d}%2F00%2Fatmos&file=gfs.t00z.pgrb2.0p25.f{h}&var_CPOFP=on&var_DSWRF=on&var_PRATE=on&var_RH=on&var_TCDC=on&var_TMP=on&var_UGRD=on&var_VGRD=on&lev_2_m_above_ground=on&lev_10_m_above_ground=on&lev_surface=on&lev_entire_atmosphere=on&subregion=&toplat=47.5&leftlon=280&rightlon=293.25&bottomlat=40.25"
-				# Ending False is to now use a google bucket -- that's not an option for GFS
-				download_list.append((grib_url, grib_fpath, False))
-			else:
-				print(f'Skipping download; {os.path.basename(grib_fpath)} found at: {os.path.join(grib_data_dir, date_dir)}')
+	print(f'TASK INITIATED: Download {int(hours[-1])}-hour GFS forecasts for the following date: {date}')
+	for h in hours:
+		grib_fpath = os.path.join(gfs_data_dir, f'gfs.t00z.pgrb2.0p25.f{h}')
+		# if the grib file isn't downloaded already, then download it
+		if not os.path.exists(grib_fpath):
+			grib_url = f"https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl?dir=%2Fgfs.{date}%2F00%2Fatmos&file=gfs.t00z.pgrb2.0p25.f{h}&var_CPOFP=on&var_DSWRF=on&var_PRATE=on&var_RH=on&var_TCDC=on&var_TMP=on&var_UGRD=on&var_VGRD=on&lev_2_m_above_ground=on&lev_10_m_above_ground=on&lev_surface=on&lev_entire_atmosphere=on&subregion=&toplat=47.5&leftlon=280&rightlon=293.25&bottomlat=40.25"
+			# Ending False is to now use a google bucket -- that's not an option for GFS
+			download_list.append((grib_url, grib_fpath, False))
+		else:
+			print(f'Skipping download; {os.path.basename(grib_fpath)} found at: {gfs_data_dir}')
 	# if download_list isn't empty:
 	if download_list:
 		multithreaded_download(download_list[0:75], num_threads)
@@ -219,319 +221,72 @@ def download_gfs_threaded(dates=generate_date_strings(start_date=datetime.today(
 		multithreaded_download(download_list[-75:], num_threads)
 	print('TASK COMPLETE: GFS DOWNLOAD')
 
-############################# OLD FUNCTIONS - NOT TO BE USED ##########################
 
-# def aggregate_df_dict(
-#     files = [],
-#     dates=[datetime.today().strftime("%Y%m%d")],
-#     loc_dict={"401": (45.0, -73.25), "402": (44.75, -73.25), "403": (44.75, -73.25)},
-# ):
-#     arg_vars = {
-#         ("atmosphere", "instant"): ["tcc"],
-#         ("heightAboveGround", 10): ["u10", "v10"],
-#         ("heightAboveGround", 2): ["t2m", "r2"],
-#         ("surface", "avg"): ["dswrf"],
-#         ("surface", "instant"): ["cpofp", "prate"],
-#     }
-#     drop_coords = ["step", "atmosphere", "heightAboveGround", "surface"]
-#     var_names = ["T2", "TCDC", "SWDOWN", "U10", "V10", "RH2", "RAIN", "CPOFP"]
-#     # initialize a dictionary to store a dataframe for each station in
-#     data_dict = {}
+########################################### GFS get_data() ###########################################
 
-#     # Don't think we need this anymore now that downloads are seperate
-#     # if not os.path.exists(fc_data_dir): os.makedirs(fc_data_dir)
-#     origDir = os.getcwd()
-#     # move into raw_fc_Data/
-#     os.chdir(fc_data_dir)
+def get_data(forecast_datetime,
+				 end_datetime,
+				 locations,
+				 data_dir=tf.gettempdir(),
+				 dnwld_threads=int(os.cpu_count()/2),
+				 load_threads=2,
+				 return_type='dict'):
+	"""
+	Download specified GFS forecast data and return nested dictionary of pandas series fore each variable, for each location.
 
-#     # for every date in the list of date strings dates
-#     for d in dates:
-#         # create and navigate to the dir containing the grib2 files for the current date d
-#         date_dir = "gfs." + d + fc_time
-#         os.chdir(date_dir)
-#         print(
-#             "aggregating all gribs for date {}:".format(
-#                 datetime.strptime(d, "%Y%m%d").strftime("%Y-%m-%d")
-#             )
-#         )
+	Args:
+	-- forecast_datetime (str, date, or datetime) [req]: the start date and time (00, 06, 12, 18) of the forecast to download. Times are assumed to be UTC time.
+	-- end_datetime (str, date, or datetime) [req]: the end date and time for the forecast. GFS forecasts 16-days out for a given start date.
+	-- locations (dict) [req]: a dictionary (stationID/name:IDValue/latlong tuple) of locations to download forecast data for.
+	-- data_dir (str) [opt]: directory to store donwloaded data. Defaults to OS's default temp directory.
+	-- dwnld_threads (int) [opt]: number of threads to use for downloads. Default is half of OS's available threads.
+	-- load_threads (int) [opt]: number of threads to use for reading data. Default is 2 for GFS, since file reads are already pretty fast.
+	-- return_type (string) [opt]: string indicating which format to return data in. Default is "dict", which will return data in a nested dict format:
+									{locationID1:{
+										var1_name:pd.Series,
+										var2_name:pd.Series,
+										...},
+									locationID2:{...},
+									...
+									}
+									Alternative return type is "dataframe", which smashes all data into a single dataframe muliIndex'd by station ID, then timestamp
 
-#         # this chunk should go in aggregate_df_dict, as it creates a dataset for each arg combo, 5 total
-#         # initalize empty dataset list
-#         total_ds_list = []
-#         # for each arg combo in args_list, open all grib2 files and add the aggregate dataset to the list
-#         for av in arg_vars:
-#             args = {"typeOfLevel": av[0]}
-#             # if the type of level is heigh above ground, then the 2nd arg is topLevel, not stepType
-#             if args["typeOfLevel"] == "heightAboveGround":
-#                 args["topLevel"] = av[1]
-#             else:
-#                 args["stepType"] = av[1]
-#             print("\topening gribs with args dict: {}".format(args))
-#             preprocess_with_args = functools.partial(
-#                 preprocesses, date=d, loc_dict=loc_dict
-#             )
-#             files=glob.glob("gfs.t00z.pgrb2.0p25.f[0-9][0-9][0-9]")
-#             ds = xr.open_mfdataset(
-#                 files,
-#                 engine="cfgrib",
-#                 compat="override",
-#                 coords="minimal",
-#                 parallel=True,
-#                 preprocess=preprocess_with_args,
-#                 combine="nested",
-#                 concat_dim="valid_time",
-#                 backend_kwargs={"indexpath": "", "filter_by_keys": args},
-#             )
-#             total_ds_list.append(ds)
+	Returns:
+	GFS forecast data for thhe given locations in the format specified by return_type
+	"""
+	forecast_datetime = parse_to_datetime(forecast_datetime)
+	end_datetime = parse_to_datetime(end_datetime)
+	# grabbing the cycle (12am, 6am, 12pm, 6pm) from the datetime
+	forecast_cycle = forecast_datetime.hour
+	# we need the end_datetime to match the time of forecast_Datetime in order to calculate the number of forecast hours to download accurately
+	end_datetime = dt.datetime.combine(end_datetime.date(), forecast_datetime.time())
+	# calculate the number of hours of forecast data to grab. I.e. for a 5 day forecast, hours would be 120
+	forecast_hours = generate_hours_list(get_hour_diff(forecast_datetime, end_datetime))
+	forecast_date = forecast_datetime.strftime("%Y%m%d")
 
-#         print("successfully opened all gribs")
-#         # enumerate through arg_vars again to only keep the vars we want from each arg combo
-#         total_filtered_ds_list = []
+	# make the directory for storing GFS data
+	gfs_date_dir = os.path.join(data_dir, f'gfs.{forecast_date}/00/atmos')
+	if not os.path.exists(gfs_date_dir):
+		os.makedirs(gfs_date_dir)
 
-#         # we want to enumerate so that we have an index i to access the datasets in total_ds_list
-#         # keep_vars will be the list of vars to keep; the values of the arg_vars dict
-#         for i, keep_vars in enumerate(arg_vars.values()):
-#             # if a var is not in the keep list, add it to the drop list
-#             drop_vars = [
-#                 var for var in total_ds_list[i].data_vars if var not in keep_vars
-#             ]
-#             # create new dataset that has dropped the vars in the drop list
-#             ds_filtered = total_ds_list[i].drop_vars(drop_vars)
-#             # add new filtered dataseets to a new list
-#             total_filtered_ds_list.append(ds_filtered)
-
-#         # now concat all of the filtered datasets into one
-#         final_ds = xr.concat(
-#             total_filtered_ds_list, dim="latitude", coords="minimal", compat="override"
-#         ).drop_vars(drop_coords)
-#         # convert to a dataframe and drop the time column - we only need valid_time, which contains the time series
-#         final_df = final_ds.to_dataframe().drop("time", axis=1)
-#         # Rename valid_time (already an index, along with latitude) to time
-#         #   to keep consistent with naming in old extraction algorithm
-#         final_df.index = final_df.index.set_names('time', level=1)
-
-#         print("successfully aggregated all datasets")
-
-#         # reset index to drop all duplicate rows, then reset and sort index
-#         final_df = (
-#             final_df.reset_index()
-#             .drop_duplicates()
-#             .set_index(["time", "latitude", "longitude"])
-#             .sort_index()
-#         )
-#         # group by unique valid time, lat/long combinations, collapse null values
-#         final_df = final_df.groupby(
-#             ["time", "latitude", "longitude"], as_index=True
-#         ).first()
-#         # rename columns according to specified variable names
-#         final_df.columns = [
-#             "TCDC",
-#             "U10",
-#             "V10",
-#             "T2",
-#             "RH2",
-#             "SWDOWN",
-#             "CPOFP",
-#             "RAIN",
-#         ]
-#         # re order columns according to specified var order
-#         final_df = final_df.reindex(columns=var_names)
-
-#         # now groupby unique lat/long pairs for location data extraction
-#         loc_groups = final_df.groupby(["latitude", "longitude"])
-#         # create a dict where tje key is the lat/long pair and value is corresponding df
-#         loc_dfs = {name: group for name, group in loc_groups}
-
-#         # for every station in loc_dict...
-#         for station in loc_dict:
-#             coords = loc_dict[station]
-#             # pull the dataframe for the station, drop lat/long indices
-#             df = (
-#                 loc_dfs[coords]
-#                 .reset_index(["latitude", "longitude"])
-#                 .drop(["latitude", "longitude"], axis=1)
-#             )
-#             # if there is already a dataframe for the station (i.e. from a previous date)
-#             if station in data_dict:
-#                 # add the new date df to the last date df
-#                 data_dict[station] = pd.concat([data_dict[station], df])
-#             # if there is no dict entry for the station, enter the df
-#             else:
-#                 data_dict[station] = df
-
-#         print("successfully merged and extracted loc data to dictionary\n")
-
-#         # TODO: Can we remove this os.chdir on the next line?
-#         os.chdir(fc_data_dir)
-#     os.chdir(origDir)
-#     return data_dict
-
-# # pulls just the desired lat/long pairs out of the datasets and isolat
-# def concat_locs(ds, loc_dict):
-#     # initialize empty list to store ds for each station in loc_dict
-#     station_ds_list = []
-#     for coords in loc_dict.values():
-#         # grab the ds for the lat/long pair
-#         station_ds = ds.sel({"latitude": coords[0], "longitude": coords[1]})
-#         # add the pulled ds to the station ds list
-#         station_ds_list.append(station_ds)
-#     # concatenate all of the station datasets pulled
-#     concat_stations_ds = xr.concat(station_ds_list, dim="latitude")
-#     return concat_stations_ds
-
-### calls the curl command to the terminal to download a file from the web
-# -- url (str) [required]: complete url of the file to be downloaded
-# -- file_path (str) [required]: complete* path to the destination file. *should inlcude the desired name of the download file at the end of the path
-# -- silent (bool) [optional]: switch to turn off progress report. Default is false
-# def curl(url, file_path, silent = False):
-# 	if not silent:
-# 		print(f'Downloading file from: {url}')
-# 		print(f'\tto destination: {file_path}')
-# 		# -C - enables curl to pickup download where it left off in case of connection disruption
-# 	sh.curl('-o',file_path, '-C', '-', url)
-# 	if not silent: print('Download complete\n')
-
-# ### Given the transformed dataframe and a list of lat/long tuples to extract, returns new df containing just the rows for each lat/long pair
-# # -- df : the grib2 df post-long-transform
-# # -- loc_dict : dict of of station names and corresponding lat/long tuples; will pull said coords from the datafram
-# # given the transformed dataframe, adds the new rows to the respective composite dataframes in the df dictionary
-# def extract_locs(df, loc_dict={}, location_dataframes={}):
-#     for station in loc_dict:
-#         coords = loc_dict[station]
-#         extracted_df = pd.DataFrame(df.loc[coords]).T.set_index("time")
-#         # if the dictionary does not already have a key for each location, then initialize that key; should only be true when extracting the 1st df
-#         if len(location_dataframes) != len(loc_dict):
-#             location_dataframes[station] = extracted_df
-#         else:
-#             location_dataframes[station] = pd.concat(
-#                 [location_dataframes[station], extracted_df]
-#             )
-
-# def extract_subgrib(fname="", args={}):
-#     ds = xr.open_dataset(
-#         fname, engine="cfgrib", backend_kwargs={"filter_by_keys": args}
-#     )
-#     longnames = ["time", "step", args["typeOfLevel"], "valid_time"]
-#     for v in ds:
-#         longnames.append(
-#             "{}, {}".format(ds[v].attrs["long_name"], ds[v].attrs["units"])
-#         )
-#     df = ds.to_dataframe()
-#     df.columns = longnames
-#     remap_longs(df)
-#     return df
-
-# def get_subgrib_df_list(fname=""):
-#     # drop surface avg args for the first (f000) file
-#     if fname[-3:] == "000":
-#         args_list = [
-#             {"typeOfLevel": "atmosphere", "stepType": "instant"},
-#             {"typeOfLevel": "heightAboveGround", "topLevel": 10},
-#             {"typeOfLevel": "heightAboveGround", "topLevel": 2},
-#             {"typeOfLevel": "surface", "stepType": "instant"},
-#         ]
-#     else:
-#         args_list = [
-#             {"typeOfLevel": "atmosphere", "stepType": "instant"},
-#             {"typeOfLevel": "heightAboveGround", "topLevel": 10},
-#             {"typeOfLevel": "heightAboveGround", "topLevel": 2},
-#             {"typeOfLevel": "surface", "stepType": "avg"},
-#             {"typeOfLevel": "surface", "stepType": "instant"},
-#         ]
-#     # temporary list to store un-extracted dataframes
-#     df_list = []
-#     for args in args_list:
-#         subgrib_df = extract_subgrib(fname, args)
-#         df_list.append(subgrib_df)
-#     return df_list
-
-# def merge_subgrib_dfs(df_list=[], fname=""):
-#     cols_to_keep = [
-#         "2 metre temperature, K",
-#         "Total Cloud Cover, %",
-#         "Downward short-wave radiation flux, W m**-2",
-#         "10 metre U wind component, m s**-1",
-#         "10 metre V wind component, m s**-1",
-#         "2 metre relative humidity, %",
-#         "Precipitation rate, kg m**-2 s**-1",
-#         "Percent frozen precipitation, %",
-#     ]
-#     var_names = ["time", "T2", "TCDC", "SWDOWN", "U10", "V10", "RH2", "RAIN", "CPOFP"]
-
-#     # if not the first file, drop surface avg precip rate
-#     if not fname[-3:] == "000":
-#         # drop the surface average precip rate; it has the same col name as the surface instant precip col, which is problematic b/c we just need the latter
-#         df_list[3] = df_list[3].drop("Precipitation rate, kg m**-2 s**-1", axis=1)
-#     # combine all dfs in list
-#     all_cols_df = pd.concat(df_list, axis=1)
-#     # keep valid_time indices at beginning of df
-#     ts_indices = all_cols_df.iloc[:, [3]]
-#     # create frozen precip if it does not exist
-#     if not "Downward short-wave radiation flux, W m**-2" in all_cols_df:
-#         all_cols_df["Downward short-wave radiation flux, W m**-2"] = 0
-#     # get the vars we need, in order
-#     vars_df = all_cols_df[cols_to_keep]
-#     merged_df = pd.concat([ts_indices, vars_df], axis=1)
-#     merged_df.columns = var_names
-
-#     # print(all_cols_df)
-#     # print(ts_indices)
-#     # print(vars_df)
-
-#     # merged_df['forecastTime'] = pd.to_datetime(merged_df['time']) + pd.to_timedelta(merged_df['step'])
-
-#     return merged_df
-
-# # mainly isolates the desired lat/long pairs and returns datasets containing only those coords rather than whole globe
-# # also creates a ds with valid time set to the current date at midnight and downward short wave UV to 0; this deals with the issue of f000 grib2 datasets not having
-# # any data for the arg combo {'typeOfLevel':'surface', 'stepType':'avg'}
-# def preprocesses(ds, date, loc_dict):
-#     # if the ds is empty...
-#     if len(ds) == 0:
-#         # create valid_time coord and set to the date, at midnight
-#         dt = np.datetime64(
-#             datetime.strptime(date, "%Y%m%d").replace(
-#                 hour=0, minute=0, second=0, microsecond=0
-#             )
-#         )
-#         # Suppress the warning message
-#         with warnings.catch_warnings():
-#             warnings.simplefilter("ignore")
-#             ds = ds.assign_coords(valid_time=dt)
-#         # add a column for downward short-wave radiation and set to 0
-#         ds["dswrf"] = 0
-#         return ds
-#     else:
-#         ds = concat_locs(remap_longs(ds), loc_dict)
-#         return ds
-
-# ### Downloads gfs data into directories that mirrors the GFS directory structure
-# # -- dates : list of forecast dates to download
-# # -- hours : list of forecast hours to download
-# def pull_gribs(
-#     dates=generate_date_strings("20230828", 1), hours=generate_hours_list(0)
-# ):
-#     # make the subdirectory for the gfs data
-#     if not os.path.exists(fc_data_dir):
-#         os.makedirs(fc_data_dir)
-#     origDir = os.getcwd()
-#     os.chdir(fc_data_dir)
-
-#     for d in dates:
-#         date_dir = "gfs." + d + fc_time
-#         if not os.path.exists(date_dir):
-#             os.makedirs(date_dir)
-#         os.chdir(date_dir)
-#         date_url = gfs_root + date_dir + fc_file
-#         for h in hours:
-#             hour_url = date_url + h
-#             if not os.path.exists(fc_file + h):
-#                 print("Downloading file from URL:", hour_url)
-#                 for path in execute(
-#                     ["curl", "--silent", "--connect-timeout", "120", "-O", hour_url]
-#                 ):
-#                     print(path, end="")
-#                 print("Download Complete:", date_dir + fc_file + h, "\n")
-#                 # pull_call = sp.run(['curl', '-O', hour_url], capture_output = True, check = True)
-#         os.chdir(fc_data_dir)
-#     os.chdir(origDir)
+	# downloading the GFS data with multithreading; 
+	download_gfs_threaded(date=forecast_date,
+						  hours=forecast_hours,
+						  gfs_data_dir=gfs_date_dir,
+						  num_threads=dnwld_threads)
+	
+	# Now, load and process the data
+	loc_data = aggregate_station_df_dict(location_dict=locations,
+									  	 gfs_data_dir=gfs_date_dir,
+										 num_threads=load_threads)
+	# ensure return_type is a valid value
+	if return_type not in ['dict', 'dataframe']:
+		raise ValueError(f"'{return_type}' is not a valid return_type. Please use 'dict' or 'dataframe'")
+	elif return_type == 'dict':
+		# created nested dictionary of pd.Series for each variable for each location
+		gfs_data = {location:{name:data for name, data in loc_df.T.iterrows()} for location, loc_df in loc_data.items()}
+	elif return_type == 'dataframe':
+		raise Exception("'dataframe' option not implemented yet. Please use return_type = 'dict'")
+	
+	# return the GFS data
+	return gfs_data
