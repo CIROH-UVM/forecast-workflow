@@ -1,6 +1,6 @@
 import cfgrib
 import datetime as dt
-import glob
+from glob import glob
 from lib import (download_data,
 				 multithreaded_download,
 				 multithreaded_loading,
@@ -225,12 +225,12 @@ def download_gfs_threaded(date,
 ########################################### GFS get_data() ###########################################
 
 def get_data(forecast_datetime,
-				 end_datetime,
-				 locations,
-				 data_dir=tf.gettempdir(),
-				 dnwld_threads=int(os.cpu_count()/2),
-				 load_threads=2,
-				 return_type='dict'):
+			 end_datetime,
+			 locations,
+			 data_dir=tf.gettempdir(),
+			 dnwld_threads=int(os.cpu_count()/2),
+			 load_threads=2,
+			 return_type='dict'):
 	"""
 	Download specified GFS forecast data and return nested dictionary of pandas series fore each variable, for each location.
 
@@ -265,7 +265,7 @@ def get_data(forecast_datetime,
 	forecast_date = forecast_datetime.strftime("%Y%m%d")
 
 	# make the directory for storing GFS data
-	gfs_date_dir = os.path.join(data_dir, f'gfs.{forecast_date}/00/atmos')
+	gfs_date_dir = os.path.join(data_dir, f'gfs/gfs.{forecast_date}/00/atmos')
 	if not os.path.exists(gfs_date_dir):
 		os.makedirs(gfs_date_dir)
 
