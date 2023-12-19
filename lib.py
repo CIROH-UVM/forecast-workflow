@@ -289,6 +289,51 @@ def get_hour_diff(start_date, end_date):
 	hours = time_difference.total_seconds() / 3600
 	return int(hours)
 
+def generate_hours_list(num_hours, source):
+	"""
+	Creates a list of forecast hours to be downloaded
+
+	Args:
+	-- num_hours (int) [req]: how many hours of forecast data you want.
+	-- source (str) [req]: string indicating the forecast source. Valid values are 'gfs', 'nwm', and 'archive'.
+
+	Returns:
+	A list of hours in the format needed for the specifed forecast source. Or None if no valid source value is passed.
+	"""
+	match source:
+		case 'archive':
+			return [f"{hour:03}" for hour in range(0, num_hours + 1, 3)]
+		case 'gfs':
+			if num_hours <= 120:
+				return [f"{hour:03}" for hour in range(0, num_hours + 1)]
+			else:
+				return [f"{hour:03}" for hour in range(0, 120)] + [f"{hour:03}" for hour in range(120, num_hours + 1, 3)]
+		case 'nwm':
+			return [f"{hour:03}" for hour in range(1, num_hours + 1)]
+		
+def generate_date_strings(start_date, end_date):
+	"""
+	Creates a list of date strings in the format "YYYMMDD" for the range provided by start_date and end_date
+
+	Args:
+	-- start_date (obj) [req]: First date in the date range. Should be a string in the format "YYYYMMDD", a dt.date, or dt.datetime object
+	-- end_date (obj) [req]: Last date in the date range. Should be a string in the format "YYYYMMDD", a dt.date, or dt.datetime object
+
+	Returns:
+	A list of date strings in the format "YYYMMDD" 
+	"""
+	date_strings = []
+
+	# if not a datetime object, convert start_date to one
+	start_date = parse_to_datetime(start_date)
+	end_date = parse_to_datetime(end_date)
+
+	for i in range(((end_date-start_date).days)+1):
+		delta = dt.timedelta(days=i)
+		date_strings.append((start_date+delta).strftime('%Y%m%d'))
+	
+	return date_strings
+
 def download_data(url, filepath, use_google_bucket=False):
 	"""
 	Downloads, via curl, a file from a url to a specified filepath. Prints download progress.

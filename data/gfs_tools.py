@@ -5,7 +5,8 @@ from lib import (download_data,
 				 multithreaded_download,
 				 multithreaded_loading,
 				 parse_to_datetime,
-				 get_hour_diff)
+				 get_hour_diff,
+				 generate_hours_list)
 import numpy as np
 import os
 import tempfile as tf
@@ -98,46 +99,6 @@ def execute(cmd):
 	return_code = popen.wait()
 	if return_code:
 		raise sp.CalledProcessError(return_code, cmd)
-
-### generate_date_strings() - Creates a list of forecast dates to download
-# -- start_date : first date of forecast data to download
-# ---- should be a string in the format 'YYYYMMDD' or a datetime object
-# -- num_dates : the number of dates ahead or behind the start date you want to download
-# -- cast : str switch that determines whether to grab n dates ahead ("fore") or behind ("hind")
-def generate_date_strings(start_date, num_dates=1, cast="fore"):
-	date_strings = []
-	# if not a datetime object, convert start_date to one
-	if not isinstance(start_date, dt.datetime):
-		# strptime(str, format) converts a string to a datetime object
-		current_date = dt.datetime.strptime(start_date, "%Y%m%d")
-	else:
-		current_date = start_date
-	for _ in range(num_dates):
-		date_strings.append(current_date.strftime("%Y%m%d"))
-		if cast == "hind":
-			current_date -= dt.timedelta(days=1)
-		else:
-			current_date += dt.timedelta(days=1)
-
-	return date_strings
-
-def generate_hours_list(num_hours=168, archive=False):
-	"""
-	Creates a list of forecast hours to be downloaded
-
-	Args:
-	-- num_hours (int) [opt]: how many hours of forecast data you want: note that date goes up to 16 days out
-	-- archive (bool) [opt]: boolean flag indicating if data is going to be pulled from archives; if true returns only step = 3 list
-	"""
-	if archive:
-		return [f"{hour:03}" for hour in range(0, num_hours + 1, 3)]
-	if not archive:
-		if num_hours <= 120:
-			return [f"{hour:03}" for hour in range(0, num_hours + 1)]
-		else:
-			return [f"{hour:03}" for hour in range(0, 120)] + [
-				f"{hour:03}" for hour in range(120, num_hours + 1, 3)
-			]
 		
 # pulls just the desired lat/long pairs out of the datasets and isolat
 def isolate_loc_rows(ds, loc_dict):
@@ -163,8 +124,8 @@ def remap_longs(ds):
 
 ################## Function for downloading GFS data ##############################
 
-def download_gfs(dates=generate_date_strings(start_date=dt.datetime.today().strftime("%Y%m%d"), num_dates=1),
-				 hours=generate_hours_list(168),
+def download_gfs(dates=dt.datetime.today().strftime("%Y%m%d"),
+				 hours=generate_hours_list(168, 'gfs'),
 				 grib_data_dir="/data/forecastData/gfs"):
 	"""
 	Downloads the grib files for the specified dates and hours
@@ -261,7 +222,7 @@ def get_data(forecast_datetime,
 	# we need the end_datetime to match the time of forecast_Datetime in order to calculate the number of forecast hours to download accurately
 	end_datetime = dt.datetime.combine(end_datetime.date(), forecast_datetime.time())
 	# calculate the number of hours of forecast data to grab. I.e. for a 5 day forecast, hours would be 120
-	forecast_hours = generate_hours_list(get_hour_diff(forecast_datetime, end_datetime))
+	forecast_hours = generate_hours_list(get_hour_diff(forecast_datetime, end_datetime), 'gfs')
 	forecast_date = forecast_datetime.strftime("%Y%m%d")
 
 	# make the directory for storing GFS data
