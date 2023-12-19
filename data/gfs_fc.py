@@ -17,9 +17,9 @@ import xarray as xr
 
 ############# Functions for Processing GFS grib data ############################
 
-def aggregate_station_df_dict(location_dict,
-							  gfs_data_dir,
-							  num_threads):
+def process_gfs_data(location_dict,
+					 gfs_data_dir,
+					 num_threads):
 	station_dict = {}
 	grib_file_list = sorted(glob(f'{gfs_data_dir}/gfs.t00z.pgrb2.0p25.f[0-9][0-9][0-9]'))
 	# seems like the optimal number of threads to use is 2-4 - any more actually slows down the function
@@ -154,18 +154,16 @@ def download_gfs_threaded(date,
 				 		  gfs_data_dir,
 						  num_threads):
 	"""
-	Downloads the grib files for the specified dates and hours
+	Downloads the grib files for the specified date and hours
 
 	Args:
-	-- dates (list of strs) [opt]: list of dates to download gribs for. Default is just the current date
-	-- hours (list of strs) [opt]: list of forecast hours to download gribs for. Default is 7 day forecast, or 168 hours
-	-- log (logger) [required]: logger track info and download progress
-	-- num_threads (int) [opt]: number of threads to use.
-	-- grib_data_dir (str) [opt]: directory in which to store gfs grib files
-	
+	-- date (str) [req]: date to download gribs for. Default is just the current date
+	-- hours (list of strs) [req]: list of forecast hours to download gribs for. Default is 7 day forecast, or 168 hours
+	-- grib_data_dir (str) [req]: directory in which to store gfs grib files
+	-- num_threads (int) [req]: number of threads to use.
 	"""
 	download_list = []
-	print(f'TASK INITIATED: Download {int(hours[-1])}-hour GFS forecasts for the following date: {date}')
+	print(f'TASK INITIATED: Download {int(hours[-1])}-hour GFS forecasts for the following date: {date.month}/{date.day}/{date.year}')
 	for h in hours:
 		grib_fpath = os.path.join(gfs_data_dir, f'gfs.t00z.pgrb2.0p25.f{h}')
 		# if the grib file isn't downloaded already, then download it
@@ -219,7 +217,7 @@ def get_data(forecast_datetime,
 	end_datetime = parse_to_datetime(end_datetime)
 	# grabbing the cycle (12am, 6am, 12pm, 6pm) from the datetime
 	forecast_cycle = forecast_datetime.hour
-	# we need the end_datetime to match the time of forecast_Datetime in order to calculate the number of forecast hours to download accurately
+	# we need the end_datetime to match the time of forecast_datetime in order to calculate the number of forecast hours to download accurately
 	end_datetime = dt.datetime.combine(end_datetime.date(), forecast_datetime.time())
 	# calculate the number of hours of forecast data to grab. I.e. for a 5 day forecast, hours would be 120
 	forecast_hours = generate_hours_list(get_hour_diff(forecast_datetime, end_datetime), 'gfs')
@@ -237,9 +235,9 @@ def get_data(forecast_datetime,
 						  num_threads=dnwld_threads)
 	
 	# Now, load and process the data
-	loc_data = aggregate_station_df_dict(location_dict=locations,
-									  	 gfs_data_dir=gfs_date_dir,
-										 num_threads=load_threads)
+	loc_data = process_gfs_data(location_dict=locations,
+								gfs_data_dir=gfs_date_dir,
+								num_threads=load_threads)
 	# ensure return_type is a valid value
 	if return_type not in ['dict', 'dataframe']:
 		raise ValueError(f"'{return_type}' is not a valid return_type. Please use 'dict' or 'dataframe'")

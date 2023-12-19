@@ -16,11 +16,11 @@
 #  Control File
 
 from lib import *
-from data import (nwm_forecast, 
-                  usgs_obs,
-                  gfs_tools,
-                  colchester_reef_met,
-                  btv_met
+from data import (nwm_fc, 
+                  usgs_ob,
+                  gfs_fc,
+                  famc_ob,
+                  lcd_ob
 )
 
 from .waterquality import *
@@ -224,10 +224,10 @@ def getflowfiles(forecastDate, whichbay, root_dir, spinupDate, directory_flag):
     
     # dict by id: 04294000 (MS), 04292810 (J-S), 04292750 (Mill)
     # the below line is throwing an error - THEBAY.FirstDate is a str, should be datetime
-    observedUSGS = usgs_obs.get_data(ForecastStartDate=forecastDate.date(),
+    observedUSGS = usgs_ob.get_data(ForecastStartDate=forecastDate.date(),
                                      SpinupStartDate=(spinupDate + dt.timedelta(days=1)).date(),
                                      station_ids = ['04294000', '04292810', '04292750'])
-    forecastNWM = nwm_forecast.get_data(ForecastStartDate = forecastDate.strftime('%Y%m%d'),
+    forecastNWM = nwm_fc.get_data(ForecastStartDate = forecastDate.strftime('%Y%m%d'),
                                        ForecastStartTimestep = '00',
                                        data_dir=os.path.join(root_dir, 'forecastData/nwm'),
                                        directory_flag=directory_flag
@@ -412,7 +412,7 @@ def genclimatefiles(forecastDate, whichbay, gfs_csv, root_dir, spinupDate, direc
     #
     logger.info('Processing Meterological Data')
 
-    climateObsBTV = btv_met.get_data(ForecastStartDate=forecastDate.date(),
+    climateObsBTV = lcd_ob.get_data(ForecastStartDate=forecastDate.date(),
                                      SpinupStartDate=(spinupDate+dt.timedelta(days=1)).date()
                                      )
     # climateObsBTV = {'TCDC': pd.DataFrame(data={'TCDC': [.50, .75, .25, .50]},
@@ -421,11 +421,11 @@ def genclimatefiles(forecastDate, whichbay, gfs_csv, root_dir, spinupDate, direc
     #                                       index=pd.DatetimeIndex(data=pd.date_range('2021-09-08 20:00:00', periods=4, freq='H'), name='time'))
     #                 }
     
-    climateObsCR = colchester_reef_met.get_data(ForecastStartDate=forecastDate.date(),
+    climateObsCR = famc_ob.get_data(ForecastStartDate=forecastDate.date(),
                                                 SpinupStartDate=(spinupDate+dt.timedelta(days=1)).date()
                                                 ).rename_axis('time')
     
-    # dates = gfs_tools.generate_date_strings(forecastDate.strftime('%Y%m%d'), 1)
+    # dates = gfs_fc.generate_date_strings(forecastDate.strftime('%Y%m%d'), 1)
     # Add [0:2] to generate_hours_list(7) to run shorter test model
 
     # if flag is true, use new (post-update) dir struture. This is the default behavior
@@ -450,7 +450,7 @@ def genclimatefiles(forecastDate, whichbay, gfs_csv, root_dir, spinupDate, direc
     ############## Use this bit to load forecast climate from original GRIB files and create .csvs for quick loading later
         gfs_dir = os.path.join(root_dir, gfs_download_dir, '00/atmos/')
         logger.info(f"Loading GFS From original GRIBs at {gfs_dir}")
-        climateForecast = gfs_tools.get_data(
+        climateForecast = gfs_fc.get_data(
                 gfs_dir=gfs_dir,
                 location_dict={'401': (45.00, -73.25),
                                '402': (44.75, -73.25),
