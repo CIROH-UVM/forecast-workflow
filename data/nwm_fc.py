@@ -151,7 +151,7 @@ def get_data(forecast_datetime,
 			 return_type='dict'):
 	"""
 
-	A Function to download and process NWM hydrology forecast data to return nested dictionary of pandas series fore each variable, for each location.
+	A function to download and process NWM hydrology forecast data to return nested dictionary of pandas series fore each variable, for each location.
 	
 	Args:
 	-- forecast_datetime (str, date, or datetime) [req]: the start date and time (00, 06, 12, 18) of the forecast to download. Times are assumed to be UTC time.
@@ -176,6 +176,8 @@ def get_data(forecast_datetime,
 	save_csv              : Flag indicating whether or not dataframes should be saved as CSV files.
 	forecast_member        : The member of the forecast model.
 	
+	Returns:
+	NWM data in the format specified by return_type
 	"""
 	forecast_datetime = parse_to_datetime(forecast_datetime)
 	end_datetime = parse_to_datetime(end_datetime)

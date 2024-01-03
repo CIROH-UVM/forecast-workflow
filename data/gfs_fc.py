@@ -226,7 +226,7 @@ def get_data(forecast_datetime,
 									Alternative return type is "dataframe", which smashes all data into a single dataframe muliIndex'd by station ID, then timestamp
 
 	Returns:
-	GFS forecast data for thhe given locations in the format specified by return_type
+	GFS forecast data for the given locations in the format specified by return_type
 	"""
 	forecast_datetime = parse_to_datetime(forecast_datetime)
 	end_datetime = parse_to_datetime(end_datetime)
