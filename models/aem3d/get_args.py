@@ -156,7 +156,7 @@ def get_args(default_fpath):
 
 def main():
 	# absolute filepath for the default_settings.json file
-	default_settings_fpath = "/data/users/n/b/nbeckage/forecast-workflow/default_settings.json"
+	default_settings_fpath = "../../default_settings.json"
 	print(f'SETTINGS:{get_args(default_settings_fpath)}')
 	# settings = load_defaults(default_settings_fpath)
 	# args = get_cmdln_args()
