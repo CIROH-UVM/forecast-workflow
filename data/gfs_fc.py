@@ -20,6 +20,18 @@ import xarray as xr
 def process_gfs_data(location_dict,
 					 gfs_data_dir,
 					 num_threads):
+	"""
+	Will load NWM data and return a dictionary of timestamped streamflow data (pd.DataFrame) for each staion name in location_dict
+
+	Args:
+	-- location_dict (dict) [req]: a dictionary (stationID/name:IDValue/latlong tuple) of locations to load meterological data for.
+	-- gfs_data_dir (str) [req]: the directroy in which all of the GFS grib2 files are stored.
+	-- num_threads (int) [req]: number of threds to use for reading grib2 files
+
+	Returns:
+	a dictionary of the GFS data in the format {station_ID:pd.Dataframe}
+	"""
+
 	station_dict = {}
 	grib_file_list = sorted(glob(f'{gfs_data_dir}/gfs.t00z.pgrb2.0p25.f[0-9][0-9][0-9]'))
 	# seems like the optimal number of threads to use is 2-4 - any more actually slows down the function
@@ -157,13 +169,16 @@ def download_gfs_threaded(date,
 	Downloads the grib files for the specified date and hours
 
 	Args:
-	-- date (str) [req]: date to download gribs for. Default is just the current date
+	-- date (str) [req]: date to download gribs for.
 	-- hours (list of strs) [req]: list of forecast hours to download gribs for. Default is 7 day forecast, or 168 hours
-	-- grib_data_dir (str) [req]: directory in which to store gfs grib files
+	-- gfs_data_dir (str) [req]: directory in which to store gfs grib files
 	-- num_threads (int) [req]: number of threads to use.
 	"""
 	download_list = []
-	print(f'TASK INITIATED: Download {int(hours[-1])}-hour GFS forecasts for the following date: {date.month}/{date.day}/{date.year}')
+	print(f'TASK INITIATED: Download {int(hours[-1])}-hour GFS forecasts for the following date: {date}')
+	# making the directroy in the download function so that it can run independently without error
+	if not os.path.exists(gfs_data_dir):
+		os.makedirs(gfs_data_dir)
 	for h in hours:
 		grib_fpath = os.path.join(gfs_data_dir, f'gfs.t00z.pgrb2.0p25.f{h}')
 		# if the grib file isn't downloaded already, then download it
@@ -215,18 +230,19 @@ def get_data(forecast_datetime,
 	"""
 	forecast_datetime = parse_to_datetime(forecast_datetime)
 	end_datetime = parse_to_datetime(end_datetime)
+
 	# grabbing the cycle (12am, 6am, 12pm, 6pm) from the datetime
-	forecast_cycle = forecast_datetime.hour
-	# we need the end_datetime to match the time of forecast_datetime in order to calculate the number of forecast hours to download accurately
+	forecast_cycle = f"{forecast_datetime.hour:02d}"
+
+	# we need the end_datetime to match the time of forecast_Datetime in order to calculate the number of forecast hours to download accurately
 	end_datetime = dt.datetime.combine(end_datetime.date(), forecast_datetime.time())
 	# calculate the number of hours of forecast data to grab. I.e. for a 5 day forecast, hours would be 120
 	forecast_hours = generate_hours_list(get_hour_diff(forecast_datetime, end_datetime), 'gfs')
 	forecast_date = forecast_datetime.strftime("%Y%m%d")
 
-	# make the directory for storing GFS data
-	gfs_date_dir = os.path.join(data_dir, f'gfs/gfs.{forecast_date}/00/atmos')
-	if not os.path.exists(gfs_date_dir):
-		os.makedirs(gfs_date_dir)
+	# define the directory for storing GFS data
+	# directory should be made in download function, so that it can be used independently if necessary
+	gfs_date_dir = os.path.join(data_dir, f'gfs/gfs.{forecast_date}/{forecast_cycle}/atmos')
 
 	# downloading the GFS data with multithreading; 
 	download_gfs_threaded(date=forecast_date,
