@@ -22,16 +22,24 @@ def USGSstreamflow_function(station_id, parameter, start, end):
 	Returns:
 	A dataframe of USGS streamflow data indexed by timestamp
 	"""
-	gage = requests.get('https://waterservices.usgs.gov/nwis/iv/'
-					  '?format=json'
-					 f'&sites={station_id}'
-#                     f'&period={period}'
-					 f'&startDT={start.strftime("%Y-%m-%d")}'
-					 f'&endDT={end.strftime("%Y-%m-%d")}'                     
-					 f'&parameterCd={parameter}'
-					 )
-	#print(gage.text)
-	values = gage.json()['value']['timeSeries'][0]['values'][0]['value']
+	# put in while loop to ensure the request doesn't fail
+	returnValue = None
+	while(returnValue is None):
+		gage = requests.get('https://waterservices.usgs.gov/nwis/iv/'
+							 '?format=json'
+							f'&sites={station_id}'
+#                   		 f'&period={period}'
+							f'&startDT={start.strftime("%Y-%m-%d")}'
+							f'&endDT={end.strftime("%Y-%m-%d")}'                     
+							f'&parameterCd={parameter}'
+							)
+		#print(gage.text)
+		try:
+			returnValue = gage.json()
+			values = gage.json()['value']['timeSeries'][0]['values'][0]['value']
+		except:
+			print("USGS Observational Hydrology Data Request Failed... Will retry")
+			print(gage.text)
 	df = pd.DataFrame(values)
 	# print(df)
 	# df = df.set_index('dateTime')
