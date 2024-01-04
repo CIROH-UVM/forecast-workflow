@@ -115,7 +115,7 @@ def process_nwm_data(location_dict,
 	# Get the filenames from download_base_path - in chronological order
 	download_files = sorted(glob(f'{nwm_data_dir}/{fname_template}.f[0-9][0-9][0-9].conus.nc'))
 	
-	reach_dict = {reach_name:{'time':[], 'streamflow':[]} for reach_id, reach_name in location_dict.items()}
+	reach_dict = {reach_name:{'time':[], 'streamflow':[]} for reach_name, reach_id in location_dict.items()}
    
 	# load the NWM data with multithreading
 	# dataset_list will be in the same order as file list submitted, download_files
@@ -124,8 +124,8 @@ def process_nwm_data(location_dict,
 	# Time to read the data files
 	for data in dataset_dict.values():
 		# Time to extract the relevent streamflow and timestamp data from the dataset
-		for reach_id, reach_name in location_dict.items():
-			stream_value = np.float64(data.sel(feature_id=reach_id).streamflow.values)
+		for reach_name, reach_id in location_dict.items():
+			stream_value = np.float64(data.sel(feature_id=int(reach_id)).streamflow.values)
 			timestamp = data.coords['time'].values[0]
 			# Time to append it in results dict
 			reach_dict[reach_name]['time'].append(timestamp)

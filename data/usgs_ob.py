@@ -9,12 +9,12 @@ import pandas as pd
 # Streamflow, instantaneous cubic ft / sec: '00061',
 # Gage Height, feet: '00065'
 
-def USGSstreamflow_function(station_id, parameter, start, end):
+def USGSstreamflow_function(id, parameter, start, end):
 	"""
 	Form url for USGS station request and return formatted dataframe for the given station
 
 	Args:
-	-- station_id (str) [req]: station ID to get data for
+	-- id (str) [req]: station ID to get data for
 	-- paramter (str) [req]: parameter code of data to get
 	-- start (datetime) [req]: start datetime
 	-- end (datetime) [req]: end datetime
@@ -27,7 +27,7 @@ def USGSstreamflow_function(station_id, parameter, start, end):
 	while(returnValue is None):
 		gage = requests.get('https://waterservices.usgs.gov/nwis/iv/'
 							 '?format=json'
-							f'&sites={station_id}'
+							f'&sites={id}'
 #                   		 f'&period={period}'
 							f'&startDT={start.strftime("%Y-%m-%d")}'
 							f'&endDT={end.strftime("%Y-%m-%d")}'                     
@@ -46,7 +46,7 @@ def USGSstreamflow_function(station_id, parameter, start, end):
 	# df = df.set_index(pd.to_datetime(df['dateTime']))
 	# df = df.drop(['dateTime','qualifiers'],axis =1)
 	# df.columns = ['streamflow']
-	# df.to_csv(station_id+"_flow.csv", sep=',')
+	# df.to_csv(id+"_flow.csv", sep=',')
 	# 'US/Eastern' is the other option, but what about fall daylight savings "fall back"
 	#return pd.DataFrame(data={'streamflow': df['value'].values}, index=pd.to_datetime(df['dateTime'], utc=True).dt.tz_convert('Etc/GMT+4').dt.tz_localize(None))
 	# 20231211 - set index as datetime with timezone suffix set to UTC
@@ -88,19 +88,20 @@ def get_data(start_date,
 	returnVal = {}
 
 	# 20231211 - do not adjust passed dates to a previous day. that is a caller concern if that additional data buffer is needed.
-	for station_id in locations:
-		returnVal[station_id] = USGSstreamflow_function(station_id,
-														parameter,
-														start_date,
-														end_date)
+	for station, id in locations.items():
+		returnVal[station] = USGSstreamflow_function(id,
+												parameter,
+												start_date,
+												end_date)
 	
-	# ensure return_type is a valid value
-	if return_type not in ['dict', 'dataframe']:
-		raise ValueError(f"'{return_type}' is not a valid return_type. Please use 'dict' or 'dataframe'")
-	elif return_type == 'dict':
-		# created nested dictionary of pd.Series for each variable for each location
-		usgs_data = {station:{name:data for name, data in station_df.T.iterrows()} for station, station_df in returnVal.items()}
-	elif return_type == 'dataframe':
-		raise Exception("'dataframe' option not implemented yet. Please use return_type = 'dict'")
+		# ensure return_type is a valid value
+		if return_type not in ['dict', 'dataframe']:
+			raise ValueError(f"'{return_type}' is not a valid return_type. Please use 'dict' or 'dataframe'")
+		elif return_type == 'dict':
+			# created nested dictionary of pd.Series for each variable for each location
+			usgs_data = {station:{name:data for name, data in station_df.T.iterrows()} for station, station_df in returnVal.items()}
+		elif return_type == 'dataframe':
+			raise Exception("'dataframe' option not implemented yet. Please use return_type = 'dict'")
 
 	return usgs_data
+

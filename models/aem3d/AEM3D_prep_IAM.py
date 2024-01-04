@@ -16,10 +16,9 @@
 #  Control File
 
 from lib import *
-from data import (nwm_fc, 
+from data import (femc_ob, nwm_fc, 
                   usgs_ob,
                   gfs_fc,
-                  famc_ob,
                   lcd_ob
 )
 
@@ -421,7 +420,7 @@ def genclimatefiles(forecastDate, whichbay, gfs_csv, root_dir, spinupDate, direc
     #                                       index=pd.DatetimeIndex(data=pd.date_range('2021-09-08 20:00:00', periods=4, freq='H'), name='time'))
     #                 }
     
-    climateObsCR = famc_ob.get_data(ForecastStartDate=forecastDate.date(),
+    climateObsCR = femc_ob.get_data(ForecastStartDate=forecastDate.date(),
                                                 SpinupStartDate=(spinupDate+dt.timedelta(days=1)).date()
                                                 ).rename_axis('time')
     
