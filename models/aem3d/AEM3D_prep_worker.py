@@ -34,7 +34,9 @@ def main():
 
     # read in settings
     # Need to incorporate root_dir as a setting in which will contain forecast*/ dirs, including forecast-workflow
-    # SETTINGS = get_args(default_fpath='/data/forecast-workflow/default_settings.json')
+    # for production run
+    # SETTINGS = get_args(default_fpath='/data/forecastScripts/forecast-workflow/default_settings.json')
+    # for my own testing - Noah
     SETTINGS = get_args(default_fpath='/data/users/n/b/nbeckage/forecast-workflow/default_settings.json')
 
 

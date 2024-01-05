@@ -201,7 +201,7 @@ def get_data(forecast_datetime,
 	nwm_date_dir = os.path.join(data_dir, f'nwm/nwm.{forecast_date}/{forecast_type}_mem{forecast_member}')
 
 	# make the CSV directory - this may be outdated/unneeded at this point
-	nwm_csv_dir = f'nwm/nwm.{forecast_date}'
+	nwm_csv_dir = os.path.join(data_dir, f'nwm/nwm.{forecast_date}')
 	if not os.path.exists(nwm_csv_dir):
 		os.makedirs(nwm_csv_dir)
 
