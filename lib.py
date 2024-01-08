@@ -4,6 +4,7 @@ import sys
 import logging, logging.config
 import concurrent.futures
 from contextlib import contextmanager
+import datetime as dt
 from string import Template
 import inspect
 
@@ -299,6 +300,85 @@ def report_stack():
 		print(f'\tframe function: {frame_info.function}')
 		print(f'\tframe code context: {frame_info.code_context}')
 
+def parse_to_datetime(date):
+	"""
+	Utility function to convert date or string to datetime obj
+
+	Args:
+	-- date (str, date, or datetime) [req]: the date to be parsed
+
+	Returns:
+	a datetime object representing the passed date
+	"""
+	# if already a datetime obj, just return the same obj
+	if isinstance(date, dt.datetime):
+		return date
+	# if a date obj, convert to datetime
+	elif isinstance(date, dt.date):
+		# return as a datetime, time set to midnight by default
+		return dt.datetime.combine(date, dt.datetime.min.time())
+	elif isinstance(date, str):
+		try:
+			date = dt.datetime.strptime(date, "%Y%m%d")
+			return date
+		except ValueError as ve:
+			raise ValueError(f'{ve}. Please enter date strings in the format "YYYYMMDD"')
+		except Exception as e:
+			raise e
+		
+def get_hour_diff(start_date, end_date):
+	"""
+	Utility function to get the number of hours 
+	"""
+	time_difference = end_date - start_date
+	hours = time_difference.total_seconds() / 3600
+	return int(hours)
+
+def generate_hours_list(num_hours, source):
+	"""
+	Creates a list of forecast hours to be downloaded
+
+	Args:
+	-- num_hours (int) [req]: how many hours of forecast data you want.
+	-- source (str) [req]: string indicating the forecast source. Valid values are 'gfs', 'nwm', and 'archive'.
+
+	Returns:
+	A list of hours in the format needed for the specifed forecast source. Or None if no valid source value is passed.
+	"""
+	match source:
+		case 'archive':
+			return [f"{hour:03}" for hour in range(0, num_hours + 1, 3)]
+		case 'gfs':
+			if num_hours <= 120:
+				return [f"{hour:03}" for hour in range(0, num_hours + 1)]
+			else:
+				return [f"{hour:03}" for hour in range(0, 120)] + [f"{hour:03}" for hour in range(120, num_hours + 1, 3)]
+		case 'nwm':
+			return [f"{hour:03}" for hour in range(1, num_hours + 1)]
+		
+def generate_date_strings(start_date, end_date):
+	"""
+	Creates a list of date strings in the format "YYYMMDD" for the range provided by start_date and end_date
+
+	Args:
+	-- start_date (obj) [req]: First date in the date range. Should be a string in the format "YYYYMMDD", a dt.date, or dt.datetime object
+	-- end_date (obj) [req]: Last date in the date range. Should be a string in the format "YYYYMMDD", a dt.date, or dt.datetime object
+
+	Returns:
+	A list of date strings in the format "YYYMMDD" 
+	"""
+	date_strings = []
+
+	# if not a datetime object, convert start_date to one
+	start_date = parse_to_datetime(start_date)
+	end_date = parse_to_datetime(end_date)
+
+	for i in range(((end_date-start_date).days)+1):
+		delta = dt.timedelta(days=i)
+		date_strings.append((start_date+delta).strftime('%Y%m%d'))
+	
+	return date_strings
+
 def download_data(url, filepath, use_google_bucket=False):
 	"""
 	Downloads, via curl, a file from a url to a specified filepath. Prints download progress.
@@ -333,7 +413,7 @@ def download_data(url, filepath, use_google_bucket=False):
 		print(progress[-1])
 		print(f"Download Complete: {filepath}\n")
 
-def multithreaded_download(download_list, num_threads=int(os.cpu_count()/2)):
+def multithreaded_download(download_list, n_threads):
 	"""
 	Implements download_data() with mulithreading to speed up downloads
 
@@ -342,11 +422,11 @@ def multithreaded_download(download_list, num_threads=int(os.cpu_count()/2)):
 	-- num_threads (int) [opt]: number of threads to use.
 	"""
 	urls, paths, use_google_buckets = zip(*download_list)
-	print(f'Using {num_threads} threads for downloads')
-	with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+	print(f'Using {n_threads} threads for downloads')
+	with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as executor:
 		executor.map(download_data, urls, paths, use_google_buckets)
 
-def multithreaded_loading(load_func, file_list, num_threads=int(os.cpu_count()/2)):
+def multithreaded_loading(load_func, file_list, n_threads):
 	"""
 	The idea here is to pass the function that reads datasets (xr.open_dataset, cfgrib) with multithreading, 
 	and return a dictionary with the structure {fname : dataset}
@@ -354,13 +434,14 @@ def multithreaded_loading(load_func, file_list, num_threads=int(os.cpu_count()/2
 	Args:
 	-- load_func (function) [required]: the function to use to open the datasets
 	-- file_list (list) [required]: list of file names to load
-	-- num_threads (int) [opt]: number of threads to use for mulithreading
+	-- n_threads (int) [req]: number of threads to use for mulithreading
 
 	Returns:
 	a dictionary where every key is a filename in file_list, and each corresponding value is the datastruct loaded for that file
 	"""
-	with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+	with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as executor:
 		datasets = executor.map(load_func, file_list)
+		# returns datasets in the order in which they were submited; order of file_list will be preserved
 		dataset_list = [d for d in datasets]
 
 	return dict(zip(file_list, dataset_list))
