@@ -299,6 +299,7 @@ def report_stack():
 		print(f'\tframe filename: {frame_info.filename}')
 		print(f'\tframe function: {frame_info.function}')
 		print(f'\tframe code context: {frame_info.code_context}')
+<<<<<<< HEAD
 
 def parse_to_datetime(date):
 	"""
@@ -378,6 +379,8 @@ def generate_date_strings(start_date, end_date):
 		date_strings.append((start_date+delta).strftime('%Y%m%d'))
 	
 	return date_strings
+=======
+>>>>>>> main
 
 def download_data(url, filepath, use_google_bucket=False):
 	"""
