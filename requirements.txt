@@ -1,3 +1,4 @@
 pegasus-wms.api
 pandas
 sh
+xarray
