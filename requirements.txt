@@ -1,4 +1,9 @@
-pegasus-wms.api
-pandas
-sh
-xarray
+cfgrib==0.9.10.4
+jupyter
+matplotlib==3.8.2
+netCDF4==1.6.5
+numpy==1.25.2
+pandas==2.0.3
+Requests==2.31.0
+sh==2.0.6
+xarray==2023.8.0
