@@ -334,27 +334,40 @@ def get_hour_diff(start_date, end_date):
 	hours = time_difference.total_seconds() / 3600
 	return int(hours)
 
-def generate_hours_list(num_hours, source):
+def generate_hours_list(num_hours, source, forecast_type='medium', archive=False):
 	"""
 	Creates a list of forecast hours to be downloaded
 
 	Args:
 	-- num_hours (int) [req]: how many hours of forecast data you want.
 	-- source (str) [req]: string indicating the forecast source. Valid values are 'gfs', 'nwm', and 'archive'.
+	-- forecast_type (str) [opt]: The type of NWM forecast to grab. Valid values are 'short', 'medium', or 'long'.
 
 	Returns:
 	A list of hours in the format needed for the specifed forecast source. Or None if no valid source value is passed.
 	"""
 	match source:
-		case 'archive':
-			return [f"{hour:03}" for hour in range(0, num_hours + 1, 3)]
 		case 'gfs':
 			if num_hours <= 120:
 				return [f"{hour:03}" for hour in range(0, num_hours + 1)]
 			else:
 				return [f"{hour:03}" for hour in range(0, 120)] + [f"{hour:03}" for hour in range(120, num_hours + 1, 3)]
 		case 'nwm':
-			return [f"{hour:03}" for hour in range(1, num_hours + 1)]
+			if forecast_type=='short' or forecast_type=='medium':
+				return [f"{hour:03}" for hour in range(1, num_hours + 1)]
+			if forecast_type=='long':
+				return [f"{hour:03}" for hour in range(6, num_hours + 1, 6)]
+		case 'buckets':
+			if forecast_type=='short':
+				return [f"{hour:03}" for hour in range(1, num_hours + 1)]
+			if forecast_type=='medium':
+				if archive:
+					return [f"{hour:03}" for hour in range(3, num_hours + 1, 3)]
+				else: return [f"{hour:03}" for hour in range(1, num_hours + 1)]
+			if forecast_type=='long':
+				return [f"{hour:03}" for hour in range(6, num_hours + 1, 6)]
+
+
 		
 def generate_date_strings(start_date, end_date):
 	"""

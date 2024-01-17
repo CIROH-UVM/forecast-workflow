@@ -144,10 +144,12 @@ def process_nwm_data(location_dict,
 def get_data(forecast_datetime,
 			 end_datetime,
 			 locations,
+			 forecast_type,
 			 data_dir=tf.gettempdir(),
 			 dwnld_threads=int(os.cpu_count()/2),
 			 load_threads=int(os.cpu_count()/2),
 			 google_buckets=False,
+			 archive=False,
 			 return_type='dict'):
 	"""
 
@@ -157,12 +159,11 @@ def get_data(forecast_datetime,
 	-- forecast_datetime (str, date, or datetime) [req]: the start date and time (00, 06, 12, 18) of the forecast to download. Times are assumed to be UTC time.
 	-- end_datetime (str, date, or datetime) [req]: the end date and time for the forecast. GFS forecasts 16-days out for a given start date.
 	-- locations (dict) [req]: a dictionary (stationID/name:IDValue/latlong tuple) of locations to download forecast data for.
+	-- forecast_type (str) [req]: The type of forecast.
 	-- data_dir (str) [opt]: directory to store donwloaded data. Defaults to OS's default temp directory.
 	-- dwnld_threads (int) [opt]: number of threads to use for downloads. Default is half of OS's available threads.
 	-- load_threads (int) [opt]: number of threads to use for reading data. Default is 2 for GFS, since file reads are already pretty fast.
 	-- forecast_cycle (str) [req]: The starting time for the forecasts. valid values are 00, 06, 12, 18
-	-- forecast_type (str) [req]: The type of forecast (default is 'medium_range').
-	-- forecast_member (str) [req]: The member of the forecast model.
 	-- google_buckets (bool) [opt]: Flag determining wheteher or not to use google buckets for nwm download as opposed to NOMADs site.
 	-- return_type (string) [opt]: string indicating which format to return data in. Default is "dict", which will return data in a nested dict format:
 									{locationID1:{
@@ -185,21 +186,22 @@ def get_data(forecast_datetime,
 	# the type of forecast to grab should be a parameter in the future, though right now the function can't accomodate all fc types produced by NWM
 	# To get any kind of data at https://nomads.ncep.noaa.gov/pub/data/nccf/com/nwm/prod/nwm.20231218/ would probably require a new, comprehensive function
 	forecast_cycle = f"{forecast_datetime.hour:02d}"
-	forecast_type = 'medium_range'
-	forecast_member = '1'
-	netcdf_template = f'nwm.t{forecast_cycle}z.{forecast_type}.channel_rt_{forecast_member}'
+	forecast_member = forecast_type.split('range')[-1]
+	forecast_type = forecast_type.split('_')[0]
+	netcdf_template = f"nwm.t{forecast_cycle}z.{forecast_type}_range.channel_rt{forecast_member.replace('mem','')}"
 
+	# determining what source we are downlaoding data from in order to create proper hours list
+	if google_buckets:
+		source = 'buckets'
+	else: source = 'nwm'
 
-	# we need the end_datetime to match the time of forecast_datetime in order to calculate the number of forecast hours to download accurately
-	end_datetime = dt.datetime.combine(end_datetime.date(), forecast_datetime.time())
 	# calculate the number of hours of forecast data to grab. I.e. for a 5 day forecast, hours would be 120
-	forecast_hours = generate_hours_list(get_hour_diff(forecast_datetime, end_datetime), 'nwm')
+	forecast_hours = generate_hours_list(get_hour_diff(forecast_datetime, end_datetime), source, forecast_type, archive)
 	forecast_date = forecast_datetime.strftime("%Y%m%d")
-	
+
 	# define the directory for storing NWM data
 	# directory should be made in download function, so that it can be used independently if necessary
-	nwm_date_dir = os.path.join(data_dir, f'nwm/nwm.{forecast_date}/{forecast_type}_mem{forecast_member}')
-
+	nwm_date_dir = os.path.join(data_dir, f'nwm/nwm.{forecast_date}/{forecast_type}_range{forecast_member}')
 	# make the CSV directory - this may be outdated/unneeded at this point
 	nwm_csv_dir = os.path.join(data_dir, f'nwm/nwm.{forecast_date}')
 	if not os.path.exists(nwm_csv_dir):

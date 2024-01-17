@@ -236,6 +236,7 @@ def getflowfiles(forecast_start, forecast_end, whichbay, root_dir, spinup_date, 
 								  locations = {"MS":"166176984",
 											   "J-S":"4587092",
 											   "Mill":"4587100"},
+								  forecast_type="medium_range_mem1",
 								  data_dir=os.path.join(root_dir, 'forecastData/'),
 								  google_buckets = True)
 
