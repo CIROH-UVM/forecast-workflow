@@ -152,7 +152,6 @@ def get_data(forecast_datetime,
 			 archive=False,
 			 return_type='dict'):
 	"""
-
 	A function to download and process NWM hydrology forecast data to return nested dictionary of pandas series fore each variable, for each location.
 	
 	Args:
@@ -164,7 +163,8 @@ def get_data(forecast_datetime,
 	-- dwnld_threads (int) [opt]: number of threads to use for downloads. Default is half of OS's available threads.
 	-- load_threads (int) [opt]: number of threads to use for reading data. Default is 2 for GFS, since file reads are already pretty fast.
 	-- forecast_cycle (str) [req]: The starting time for the forecasts. valid values are 00, 06, 12, 18
-	-- google_buckets (bool) [opt]: Flag determining wheteher or not to use google buckets for nwm download as opposed to NOMADs site.
+	-- google_buckets (bool) [opt]: Flag determining wether or not to use google buckets for nwm download as opposed to NOMADs site.
+	-- archive (bool) [opt]: Flag determining wether or not data you are grabbing is older than the last two days (relevant for NWM only)
 	-- return_type (string) [opt]: string indicating which format to return data in. Default is "dict", which will return data in a nested dict format:
 									{locationID1:{
 										var1_name:pd.Series,
@@ -173,10 +173,7 @@ def get_data(forecast_datetime,
 									locationID2:{...},
 									...
 									}
-									Alternative return type is "dataframe", which smashes all data into a single dataframe muliIndex'd by station ID, then timestamp
-	save_csv              : Flag indicating whether or not dataframes should be saved as CSV files.
-	forecast_member        : The member of the forecast model.
-	
+									Alternative return type is "dataframe", which smashes all data into a single dataframe muliIndex'd by station ID, then timestamp	
 	Returns:
 	NWM data in the format specified by return_type
 	"""
