@@ -454,8 +454,8 @@ def multithreaded_loading(load_func, file_list, n_threads):
 	"""
 	with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as executor:
 		datasets = executor.map(load_func, file_list)
-		# returns datasets in the order in which they were submited; order of file_list will be preserved
-		dataset_list = [d for d in datasets]
+	# returns datasets in the order in which they were submited; order of file_list will be preserved
+	dataset_list = [d for d in datasets]
 
 	return dict(zip(file_list, dataset_list))
 
