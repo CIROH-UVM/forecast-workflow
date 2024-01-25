@@ -7,6 +7,7 @@ from lib import (download_data,
 				 parse_to_datetime,
 				 get_hour_diff,
 				 generate_hours_list)
+import more_itertools
 import numpy as np
 import os
 import tempfile as tf
@@ -190,9 +191,17 @@ def download_gfs_threaded(date,
 			print(f'Skipping download; {os.path.basename(grib_fpath)} found at: {gfs_data_dir}')
 	# if download_list isn't empty:
 	if download_list:
-		multithreaded_download(download_list[0:75], num_threads)
-		time.sleep(60)
-		multithreaded_download(download_list[-75:], num_threads)
+		# The true max hits/min allowed before getting blocked by NOMADS is 120/min, but they've requested users stick to 50/min
+		max_hits_per_min = 50
+		# break our list into chunks of 50 elements
+		download_chunks = list(more_itertools.chunked(download_list, max_hits_per_min))
+		for i, dwnld_chunk in enumerate(download_chunks):
+			# download one chunked list at a time
+			multithreaded_download(dwnld_chunk, num_threads)
+			# wait a minute after every download request, except the last one b/c there's no more downloads after the last chunk
+			if i < len(download_chunks)-1:
+				print('waiting a minute to avoid being flagged by NOMADS')
+				time.sleep(60)
 	print('TASK COMPLETE: GFS DOWNLOAD')
 
 
