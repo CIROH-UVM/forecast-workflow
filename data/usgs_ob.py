@@ -24,24 +24,27 @@ def USGSstreamflow_function(id, parameter, start, end):
 	"""
 	# put in while loop to ensure the request doesn't fail
 	returnValue = None
+	# for more info on how to format URL requests, see:
+	# https://waterservices.usgs.gov/docs/instantaneous-values/instantaneous-values-details/#url-format
 	while(returnValue is None):
 		gage = requests.get('https://waterservices.usgs.gov/nwis/iv/'
 							 '?format=json'
 							f'&sites={id}'
 #                   		 f'&period={period}'
-							f'&startDT={start.strftime("%Y-%m-%d")}'
-							f'&endDT={end.strftime("%Y-%m-%d")}'                     
-							f'&parameterCd={parameter}'
+							f'&startDT={start.strftime("%Y-%m-%d")}T00:00Z'
+							f'&endDT={end.strftime("%Y-%m-%d")}T23:59Z'                     
+							f'&parameterCd={parameter}',
 							)
-		#print(gage.text)
+		# print(gage.text)
 		try:
 			returnValue = gage.json()
 			values = gage.json()['value']['timeSeries'][0]['values'][0]['value']
 		except:
 			print("USGS Observational Hydrology Data Request Failed... Will retry")
-			print(gage.text)
+			# print(gage.text)
 	df = pd.DataFrame(values)
-	# print(df)
+	# notice timezone is localized to UTC
+	# print(df['dateTime'])
 	# df = df.set_index('dateTime')
 	# df = df.set_index(pd.to_datetime(df['dateTime']))
 	# df = df.drop(['dateTime','qualifiers'],axis =1)
@@ -50,8 +53,10 @@ def USGSstreamflow_function(id, parameter, start, end):
 	# 'US/Eastern' is the other option, but what about fall daylight savings "fall back"
 	#return pd.DataFrame(data={'streamflow': df['value'].values}, index=pd.to_datetime(df['dateTime'], utc=True).dt.tz_convert('Etc/GMT+4').dt.tz_localize(None))
 	# 20231211 - set index as datetime with timezone suffix set to UTC
-	station_df =  pd.DataFrame(data={'streamflow': df['value'].values}, index=pd.to_datetime(df['dateTime'], utc=True))
+	# utc=True converts the dateTime column to UTC, since dateTime is already UTC-localized
+	station_df =  pd.DataFrame(data={'streamflow': df['value'].astype(float).values}, index=pd.to_datetime(df['dateTime'], utc=True))
 	station_df.index.name = 'time'
+	# print(station_df)
 	return station_df
 
 def get_data(start_date,

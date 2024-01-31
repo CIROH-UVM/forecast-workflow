@@ -1,7 +1,7 @@
 {
 	"forecast_start" : "today",
 	"forecast_end" : "7 days from today",
-	"spinup_date" : "1/1/2023",
+	"spinup_date" : "20240101",
 	"blending_variable" : null,
 	"blending_ratio" : 1.0,
 	"weather_dataset_observed" : "NOAA_LCD+FEMC_CR",
