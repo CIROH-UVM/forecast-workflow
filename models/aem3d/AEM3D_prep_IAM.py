@@ -226,42 +226,42 @@ def getflowfiles(forecast_start, forecast_end, whichbay, root_dir, spinup_date, 
 	# the below line is throwing an error - THEBAY.FirstDate is a str, should be datetime
 	
 	observedUSGS = usgs_ob.get_data(start_date = (spinup_date + dt.timedelta(days=1)).date(),
-								 	end_date = forecast_start.date(),
+								 	end_date = forecast_start - dt.timedelta(days=1),
 									locations = {"MS":'04294000',
 			   									 "J-S":'04292810',
 			   									 "Mill":'04292750'})
-	
-	forecastNWM = nwm_fc.get_data(forecast_datetime = forecast_start.strftime('%Y%m%d'),
+
+	forecastNWM = nwm_fc.get_data(forecast_datetime = forecast_start,
 								  end_datetime = (forecast_end + dt.timedelta(days=3)),
 								  locations = {"MS":"166176984",
 											   "J-S":"4587092",
 											   "Mill":"4587100"},
 								  forecast_type="medium_range_mem1",
 								  data_dir=os.path.join(root_dir, 'forecastData/'),
+								  load_threads=1,
 								  google_buckets = True)
 
-	# logger.info(observedUSGS)
-	# logger.info(forecastNWM)
-	
+
+	# Convert USGS streamflow from cubic ft / s to cubic m / s
+	observedUSGS['MS']['streamflow'] = observedUSGS['MS']['streamflow'] * 0.0283168
+	observedUSGS['Mill']['streamflow'] = observedUSGS['Mill']['streamflow'] * 0.0283168
+	observedUSGS['J-S']['streamflow'] = observedUSGS['J-S']['streamflow'] * 0.0283168
+
 	# Need to adjust for column names and convert from ft / s to m / s
 	flowdf = pd.concat([observedUSGS['MS']['streamflow'], forecastNWM['MS']['streamflow']]).rename_axis('time').astype('float').to_frame()
 	mlflow = pd.concat([observedUSGS['Mill']['streamflow'], forecastNWM['Mill']['streamflow']]).rename_axis('time').astype('float').to_frame()
 	jsflow = pd.concat([observedUSGS['J-S']['streamflow'], forecastNWM['J-S']['streamflow']]).rename_axis('time').astype('float').to_frame()
 
-	# Fix Mill... it seems to have some negative sensor readings
-	#temp = mlflow[mlflow > 0]
-	mlflow = mlflow.sort_index()
-	mlflow_index = mlflow.index
-	mlflow =  mlflow[mlflow['streamflow'] >= 0].reindex(mlflow_index, method='nearest')
+	# these df's may not be the same length, there may be missing data from USGS gauges
+	logger.info(flowdf)
+	logger.info(mlflow)
+	logger.info(jsflow)
 
-	# Convert from cubic ft / s to cubic m / s
-	flowdf = flowdf * 0.0283168
-	mlflow = mlflow * 0.0283168
-	jsflow = jsflow * 0.0283168
+	# sometimes there are negative sensor readings, let's get rid of those if they're there
+	flowdf =  flowdf[flowdf['streamflow'] >= 0].reindex(flowdf.index, method='nearest')
+	mlflow =  mlflow[mlflow['streamflow'] >= 0].reindex(mlflow.index, method='nearest')
+	jsflow =  jsflow[jsflow['streamflow'] >= 0].reindex(jsflow.index, method='nearest')
 
-	# logger.info(flowdf)
-	# logger.info(mlflow)
-	# logger.info(jsflow)
 
 	##############  Remove filebased df initialization
 	'''

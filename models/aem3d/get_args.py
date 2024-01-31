@@ -1,6 +1,7 @@
 import argparse
 from datetime import date, datetime, timedelta
 import json
+from lib import parse_to_datetime
 import os
 
 """
@@ -34,11 +35,14 @@ def check_keys(settings_dict):
 def check_values(settings_dict):
 	# forecast start date must be datetime object
 	if not isinstance(settings_dict['forecast_start'], datetime):
-		settings_dict['forecast_start']  = make_datetime(settings_dict['forecast_start'])
+		settings_dict['forecast_start']  = parse_to_datetime(settings_dict['forecast_start'])
 	# forecast end date must be datetime object
 	if not isinstance(settings_dict['forecast_end'], datetime):
-		settings_dict['forecast_end'] = make_datetime(settings_dict['forecast_end'])
-	settings_dict['spinup_date'] = make_datetime(settings_dict['spinup_date'])
+		if settings_dict['forecast_end'] == '7 days from today':
+			settings_dict['forecast_end'] = settings_dict['forecast_start'] + timedelta(days=7)
+		else: settings_dict['forecast_end'] = parse_to_datetime(settings_dict['forecast_end'])
+	if not isinstance(settings_dict['spinup_date'], datetime):
+		settings_dict['spinup_date'] = parse_to_datetime(settings_dict['spinup_date'])
 	# # check blending variable to make sure it's a valid var name
 	# if settings_dict['blending_variable'] not in valid_vars:
 	# 	raise ValueError(f'{settings_dict["blending_variable"]} is an invalid variable name.')
@@ -97,22 +101,13 @@ def load_defaults(default_fpath):
 	defaults = load_json(default_fpath)
 	# manually set the current date and 7 days from today - can't do this programmatically in json
 	defaults['forecast_start'] = datetime(today.year, today.month, today.day)
-	defaults['forecast_end'] = datetime(today.year, today.month, today.day) + timedelta(days=7)
+	defaults['spinup_date'] = parse_to_datetime(defaults['spinup_date'])
 	return defaults
 
 def load_json(fpath):
 	with open(fpath) as file:
 		data = json.load(file)
 	return data
-
-def make_datetime(date_str):
-	try:
-		datetime_obj = datetime.strptime(date_str, '%m/%d/%Y')
-		return datetime_obj
-	except ValueError:
-		raise ValueError(f"'{date_str}' is not a valid date. Make sure dates are in the format: 'DD/MM/YYYY'")
-	except Exception as e:
-		raise e
 
 def process_args(args, default_fpath):
 	SETTINGS_KEYS = get_settings_keys(default_fpath)
@@ -130,7 +125,7 @@ def process_args(args, default_fpath):
 	return passed_args
 
 
-def get_args(default_fpath):
+def get_args(default_fpath, command_line = True):
 	"""
 	Main method to read and parse settings for forecast-workflow.
 	Hierachy of settings is as follows:
@@ -140,14 +135,17 @@ def get_args(default_fpath):
 
 	Args:
 	-- default_fpath (str) [required]: path of the default settings configuration file. Said file is stored in ../forecast-workflow/ currently.
-	
+	-- command_line (bool) [opt]: optional flag determining whether or not to read command line args. Defaults to True; useful to turn off when using IPython / Jupyter notebooks
+
 	Returns:
 	a dictionary of settings
 	"""
 	# establish default settings first
 	settings = load_defaults(default_fpath)
 	# load command-line arguments
-	args = get_cmdln_args()
+	if command_line:
+		args = get_cmdln_args()
+	else: return settings
 	# load settings from configuration file if config file is given
 	if args.conf is not None:
 		# loading config file settings
