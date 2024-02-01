@@ -33,7 +33,7 @@ def USGSstreamflow_function(id, parameter, start, end):
 #                   		 f'&period={period}'
 							f'&startDT={start.strftime("%Y-%m-%d")}T00:00Z'
 							f'&endDT={end.strftime("%Y-%m-%d")}T23:59Z'                     
-							f'&parameterCd={parameter}',
+							f'&parameterCd={parameter}'
 							)
 		# print(gage.text)
 		try:

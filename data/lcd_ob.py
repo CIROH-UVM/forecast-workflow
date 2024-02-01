@@ -27,21 +27,22 @@ def create_final_df(df, colToKeep, index):
 	# print(f'Creating final df for {colToKeep}')
 	# print(df[colToKeep])
 	
-	# 20231211 - set index as datetime with timezone suffix set to UTC
-	return pd.DataFrame(data={colToKeep: df[colToKeep].to_numpy()}, index=pd.DatetimeIndex(data=pd.to_datetime(df[index]), name='time')).tz_localize('EST').tz_convert('UTC')
+	# 20231211 - set index as datetime with timezone suffix set to UTC; data is in UTC, tz_localize() tells pandas that
+	return pd.DataFrame(data={colToKeep: df[colToKeep].to_numpy()}, index=pd.DatetimeIndex(data=pd.to_datetime(df[index]), name='time')).tz_localize('UTC')
 
 def retrieve_data(startDate, endDate, variable, station_id):
 	# put this in loop since this fails frequently
 	returnValue = None
+	# note that 'T00:00:00Z' is added to startDate (and similar appendage) to endDate in order to grab data for UTC time
 	while(returnValue is None):
 		requeststring = 'https://www.ncei.noaa.gov/access/services/data/v1/'+\
 								'?dataset=local-climatological-data'+\
 								'&stations='+\
 									station_id+\
 								'&startDate='+\
-									str(startDate)+\
+									str(startDate)+'T00:00:00Z'+\
 								'&endDate='+\
-									str(endDate)+\
+									str(endDate)+'T23:59:00Z'+\
 								'&dataTypes='+\
 									variable+\
 								'&format=json' 

@@ -468,9 +468,9 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	##############
 
 	logger.info('BTV Data')
-	logger.info(print_df(climateObsBTV['TCDC']))
+	logger.info(print_df(climateObsBTV['BTV']))
 	logger.info('Colchester Data')
-	logger.info(print_df(climateObsCR))
+	logger.info(print_df(climateObsCR['CR']))
 	logger.info('GFS Data (Zone 401)')
 	logger.info(print_df(climateForecast['401']))
 
@@ -549,8 +549,8 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 
 
 	air_temp = {"401": pd.concat([remove_nas(adjustedCRtemp),climateForecast['401']['T2']-273.15]),
-				"402": pd.concat([remove_nas(climateObsCR['T2']),climateForecast['402']['T2']-273.15]),
-				"403": pd.concat([remove_nas(climateObsCR['T2']),climateForecast['403']['T2']-273.15])
+				"402": pd.concat([remove_nas(climateObsCR['CR']['T2']),climateForecast['402']['T2']-273.15]),
+				"403": pd.concat([remove_nas(climateObsCR['CR']['T2']),climateForecast['403']['T2']-273.15])
 	 }
 
 	#air_temp = {"401": pd.concat([remove_nas(climateObsCR['T2']),climateForecast['401']['T2']-273.15]),
@@ -632,7 +632,7 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 		# GFS is in kg/m^2/s. kg/m^2 is mm, so really mm/s. To convert, * 86400 to get sec -> day,
 		#   and / 1000 to get mm to m, so, in all, * 86.4
 		#   GFS Ref: https://www.nco.ncep.noaa.gov/pmb/products/gfs/gfs.t00z.pgrb2.0p25.f003.shtml
-		bay_rain[zone] = pd.concat([climateObsBTV['RAIN']['RAIN'] * 0.6096, climateForecast[zone]['RAIN'] * 86.4])
+		bay_rain[zone] = pd.concat([climateObsBTV['BTV']['RAIN'] * 0.6096, climateForecast[zone]['RAIN'] * 86.4])
 
 		################################
 		## Resampling was an ok idea, but let's try reindexing temp to rain first -- see below
@@ -766,7 +766,7 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 		logger.info('Generating Bay Cloud Cover File: '+filename)
 		
 		# Divide GFS TCDC by 100 to get true percentage
-		cloud_series = seriesIndexToOrdinalDate(pd.concat([climateObsBTV['TCDC']['TCDC'],climateForecast[zone]['TCDC']/100.0]))
+		cloud_series = seriesIndexToOrdinalDate(pd.concat([climateObsBTV['BTV']['TCDC'],climateForecast[zone]['TCDC']/100.0]))
 		logger.info(f'TCDC for zone {zone}')
 		logger.info(print_df(cloud_series))
 
@@ -799,9 +799,9 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 			np.square(climateForecast[zone]['V10'])
 		)
 		if zone == '403':
-			windspd[zone] = pd.concat([(remove_nas(climateObsCR['WSPEED']) * 0.75), windspd[zone]])
+			windspd[zone] = pd.concat([(remove_nas(climateObsCR['CR']['WSPEED']) * 0.75), windspd[zone]])
 		else:
-			windspd[zone] = pd.concat([(remove_nas(climateObsCR['WSPEED']) * 0.65), windspd[zone]])
+			windspd[zone] = pd.concat([(remove_nas(climateObsCR['CR']['WSPEED']) * 0.65), windspd[zone]])
 
 		#  a bit of trig to map the wind vector components into a direction
 		#  𝜙 =180+(180/𝜋)*atan2(𝑢,𝑣)
@@ -809,7 +809,7 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 				climateForecast[zone]['U10'],
 				climateForecast[zone]['V10']
 			) * 180 / np.pi
-		winddir[zone] = pd.concat([remove_nas(climateObsCR['WDIR']), winddir[zone]])
+		winddir[zone] = pd.concat([remove_nas(climateObsCR['CR']['WDIR']), winddir[zone]])
 
 		logger.info(f'WINDSP for zone {zone}')
 		logger.info(print_df(windspd[zone]))        
@@ -873,7 +873,7 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	#     rhum_temp[rhum_temp<0] = 0
 	#     rhum[zone] = rhum_temp
 	rhum = {}
-	rhum['0'] = pd.concat([remove_nas(climateObsCR['RH2']) * .01, climateForecast['403']['RH2'] * .01])   
+	rhum['0'] = pd.concat([remove_nas(climateObsCR['CR']['RH2']) * .01, climateForecast['403']['RH2'] * .01])   
 	
 	logger.info(f'RH2')
 	logger.info(print_df(rhum['0']))
@@ -922,7 +922,7 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 		filename = f'SOLAR_{zone}.dat'
 		logger.info('Generating Short Wave Radiation File: '+filename)
 				
-		swdown_series = seriesIndexToOrdinalDate(pd.concat([remove_nas(climateObsCR['SWDOWN']), climateForecast[zone]['SWDOWN']]))
+		swdown_series = seriesIndexToOrdinalDate(pd.concat([remove_nas(climateObsCR['CR']['SWDOWN']), climateForecast[zone]['SWDOWN']]))
 		
 		# build a dataframe to nudge the data series
 		swdown_df = pd.concat([swdown_series.index.to_series(),swdown_series], axis = 1)
