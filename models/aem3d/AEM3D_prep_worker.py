@@ -132,4 +132,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    # print(get_args(default_fpath='/data/users/n/b/nbeckage/forecast-workflow/default_settings.json'))

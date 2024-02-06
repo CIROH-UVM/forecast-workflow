@@ -767,7 +767,7 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 		
 		# Divide GFS TCDC by 100 to get true percentage
 		cloud_series = seriesIndexToOrdinalDate(pd.concat([climateObsBTV['BTV']['TCDC'],climateForecast[zone]['TCDC']/100.0]))
-		logger.info(f'TCDC for zone {zone}')
+		logger.info(f'TCDC for zone {zone}') 
 		logger.info(print_df(cloud_series))
 
 		writeFile(
