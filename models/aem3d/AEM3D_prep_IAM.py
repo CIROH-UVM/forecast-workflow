@@ -525,10 +525,38 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	#print('Whole dataset TEMP Shape')
 	#print(wrf_data.variables['T2'].shape)
 	# New air_temp -- adjust window below if not hourly
-	air_temp = {"401": pd.concat([remove_nas(climateObsCR['T2']),climateForecast['401']['T2']-273.15]),
+
+	# S.E.T. - 20240206 - Adjust Colchester Reef Observed temp by month for the Missisquoi Bay Zone (401)
+	# the adjustment, by month, to apply to CR data for use in MissBay
+	tempadjust = {
+    	1 : -2.6,
+    	2 : -2.4,
+    	3 : -0.7,
+    	4 : 0.8,
+    	5 : 1.3,
+    	6 : 0.8,
+    	7 : -0.4,
+    	8 : -0.8,
+    	9 : -1.0,
+    	10 : -1.2,
+    	11 : -1.6,
+    	12 : -2.4 }
+
+	adjustedCRtemp = pd.Series()
+	for row in range(climateObsCR['CR']['T2'].shape[0]):
+	  	adjustedCRtemp[row] = climateObsCR['CR']['T2'].iloc[row] + tempadjust[climateObsCR['CR']['T2'].index[row].month]
+	adjustedCRtemp = adjustedCRtemp.set_axis(climateObsCR['CR']['T2'].index)
+
+
+	air_temp = {"401": pd.concat([remove_nas(adjustedCRtemp),climateForecast['401']['T2']-273.15]),
 				"402": pd.concat([remove_nas(climateObsCR['T2']),climateForecast['402']['T2']-273.15]),
 				"403": pd.concat([remove_nas(climateObsCR['T2']),climateForecast['403']['T2']-273.15])
 	 }
+
+	#air_temp = {"401": pd.concat([remove_nas(climateObsCR['T2']),climateForecast['401']['T2']-273.15]),
+	#			"402": pd.concat([remove_nas(climateObsCR['T2']),climateForecast['402']['T2']-273.15]),
+	#			"403": pd.concat([remove_nas(climateObsCR['T2']),climateForecast['403']['T2']-273.15])
+	# } 
 	
 	logger.info(print_df(air_temp['401']))
 
