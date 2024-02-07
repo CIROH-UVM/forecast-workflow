@@ -26,12 +26,45 @@ from data import (femc_ob,
 from .waterquality import *
 
 import pandas as pd
+import matplotlib.pyplot as plt
 import numpy as np
 import glob
 import os
 import datetime as dt
 
 AEM3D_DEL_T = 300
+
+# initialize empty dict to store information for each subplot to be made
+SUBPLOT_PACKAGES = {}
+
+# set up 2x5 figure to add subplots to
+FIG, AXES = plt.subplots(nrows=2, ncols=5, figsize=(20, 10), sharex=True, layout='constrained')
+FIG.supxlabel('Datetime')
+# fig.suptitle()
+# Rotate x-axis tick labels by 45 degrees
+for i in range(0,5):
+	for label in AXES[1,i].get_xticklabels():
+		label.set_rotation(45)
+FIG.delaxes(AXES[0,4])
+
+
+def add_plot(labelled_data, ylabel, title, fc_start, row, col, axis):
+	ax = axis[row,col]
+	# Plot data for location 1
+	for lab, data in labelled_data.items():
+		time_sliced_data = data[data.index <= pd.Timestamp(fc_start + dt.timedelta(days=7)).tz_localize('UTC')]
+		time_sliced_data = time_sliced_data[time_sliced_data.index > pd.Timestamp(fc_start - dt.timedelta(days=14)).tz_localize('UTC')]
+		ax.plot(time_sliced_data.index, time_sliced_data, label=lab)
+
+	# Add labels and title
+	# ax.set_xlabel('Datetime')
+	ax.set_ylabel(ylabel)
+	ax.set_title(title)
+	ax.grid(True)
+	ax.legend()
+
+	# Adding vert line at point where data goes from USGS to NWM
+	ax.axvline(x=pd.Timestamp(fc_start), color='r', linestyle='--')
 
 def print_df(df):
 	logger.info('\n'
@@ -262,6 +295,19 @@ def getflowfiles(forecast_start, forecast_end, whichbay, root_dir, spinup_date, 
 	mlflow =  mlflow[mlflow['streamflow'] >= 0].reindex(mlflow.index, method='nearest')
 	jsflow =  jsflow[jsflow['streamflow'] >= 0].reindex(jsflow.index, method='nearest')
 
+	flow_data = {'Missisquoi':flowdf['streamflow'],
+				 'Mill':mlflow['streamflow'],
+				 'Jewett-Stevens':jsflow['streamflow']}
+
+	global SUBPLOT_PACKAGES
+	global AXES
+	SUBPLOT_PACKAGES['streamflow'] = {'labelled_data':flow_data,
+								   	  'ylabel':'Streamflow (m/s^3)',
+									  'title':'USGS vs. NWM Streamflow',
+									  'fc_start':forecast_start,
+									  'row':0,
+									  'col':0,
+									  'axis':AXES}
 
 	##############  Remove filebased df initialization
 	'''
@@ -419,8 +465,8 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	#
 	logger.info('Processing Meterological Data')
 
-	climateObsBTV = lcd_ob.get_data(start_date = (spinup_date+dt.timedelta(days=1)).date(),
-								 	end_date = forecast_start.date(),
+	climateObsBTV = lcd_ob.get_data(start_date = (spinup_date + dt.timedelta(days=1)).date(),
+								 	end_date = forecast_start - dt.timedelta(days=1),
 									locations = {"BTV":"72617014742"})
 	
 	# climateObsBTV = {'TCDC': pd.DataFrame(data={'TCDC': [.50, .75, .25, .50]},
@@ -430,7 +476,7 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	#                 }
 	
 	climateObsCR = femc_ob.get_data(start_date = (spinup_date+dt.timedelta(days=1)).date(),
-									end_date = forecast_start.date(),
+									end_date = forecast_start - dt.timedelta(days=1),
 									locations = {'CR':'ColReefQAQC'})#.rename_axis('time')
 	
 	# if flag is true, use new (post-update) dir struture. This is the default behavior
@@ -468,11 +514,11 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	##############
 
 	logger.info('BTV Data')
-	logger.info(print_df(climateObsBTV['BTV']))
+	logger.info(climateObsBTV['BTV'])
 	logger.info('Colchester Data')
-	logger.info(print_df(climateObsCR['CR']))
+	logger.info(climateObsCR['CR'])
 	logger.info('GFS Data (Zone 401)')
-	logger.info(print_df(climateForecast['401']))
+	logger.info(climateForecast['401'])
 
 	'''
 	climate = [
@@ -650,6 +696,7 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 		# logger.info('Air Temp after resample')
 		# logger.info(print_df(TEMP))
 		#########################################
+		print(air_temp[zone])
 		TEMP = air_temp[zone].reindex(bay_rain[zone].index, method='nearest')
 
 		logger.info('TEMP after reindex')
@@ -1247,5 +1294,7 @@ def AEM3D_prep_IAM(settings, theBay):
 
 	# generate control file
 	gencntlfile(FORECASTSTART, theBay, SPINUP)
+
+
 
 	return 0
