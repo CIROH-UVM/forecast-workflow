@@ -1,3 +1,4 @@
+import datetime as dt
 import requests
 import pandas as pd
 from lib import parse_to_datetime
@@ -42,7 +43,7 @@ def retrieve_data(startDate, endDate, variable, station_id):
 								'&startDate='+\
 									str(startDate)+'T00:00:00Z'+\
 								'&endDate='+\
-									str(endDate)+'T23:59:00Z'+\
+									str(endDate-dt.timedelta(days=1))+'T23:59:00Z'+\
 								'&dataTypes='+\
 									variable+\
 								'&format=json' 

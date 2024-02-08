@@ -31,7 +31,9 @@ def get_data(start_date,
 	"""
 	# ensure start and end dates are datetime objects
 	start_date = parse_to_datetime(start_date)
+	# subtracting a day so that 
 	end_date = parse_to_datetime(end_date)
+
 	femc_data = {loc:{} for loc in locations.keys()}
 
 	for loc, loc_value in femc_data.items():
@@ -43,35 +45,17 @@ def get_data(start_date,
 			url="https://uvm.edu/femc/MetData/ColReefQAQC/CR_QAQC_latest.csv"
 			loaded_df = pd.DataFrame(pd.read_csv(url, delimiter=",", header=0, index_col=0, parse_dates=True))
 
-			#print(loaded_df)
-
 			#df = pd.concat([cached_df, loaded_df], axis=0, ignore_index=True)   # ignore dupe time indexes (overlap)
 			df = pd.concat([cached_df, loaded_df], axis=0)
 			# Drop duplicate time indices from overlap between 2 .csvs -- And sort
 			df = df[~df.index.duplicated(keep='first')].sort_index()
 
-			# Before: Keep the last 90 days (24h*4quarters*90days=8640) plus buffer
-			# df = df.tail(8800)
-			# Now: Keep the days from start_date to present
-
-			# 12231211 - remove shift of start date to the previous day. That's an AEM3D specific concern
 			# establish the default timezone as UTC
-			start_date_utc = start_date.replace(tzinfo=dt.timezone.utc)
-			# Now adjust to EST since FEMC data is in EST
-			start_date_est = start_date_utc.astimezone(ZoneInfo('EST'))
-			# now do comparison, but must convert to numpy datetime64, which doens't have tzinfo
-			df = df[df.index >= np.datetime64(start_date_est.replace(tzinfo=None))]
-
-			# Drop rows after midnight today to prevent duplicate entries with forecast
-			# establish the default timezone as UTC, set time to 23:59 to get all data for last day
-			end_date_utc = end_date.replace(hour=23, minute=59, tzinfo=dt.timezone.utc)
-			# Now adjust to EST since FEMC data is in EST
-			end_date_est = end_date_utc.astimezone(ZoneInfo('EST'))
-			# now do comparison, but must convert to numpy datetime64, which doens't have tzinfo
-			df = df[df.index <= np.datetime64(end_date_est.replace(tzinfo=None))]
-
-			# generate index as datetime with timezone suffix in UTC time
 			df.set_index(df.index.tz_localize('EST').tz_convert('UTC'), inplace = True)
+
+			# data returned should be start_Date includsive, end_date exclusive
+			df = df[df.index >= start_date]
+			df = df[df.index < end_date]
 			
 			# Subset to the columns of interest
 			df = df[['38m_AIRTEMP','PYRANOM','38m_RELHUMID', 'NRG_38m_MEAN_RESULTANT_WINDSPEED','NRG_38m_MEAN_WIND_DIRECTION']]

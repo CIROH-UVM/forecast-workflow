@@ -244,7 +244,7 @@ def get_data(forecast_datetime,
 	forecast_cycle = f"{forecast_datetime.hour:02d}"
 
 	# we need the end_datetime to match the time of forecast_Datetime in order to calculate the number of forecast hours to download accurately
-	end_datetime = dt.datetime.combine(end_datetime.date(), forecast_datetime.time())
+	end_datetime = dt.datetime.combine(end_datetime.date(), forecast_datetime.time()).replace(tzinfo=dt.timezone.utc)
 	# calculate the number of hours of forecast data to grab. I.e. for a 5 day forecast, hours would be 120
 	forecast_hours = generate_hours_list(get_hour_diff(forecast_datetime, end_datetime), 'gfs')
 	forecast_date = forecast_datetime.strftime("%Y%m%d")
