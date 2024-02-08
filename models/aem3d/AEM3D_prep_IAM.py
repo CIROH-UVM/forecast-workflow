@@ -52,8 +52,8 @@ def add_plot(labelled_data, ylabel, title, fc_start, row, col, axis):
 	ax = axis[row,col]
 	# Plot data for location 1
 	for lab, data in labelled_data.items():
-		time_sliced_data = data[data.index <= pd.Timestamp(fc_start + dt.timedelta(days=7)).tz_localize('UTC')]
-		time_sliced_data = time_sliced_data[time_sliced_data.index > pd.Timestamp(fc_start - dt.timedelta(days=14)).tz_localize('UTC')]
+		time_sliced_data = data[data.index <= pd.Timestamp(fc_start + dt.timedelta(days=7))]
+		time_sliced_data = time_sliced_data[time_sliced_data.index > pd.Timestamp(fc_start - dt.timedelta(days=14))]
 		ax.plot(time_sliced_data.index, time_sliced_data, label=lab)
 
 	# Add labels and title
@@ -65,6 +65,10 @@ def add_plot(labelled_data, ylabel, title, fc_start, row, col, axis):
 
 	# Adding vert line at point where data goes from USGS to NWM
 	ax.axvline(x=pd.Timestamp(fc_start), color='r', linestyle='--')
+
+def make_figure(plot_package):
+	for kwargs in plot_package.values():
+		add_plot(**kwargs)
 
 def print_df(df):
 	logger.info('\n'
@@ -258,8 +262,8 @@ def getflowfiles(forecast_start, forecast_end, whichbay, root_dir, spinup_date, 
 	# dict by id: 04294000 (MS), 04292810 (J-S), 04292750 (Mill)
 	# the below line is throwing an error - THEBAY.FirstDate is a str, should be datetime
 	
-	observedUSGS = usgs_ob.get_data(start_date = (spinup_date + dt.timedelta(days=1)).date(),
-								 	end_date = forecast_start - dt.timedelta(days=1),
+	observedUSGS = usgs_ob.get_data(start_date = spinup_date,
+								 	end_date = forecast_start,
 									locations = {"MS":'04294000',
 			   									 "J-S":'04292810',
 			   									 "Mill":'04292750'})
@@ -465,8 +469,8 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	#
 	logger.info('Processing Meterological Data')
 
-	climateObsBTV = lcd_ob.get_data(start_date = (spinup_date + dt.timedelta(days=1)).date(),
-								 	end_date = forecast_start - dt.timedelta(days=1),
+	climateObsBTV = lcd_ob.get_data(start_date = spinup_date,
+								 	end_date = forecast_start,
 									locations = {"BTV":"72617014742"})
 	
 	# climateObsBTV = {'TCDC': pd.DataFrame(data={'TCDC': [.50, .75, .25, .50]},
@@ -475,8 +479,8 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	#                                       index=pd.DatetimeIndex(data=pd.date_range('2021-09-08 20:00:00', periods=4, freq='H'), name='time'))
 	#                 }
 	
-	climateObsCR = femc_ob.get_data(start_date = (spinup_date+dt.timedelta(days=1)).date(),
-									end_date = forecast_start - dt.timedelta(days=1),
+	climateObsCR = femc_ob.get_data(start_date = spinup_date,
+									end_date = forecast_start,
 									locations = {'CR':'ColReefQAQC'})#.rename_axis('time')
 	
 	# if flag is true, use new (post-update) dir struture. This is the default behavior
@@ -590,7 +594,7 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 
 	adjustedCRtemp = pd.Series()
 	for row in range(climateObsCR['CR']['T2'].shape[0]):
-	  	adjustedCRtemp[row] = climateObsCR['CR']['T2'].iloc[row] + tempadjust[climateObsCR['CR']['T2'].index[row].month]
+		adjustedCRtemp[row] = climateObsCR['CR']['T2'].iloc[row] + tempadjust[climateObsCR['CR']['T2'].index[row].month]
 	adjustedCRtemp = adjustedCRtemp.set_axis(climateObsCR['CR']['T2'].index)
 
 
@@ -599,10 +603,15 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 				"403": pd.concat([remove_nas(climateObsCR['CR']['T2']),climateForecast['403']['T2']-273.15])
 	 }
 
-	#air_temp = {"401": pd.concat([remove_nas(climateObsCR['T2']),climateForecast['401']['T2']-273.15]),
-	#			"402": pd.concat([remove_nas(climateObsCR['T2']),climateForecast['402']['T2']-273.15]),
-	#			"403": pd.concat([remove_nas(climateObsCR['T2']),climateForecast['403']['T2']-273.15])
-	# } 
+	global SUBPLOT_PACKAGES
+	global AXES
+	SUBPLOT_PACKAGES['air temp'] = {'labelled_data':air_temp,
+								   	'ylabel':'Air Temp at 2m (C)',
+									'title':'Observed vs. Forecasted Air Temperature',
+									'fc_start':forecast_start,
+									'row':0,
+									'col':1,
+									'axis':AXES}
 	
 	logger.info(print_df(air_temp['401']))
 
@@ -755,7 +764,24 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 		logger.info('bay_snow before write')
 		logger.info(print_df(bay_snow[zone]))        
 		logger.info('bay_rain before write')
-		logger.info(print_df(bay_rain[zone]))  
+		logger.info(print_df(bay_rain[zone])) 
+
+	SUBPLOT_PACKAGES['bay rain'] = {'labelled_data':bay_rain,
+									'ylabel':'Rainfall (m/day)',
+									'title':'Rainfall for Inland Sea',
+									'fc_start':forecast_start,
+									'row':0,
+									'col':2,
+									'axis':AXES}
+	
+	SUBPLOT_PACKAGES['bay snow'] = {'labelled_data':bay_snow,
+									'ylabel':'Snow Fall (m/day)',
+									'title':'Snow Fall for Inland Sea',
+									'fc_start':forecast_start,
+									'row':0,
+									'col':3,
+									'axis':AXES}
+
 	#
 	# Write Precip Files for Bay
 	#
@@ -808,12 +834,16 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	#     writeLongwaveRadiationDownward(climate, THEBAY)
 
 	# Use Cloud Cover
+	cloud_plot_data = {}
 	for zone in climateForecast.keys():
 		filename = f'CLOUDS_{zone}.dat'
 		logger.info('Generating Bay Cloud Cover File: '+filename)
-		
+
 		# Divide GFS TCDC by 100 to get true percentage
-		cloud_series = seriesIndexToOrdinalDate(pd.concat([climateObsBTV['BTV']['TCDC'],climateForecast[zone]['TCDC']/100.0]))
+		full_cloud_series = pd.concat([climateObsBTV['BTV']['TCDC'],climateForecast[zone]['TCDC']/100.0])
+		cloud_plot_data[zone] = full_cloud_series
+
+		cloud_series = seriesIndexToOrdinalDate(full_cloud_series)
 		logger.info(f'TCDC for zone {zone}') 
 		logger.info(print_df(cloud_series))
 
@@ -825,6 +855,14 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 			cloud_series
 		)
 		THEBAY.addfile(fname=filename)
+
+	SUBPLOT_PACKAGES['cloud cover'] = {'labelled_data':cloud_plot_data,
+										'ylabel':'% Total Cloud Cover',
+										'title':'Cloud Cover',
+										'fc_start':forecast_start,
+										'row':1,
+										'col':0,
+										'axis':AXES}
 
 	###########################################################################################
 	#
@@ -862,6 +900,22 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 		logger.info(print_df(windspd[zone]))        
 		logger.info(f'WINDDIR for zone {zone}')
 		logger.info(print_df(winddir[zone]))        
+
+	SUBPLOT_PACKAGES['wind speed'] = {'labelled_data':windspd,
+										'ylabel':'m/s',
+										'title':'Wind Speed',
+										'fc_start':forecast_start,
+										'row':1,
+										'col':1,
+										'axis':AXES}
+	
+	SUBPLOT_PACKAGES['wind direction'] = {'labelled_data':windspd,
+										'ylabel':'degrees clockwise from North',
+										'title':'Wind Direction',
+										'fc_start':forecast_start,
+										'row':1,
+										'col':2,
+										'axis':AXES}
 
 	# Write Wind Speed and Direction File
 	#
@@ -925,6 +979,14 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	logger.info(f'RH2')
 	logger.info(print_df(rhum['0']))
 
+	SUBPLOT_PACKAGES['relative humidity'] = {'labelled_data':rhum,
+										'ylabel':'Relative Humidity (%)',
+										'title':'Relative Humidity at 2 Meters',
+										'fc_start':forecast_start,
+										'row':1,
+										'col':3,
+										'axis':AXES}
+
 	#   Write Relative Humidity File
 	#
 	for zone in rhum.keys():
@@ -965,11 +1027,13 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	dayofyear = int(forecast_start.strftime('%j'))
 	swradjust.loc[swradjust['Day of Year'] >= dayofyear,'NudgeObs'] = 1.0   # don't adjust forecast data
 
+	swdown_plot_data = {}
 	for zone in climateForecast.keys():
 		filename = f'SOLAR_{zone}.dat'
 		logger.info('Generating Short Wave Radiation File: '+filename)
-				
-		swdown_series = seriesIndexToOrdinalDate(pd.concat([remove_nas(climateObsCR['CR']['SWDOWN']), climateForecast[zone]['SWDOWN']]))
+		full_swdown_series = pd.concat([remove_nas(climateObsCR['CR']['SWDOWN']), climateForecast[zone]['SWDOWN']])
+		swdown_plot_data[zone] = full_swdown_series
+		swdown_series = seriesIndexToOrdinalDate(full_swdown_series)
 		
 		# build a dataframe to nudge the data series
 		swdown_df = pd.concat([swdown_series.index.to_series(),swdown_series], axis = 1)
@@ -999,6 +1063,13 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 
 		THEBAY.addfile(fname=filename)
 
+	SUBPLOT_PACKAGES['short wave rad'] = {'labelled_data':swdown_plot_data,
+										'ylabel':'W/m^2',
+										'title':'Short-Wave Downward Radiation (Un-nudged)s',
+										'fc_start':forecast_start,
+										'row':1,
+										'col':4,
+										'axis':AXES}
 
 	###
 	#
@@ -1295,6 +1366,9 @@ def AEM3D_prep_IAM(settings, theBay):
 	# generate control file
 	gencntlfile(FORECASTSTART, theBay, SPINUP)
 
-
+	global FIG
+	global SUBPLOT_PACKAGES
+	make_figure(SUBPLOT_PACKAGES)
+	FIG.savefig('weatherVars.png')
 
 	return 0
