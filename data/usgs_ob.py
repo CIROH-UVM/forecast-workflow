@@ -1,3 +1,4 @@
+import datetime as dt
 from lib import parse_to_datetime
 import requests
 import pandas as pd
@@ -32,7 +33,7 @@ def USGSstreamflow_function(id, parameter, start, end):
 							f'&sites={id}'
 #                   		 f'&period={period}'
 							f'&startDT={start.strftime("%Y-%m-%d")}T00:00Z'
-							f'&endDT={end.strftime("%Y-%m-%d")}T23:59Z'                     
+							f'&endDT={(end-dt.timedelta(days=1)).strftime("%Y-%m-%d")}T23:59Z'                     
 							f'&parameterCd={parameter}'
 							)
 		# print(gage.text)
@@ -41,7 +42,7 @@ def USGSstreamflow_function(id, parameter, start, end):
 			values = gage.json()['value']['timeSeries'][0]['values'][0]['value']
 		except:
 			print("USGS Observational Hydrology Data Request Failed... Will retry")
-			# print(gage.text)
+			print(gage.text)
 	df = pd.DataFrame(values)
 	# notice timezone is localized to UTC
 	# print(df['dateTime'])
