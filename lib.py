@@ -302,7 +302,7 @@ def report_stack():
 
 def parse_to_datetime(date):
 	"""
-	Utility function to convert date or string to datetime obj
+	Utility function to convert date or string to datetime obj, in UTC time
 
 	Args:
 	-- date (str, date, or datetime) [req]: the date to be parsed
@@ -310,16 +310,16 @@ def parse_to_datetime(date):
 	Returns:
 	a datetime object representing the passed date
 	"""
-	# if already a datetime obj, just return the same obj
+	# if already a datetime obj, just return the same obj; be sure to convert to UTC
 	if isinstance(date, dt.datetime):
-		return date
+		return date.replace(tzinfo=dt.timezone.utc)
 	# if a date obj, convert to datetime
 	elif isinstance(date, dt.date):
 		# return as a datetime, time set to midnight by default
-		return dt.datetime.combine(date, dt.datetime.min.time())
+		return dt.datetime.combine(date, dt.datetime.min.time()).replace(tzinfo=dt.timezone.utc)
 	elif isinstance(date, str):
 		try:
-			date = dt.datetime.strptime(date, "%Y%m%d")
+			date = dt.datetime.strptime(date, "%Y%m%d").replace(tzinfo=dt.timezone.utc)
 			return date
 		except ValueError as ve:
 			raise ValueError(f'{ve}. Please enter date strings in the format "YYYYMMDD"')
@@ -340,7 +340,7 @@ def generate_hours_list(num_hours, source, forecast_type='medium', archive=False
 
 	Args:
 	-- num_hours (int) [req]: how many hours of forecast data you want.
-	-- source (str) [req]: string indicating the forecast source. Valid values are 'gfs', 'nwm', and 'archive'.
+	-- saource (str) [req]: string indicating the forecast source. Valid values are 'gfs', 'nwm', and 'archive'.
 	-- forecast_type (str) [opt]: The type of NWM forecast to grab. Valid values are 'short', 'medium', or 'long'.
 
 	Returns:
@@ -348,24 +348,26 @@ def generate_hours_list(num_hours, source, forecast_type='medium', archive=False
 	"""
 	match source:
 		case 'gfs':
+			if archive:
+				return [f"{hour:03}" for hour in range(0, num_hours, 3)]
 			if num_hours <= 120:
-				return [f"{hour:03}" for hour in range(0, num_hours + 1)]
+				return [f"{hour:03}" for hour in range(0, num_hours)]
 			else:
-				return [f"{hour:03}" for hour in range(0, 120)] + [f"{hour:03}" for hour in range(120, num_hours + 1, 3)]
+				return [f"{hour:03}" for hour in range(0, 120)] + [f"{hour:03}" for hour in range(120, num_hours, 3)]
 		case 'nwm':
 			if forecast_type=='short' or forecast_type=='medium':
-				return [f"{hour:03}" for hour in range(1, num_hours + 1)]
+				return [f"{hour:03}" for hour in range(1, num_hours)]
 			if forecast_type=='long':
-				return [f"{hour:03}" for hour in range(6, num_hours + 1, 6)]
+				return [f"{hour:03}" for hour in range(6, num_hours, 6)]
 		case 'buckets':
 			if forecast_type=='short':
-				return [f"{hour:03}" for hour in range(1, num_hours + 1)]
+				return [f"{hour:03}" for hour in range(1, num_hours)]
 			if forecast_type=='medium':
 				if archive:
-					return [f"{hour:03}" for hour in range(3, num_hours + 1, 3)]
-				else: return [f"{hour:03}" for hour in range(1, num_hours + 1)]
+					return [f"{hour:03}" for hour in range(3, num_hours, 3)]
+				else: return [f"{hour:03}" for hour in range(1, num_hours)]
 			if forecast_type=='long':
-				return [f"{hour:03}" for hour in range(6, num_hours + 1, 6)]
+				return [f"{hour:03}" for hour in range(6, num_hours, 6)]
 
 
 		
