@@ -19,7 +19,7 @@ from lib import *
 from data import (femc_ob,
 				  nwm_fc, 
 				  usgs_ob,
-				  gfs_fc,
+				  gfs_fc_thredds,
 				  lcd_ob
 )
 
@@ -505,12 +505,12 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	############## Use this bit to load forecast climate from original GRIB files and create .csvs for quick loading later
 
 		logger.info(f"Begin GFS get_data()")
-		climateForecast = gfs_fc.get_data(forecast_datetime = forecast_start,
-										  end_datetime = forecast_end,
-										  locations = {'401': (45.00, -73.25),
-							   						   '402': (44.75, -73.25),
-							   						   '403': (44.75, -73.25)},
-										  data_dir = os.path.join(root_dir, 'forecastData/'))
+		climateForecast = gfs_fc_thredds.get_data(forecast_datetime = forecast_start,
+												  end_datetime = forecast_end,
+												  locations = {'401': (45.00, -73.25),
+					 										   '402': (44.75, -73.25),
+					 										   '403': (44.75, -73.25)},
+												  data_dir = os.path.join(root_dir, 'forecastData/'))
 
 		# for zone in climateForecast.keys():
 		#     climateForecast[zone] = climateForecast[zone].rename_axis('time').astype('float')
