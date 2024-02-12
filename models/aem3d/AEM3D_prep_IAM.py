@@ -269,7 +269,7 @@ def getflowfiles(forecast_start, forecast_end, whichbay, root_dir, spinup_date, 
 			   									 "Mill":'04292750'})
 
 	forecastNWM = nwm_fc.get_data(forecast_datetime = forecast_start,
-								  end_datetime = (forecast_end + dt.timedelta(days=3)),
+								  end_datetime = forecast_end,
 								  locations = {"MS":"166176984",
 											   "J-S":"4587092",
 											   "Mill":"4587100"},
