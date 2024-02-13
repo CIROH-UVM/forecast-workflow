@@ -1,5 +1,6 @@
 cfgrib==0.9.10.4
 matplotlib==3.8.2
+more_itertools==10.2.0
 netCDF4==1.6.5
 numpy==1.25.2
 pandas==2.0.3
