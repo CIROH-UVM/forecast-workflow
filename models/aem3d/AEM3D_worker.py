@@ -112,7 +112,7 @@ def main():
     # scenario = IAMScenario.from_id(settings['scenario'])
 
     # pick_aem3d_bin(settings)
-    aem3d = Command('/usr/local/bin/aem3d_openmp')
+    aem3d = Command("/gpfs1/home/n/b/nbeckage/ciroh/aem3d-1.1.2-535/aem3d_openmp.exe")
 
     with cd('aem3d-run'):        # the working dir for the run
 

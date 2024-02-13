@@ -37,7 +37,7 @@ def main():
     # for production run
     # SETTINGS = get_args(default_fpath='/data/forecastScripts/forecast-workflow/default_settings.json')
     # for my own testing - Noah
-    SETTINGS = get_args(default_fpath='/data/users/n/b/nbeckage/forecast-workflow/default_settings.json')
+    SETTINGS = get_args(default_fpath="/gpfs1/home/n/b/nbeckage/ciroh/forecast-workflow/default_settings.json")
 
 
     # for i in range(len(sys.argv)):
