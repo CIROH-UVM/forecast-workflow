@@ -37,7 +37,7 @@ def get_data(start_date,
 	femc_data = {loc:{} for loc in locations.keys()}
 
 	for loc, loc_value in femc_data.items():
-		with open(os.path.join("/data/forecastData/colchesterReefFEMC", "Z0080_CR_QAQC.csv")) as file:
+		with open(os.path.join("/gpfs1/home/n/b/nbeckage/ciroh/forecastData/colchesterReefFEMC/", "Z0080_CR_QAQC.csv")) as file:
 			cached_data = pd.read_csv(file, delimiter=",", header=0, index_col=0, parse_dates=True) # Make DateTime as index
 			cached_df = pd.DataFrame(cached_data)
 

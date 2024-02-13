@@ -87,7 +87,7 @@ def get_cmdln_args():
 
 	return args
 
-def get_settings_keys(default_fpath):
+def get_settings_keys(default_fpath="/gpfs1/home/n/b/nbeckage/ciroh/forecast-workflow/default_settings.json"):
 	return list(load_json(default_fpath).keys())
 
 def load_config(config_fpath):
