@@ -174,7 +174,7 @@ def get_data(forecast_datetime,
 
 	# define the directory for storing GFS data
 	# directory should be made in download function, so that it can be used independently if necessary
-	gfs_date_dir = os.path.join(data_dir, f'gfs/gfs.{forecast_date}/{forecast_cycle}/atmos')
+	gfs_date_dir = os.path.join(data_dir, f'gfs/{forecast_datetime.strftime("%Y")}/gfs.{forecast_date}/{forecast_cycle}/atmos')
 
 	# downloading the GFS data with multithreading; 
 	download_gfs_threaded(date=forecast_datetime,

@@ -68,7 +68,7 @@ def main():
     POST-SETTINGS UPDATE BELOW
     """
     # These two settings return datetime objs set to midnight already
-    THEBAY.FirstDate = datetimeToOrdinal(SETTINGS['spinup_date'] + dt.timedelta(days=1))
+    THEBAY.FirstDate = datetimeToOrdinal(SETTINGS['spinup_date'])
     THEBAY.LastDate = datetimeToOrdinal(SETTINGS['forecast_end'])
 
 

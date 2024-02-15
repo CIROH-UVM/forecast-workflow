@@ -198,11 +198,7 @@ def get_data(forecast_datetime,
 
 	# define the directory for storing NWM data
 	# directory should be made in download function, so that it can be used independently if necessary
-	nwm_date_dir = os.path.join(data_dir, f'nwm/nwm.{forecast_date}/{forecast_type}_range{forecast_member}')
-	# make the CSV directory - this may be outdated/unneeded at this point
-	nwm_csv_dir = os.path.join(data_dir, f'nwm/nwm.{forecast_date}')
-	if not os.path.exists(nwm_csv_dir):
-		os.makedirs(nwm_csv_dir)
+	nwm_date_dir = os.path.join(data_dir, f'nwm/{forecast_datetime.strftime("%Y")}/nwm.{forecast_date}/{forecast_type}_range{forecast_member}')
 
 	# downloading the NWM data with multithreading; 
 	download_nwm_threaded(date=forecast_date,
