@@ -184,7 +184,8 @@ def writeCloudCover(climate, THEBAY):
 ##########################################################################
 
 
-def getflowfiles(forecast_start, forecast_end, whichbay, root_dir, spinup_date, directory_flag):
+#def getflowfiles(forecast_start, forecast_end, whichbay, root_dir, spinup_date, directory_flag):
+def getflowfiles(whichbay, settings):
 	'''
 	getflowfiles : Get hydrology model flow file(s) for Bay Inflow
 		Most information contained in passed Bay Object
@@ -211,29 +212,48 @@ def getflowfiles(forecast_start, forecast_end, whichbay, root_dir, spinup_date, 
 	# dict by id: 04294000 (MS), 04292810 (J-S), 04292750 (Mill)
 	# the below line is throwing an error - THEBAY.FirstDate is a str, should be datetime
 	
-	observedUSGS = usgs_ob.get_data(start_date = spinup_date - dt.timedelta(days=1),
-								 	end_date = forecast_start,
+	# Our Group Pseudocode
+
+	# TODOFEE - Refactor observedUSGS to observedHydro throughout
+	observedHydro = None
+	if(settings['hydrology_dataset_observed'] == 'USGS_IV'):
+			observedHydro = usgs_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
+								 	end_date = settings['forecast_start'],
 									locations = {"MS":'04294000',
 			   									 "J-S":'04292810',
 			   									 "Mill":'04292750'})
+			# Convert USGS streamflow from cubic ft / s to cubic m / s
+			for location in forecastHydro.keys():
+				observedHydro[location]['streamflow'] = forecastHydro[location]['streamflow'] * 0.0283168
 
-	forecastNWM = nwm_fc.get_data(forecast_datetime = forecast_start,
-								  end_datetime = forecast_end + dt.timedelta(days=1),
+	else:
+		# Throw Exception
+		pass
+	
+	forecastHydro = None
+	if(settings['hydrology_dataset_forecast'] == 'USGS_IV'):
+		forecastHydro = usgs_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
+								 	end_date = settings['forecast_start'],
+									locations = {"MS":'04294000',
+			   									 "J-S":'04292810',
+			   									 "Mill":'04292750'})
+		# Convert USGS streamflow from cubic ft / s to cubic m / s
+		for location in forecastHydro.keys():
+			forecastHydro[location]['streamflow'] = forecastHydro[location]['streamflow'] * 0.0283168
+	
+	elif(settings['hydrology_dataset_forecast'] == 'NOAA_NWM_PROD'):
+		nwm_fc.get_data(forecast_datetime = settings['forecast_start'],
+								  end_datetime = settings['forecast_end'] + dt.timedelta(days=1),
 								  locations = {"MS":"166176984",
 											   "J-S":"4587092",
 											   "Mill":"4587100"},
 								  forecast_type="medium_range_mem1",
-								  data_dir=os.path.join(root_dir, 'hindcastData/'),
+								  data_dir=os.path.join(settings['root_dir'], 'hindcastData/'),
 								  load_threads=1,
 								  google_buckets = True)
-
-
-	# Convert USGS streamflow from cubic ft / s to cubic m / s
-	observedUSGS['MS']['streamflow'] = observedUSGS['MS']['streamflow'] * 0.0283168
-	observedUSGS['Mill']['streamflow'] = observedUSGS['Mill']['streamflow'] * 0.0283168
-	observedUSGS['J-S']['streamflow'] = observedUSGS['J-S']['streamflow'] * 0.0283168
-
-	# Need to adjust for column names and convert from ft / s to m / s
+			
+	
+	# Need to adjust for column names
 	flowdf = pd.concat([observedUSGS['MS']['streamflow'], forecastNWM['MS']['streamflow']]).rename_axis('time').astype('float').to_frame()
 	mlflow = pd.concat([observedUSGS['Mill']['streamflow'], forecastNWM['Mill']['streamflow']]).rename_axis('time').astype('float').to_frame()
 	jsflow = pd.concat([observedUSGS['J-S']['streamflow'], forecastNWM['J-S']['streamflow']]).rename_axis('time').astype('float').to_frame()
@@ -335,6 +355,8 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	climateObsBTV = lcd_ob.get_data(start_date = spinup_date - dt.timedelta(days=1),
 								 	end_date = forecast_start,
 									locations = {"BTV":"72617014742"})
+	
+	## TODOFEE: Need to move all the nudging and zone assignments to here!!!
 	
 	climateObsCR = femc_ob.get_data(start_date = spinup_date - dt.timedelta(days=1),
 									end_date = forecast_start,
@@ -598,6 +620,10 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 
 		# Divide GFS TCDC by 100 to get true percentage
 		full_cloud_series = pd.concat([climateObsBTV['BTV']['TCDC'],climateForecast[zone]['TCDC']/100.0])
+		## TODOFEE:
+		# Preferred concat format: 
+		# Probably need to create some dictionaries that standardize the location / variable names between climate sources
+		# Also, going to have to move all adjustments to the top, where the get_data is first called
 		cloud_plot_data[zone] = full_cloud_series
 
 		cloud_series = seriesIndexToOrdinalDate(full_cloud_series)
@@ -1030,6 +1056,8 @@ def gendatablockfile(forecast_start, theBay, spinup_date):
  
 def AEM3D_prep_FEE_IAM(settings, theBay):
 
+	## TODOFEE: Replace individual settings getting passed to each function with the entire settings object
+	
 	# grab settings
 	FORECASTSTART = settings['forecast_start']
 	# default forecast end date is 7 days after forecast start date
@@ -1044,10 +1072,12 @@ def AEM3D_prep_FEE_IAM(settings, theBay):
 	logger.info(f'Processing Bay: {theBay.bayid} for year {theBay.year}')
 
 	# get flow files from hydrology model data
-	getflowfiles(FORECASTSTART, FORECASTEND, theBay, ROOT_DIR, SPINUP, DIRFLAG)
+	#getflowfiles(FORECASTSTART, FORECASTEND, theBay, ROOT_DIR, SPINUP, DIRFLAG)
+	getflowfiles(theBay, settings)
 
 	# generate climate files including lake levels
 	genclimatefiles(FORECASTSTART, FORECASTEND, theBay, USE_GFS_CSVS, ROOT_DIR, SPINUP, DIRFLAG)
+	#genclimatefiles(theBay, settings)
 
 	# generate salinity file
 	gensalinefile(theBay)
