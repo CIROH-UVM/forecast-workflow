@@ -70,7 +70,7 @@ def download_gfs_threaded(date,
 	# if download_list isn't empty:
 	if download_list:
 		# The true max hits/min allowed before getting blocked by NOMADS is 120/min, but they've requested users stick to 50/min
-		max_hits_per_min = 50
+		max_hits_per_min = 65
 		# break our list into chunks of 50 elements
 		download_chunks = list(more_itertools.chunked(download_list, max_hits_per_min))
 		for i, dwnld_chunk in enumerate(download_chunks):
