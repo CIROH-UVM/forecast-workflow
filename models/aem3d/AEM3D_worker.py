@@ -1,3 +1,4 @@
+from .get_args import get_args
 from lib import (
     cd,
     logger,
@@ -108,11 +109,11 @@ from sh import Command, rm
 
 
 def main():
-    # settings = parse_args(sys.argv[1:])
+    SETTINGS = get_args()
     # scenario = IAMScenario.from_id(settings['scenario'])
 
     # pick_aem3d_bin(settings)
-    aem3d = Command("/gpfs1/home/n/b/nbeckage/ciroh/aem3d-1.1.2-535/aem3d_openmp.exe")
+    aem3d = Command(SETTINGS["aem3d_command_path"])
 
     with cd('aem3d-run'):        # the working dir for the run
 

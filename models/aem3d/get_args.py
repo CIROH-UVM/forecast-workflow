@@ -1,5 +1,6 @@
 import argparse
 from datetime import date, datetime, timedelta
+import inspect
 import json
 from lib import parse_to_datetime
 import os
@@ -43,26 +44,44 @@ def check_values(settings_dict):
 		else: settings_dict['forecast_end'] = parse_to_datetime(settings_dict['forecast_end'])
 	if not isinstance(settings_dict['spinup_date'], datetime):
 		settings_dict['spinup_date'] = parse_to_datetime(settings_dict['spinup_date'])
+
 	# # check blending variable to make sure it's a valid var name
 	# if settings_dict['blending_variable'] not in valid_vars:
 	# 	raise ValueError(f'{settings_dict["blending_variable"]} is an invalid variable name.')
 	# blending ratio should be between 0 and 1
 	if not 0 <= settings_dict['blending_ratio'] <= 1.0:
 		raise ValueError(f"'{settings_dict['blending_ratio']}' is not a valid blending ratio; must be between 0 and 1.")
-	# # datasets should be validated
-	# if settings_dict['weather_dataset_observed'] not in valid_wdo:
-	# 	raise ValueError(f"'{settings_dict['weather_dataset_observed']}' is not a valid observational weather dataset")
-	# if settings_dict['weather_dataset_forecast'] not in valid_wdf:
-	# 	raise ValueError(f"'{settings_dict['weather_dataset_forecast']}' is not a valid forecast weather dataset")
-	# if settings_dict['hydrology_dataset_observed'] not in valid_hdo:
-	# 	raise ValueError(f"'{settings_dict['hydrology_dataset_observed']}' is not a valid observational hydrology dataset")
-	# if settings_dict['hydrology_dataset_forecast'] not in valid_hdf:
-	# 	raise ValueError(f"'{settings_dict['hydrology_dataset_forecast']}' is not a valid forecast hydrology dataset")
+	
+	valid_datasets = {'wdo':["NOAA_LCD+FEMC_CR"],
+				   	  'wdf':["NOAA_LCD+FEMC_CR", "NOAA_GFS"],
+					  'hdo':["USGS_IV"],
+					  'hdf':["USGS_IV", "NOAA_NWM_PROD"],
+					  'nwm_members':[f'medium_range_mem{n}' for n in range(1,8)] + [f'long_range_mem{n}' for n in range(1,5)] + ['short_range']}
+	# datasets should be validated
+	if settings_dict['weather_dataset_observed'] not in valid_datasets['wdo']:
+		raise ValueError(f"'{settings_dict['weather_dataset_observed']}' is not a valid observational weather dataset")
+	if settings_dict['weather_dataset_forecast'] not in valid_datasets['wdf']:
+		raise ValueError(f"'{settings_dict['weather_dataset_forecast']}' is not a valid forecast weather dataset")
+	if settings_dict['hydrology_dataset_observed'] not in valid_datasets['hdo']:
+		raise ValueError(f"'{settings_dict['hydrology_dataset_observed']}' is not a valid observational hydrology dataset")
+	if settings_dict['hydrology_dataset_forecast'] not in valid_datasets['hdf']:
+		raise ValueError(f"'{settings_dict['hydrology_dataset_forecast']}' is not a valid forecast hydrology dataset")
+	
+	# valiudate NWM forecast member
+	if settings_dict['nwm_forecast_member'] not in valid_datasets['nwm_members']:
+		raise ValueError(f"'{settings_dict['nwm_forecast_member']}' is not a valid NWM forecast member")
+
 	# don't need to check csv flag, as default is false, and if the flag is passed, it will change to true. Trying to pass a
 	#  string or number for --csv will throw an error as an unrecognized bool
 	# check to see if root dir exists
-	# don't need to check --old_dirs flag, as default is false, and if the flag is passed, it will change to true. Trying to pass a
-	#  string or number for --old_dirs will throw an error as an unrecognized bool
+	if not os.path.isdir(settings_dict['root_dir']):
+		raise ValueError(f"path '{settings_dict['root_dir']}' does not exist")
+	# check to see if aem3d input dir exists
+	if not os.path.isdir(settings_dict['aem3d_input_dir']):
+		raise ValueError(f"path '{settings_dict['aem3d_input_dir']}' does not exist")
+	# check to see if aem3d command exists
+	if not os.path.isfile(settings_dict['aem3d_command_path']):
+		raise ValueError(f"file '{settings_dict['aem3d_command_path']}' not found")
 	
 # setting up command-line argument parser
 def get_cmdln_args():
@@ -79,15 +98,37 @@ def get_cmdln_args():
 	parser.add_argument('--wdf', type=str, help='forecasted weather dataset to use for model run')
 	parser.add_argument('--hdo', type=str, help='observed hydrological dataset to use for model run')
 	parser.add_argument('--hdf', type=str, help='forecasted hydrological dataset to use for model run')
+	parser.add_argument('--mem', type=str, help='NWM forecast member to use IFF using a NWM production dataset')
 	parser.add_argument('--csv', action='store_true', help="flag determining whether or not to use GFS/NWM CSV's. Default is False.")
 	parser.add_argument('--root', type=str, help='root dir containing forecastScripts, forecastRuns, forecastData')
-	parser.add_argument('--old_dirs', action='store_false', help="flag determining whether or not to use post-update dir structure. Default is True. IOW, pass this flag to use old dir structure")
+	parser.add_argument('--aem_in', type=str, help="absolute path to 'AEM3D-inputs/'")
+	parser.add_argument('--aem_ex', type=str, help="absolute path to AEM3D executable, 'aem3d_openmp.exe'")
+	# parser.add_argument('--old_dirs', action='store_false', help="flag determining whether or not to use post-update dir structure. Default is True. IOW, pass this flag to use old dir structure")
 
 	args = parser.parse_args()
 
 	return args
 
-def get_settings_keys(default_fpath="/gpfs1/home/n/b/nbeckage/ciroh/forecast-workflow/default_settings.json"):
+def get_stack():
+	stack = inspect.stack()
+	settings_path = stack[0].filename
+	for _ in range(3):
+		settings_path = os.path.dirname(settings_path)
+	settings_path = os.path.join(settings_path, "default_settings.json")
+	return settings_path
+
+
+# "/gpfs1/home/n/b/nbeckage/ciroh/forecast-workflow/default_settings.json"
+def get_default_fpath():
+	stack = inspect.stack()
+	settings_path = stack[0].filename
+	for _ in range(3):
+		settings_path = os.path.dirname(settings_path)
+	settings_path = os.path.join(settings_path, "default_settings.json")
+	return settings_path
+
+def get_settings_keys():
+	default_fpath = get_default_fpath()
 	return list(load_json(default_fpath).keys())
 
 def load_config(config_fpath):
@@ -109,8 +150,8 @@ def load_json(fpath):
 		data = json.load(file)
 	return data
 
-def process_args(args, default_fpath):
-	SETTINGS_KEYS = get_settings_keys(default_fpath)
+def process_args(args):
+	SETTINGS_KEYS = get_settings_keys()
 	# convert args from a Namespace to a dict
 	args = vars(args)
 	# we don't need the configuration file setting anymore
@@ -125,7 +166,7 @@ def process_args(args, default_fpath):
 	return passed_args
 
 
-def get_args(default_fpath, command_line = True):
+def get_args(default_fpath = get_default_fpath(), command_line = True):
 	"""
 	Main method to read and parse settings for forecast-workflow.
 	Hierachy of settings is as follows:
@@ -153,7 +194,7 @@ def get_args(default_fpath, command_line = True):
 		# updating settings dict with config file settings
 		settings.update(custom_settings)
 	# processing cmd line args to match cmd line arg names with json arg names
-	cmd_args = process_args(args, default_fpath)
+	cmd_args = process_args(args)
 	# update settings with cmd line arguments
 	settings.update(cmd_args)
 	# check settings to ensure all values are valid
