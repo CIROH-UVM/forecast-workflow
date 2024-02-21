@@ -216,47 +216,46 @@ def getflowfiles(whichbay, settings):
 
 	# TODOFEE - Refactor observedUSGS to observedHydro throughout
 	observedHydro = None
-	if(settings['hydrology_dataset_observed'] == 'USGS_IV'):
-			observedHydro = usgs_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
-								 	end_date = settings['forecast_start'],
-									locations = {"MS":'04294000',
-			   									 "J-S":'04292810',
-			   									 "Mill":'04292750'})
-			# Convert USGS streamflow from cubic ft / s to cubic m / s
-			for location in forecastHydro.keys():
-				observedHydro[location]['streamflow'] = forecastHydro[location]['streamflow'] * 0.0283168
+	if settings['hydrology_dataset_observed'] == 'USGS_IV':
+		observedHydro = usgs_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
+								 		 end_date = settings['forecast_start'],
+										 locations = {"MS":'04294000',
+			   									 	  "J-S":'04292810',
+			   										  "Mill":'04292750'})
+		# Convert USGS streamflow from cubic ft / s to cubic m / s
+		for location in observedHydro.keys():
+			observedHydro[location]['streamflow'] = observedHydro[location]['streamflow'] * 0.0283168
 
 	else:
-		# Throw Exception
-		pass
+		raise ValueError(f"'{settings['hydrology_dataset_observed']}' is not a valid observational hydrology dataset")
 	
 	forecastHydro = None
-	if(settings['hydrology_dataset_forecast'] == 'USGS_IV'):
+	if settings['hydrology_dataset_forecast'] == 'USGS_IV':
 		forecastHydro = usgs_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
-								 	end_date = settings['forecast_start'],
-									locations = {"MS":'04294000',
-			   									 "J-S":'04292810',
-			   									 "Mill":'04292750'})
+								 		 end_date = settings['forecast_start'],
+										 locations = {"MS":'04294000',
+			   									 	  "J-S":'04292810',
+			   										  "Mill":'04292750'})
 		# Convert USGS streamflow from cubic ft / s to cubic m / s
 		for location in forecastHydro.keys():
 			forecastHydro[location]['streamflow'] = forecastHydro[location]['streamflow'] * 0.0283168
 	
 	elif(settings['hydrology_dataset_forecast'] == 'NOAA_NWM_PROD'):
 		nwm_fc.get_data(forecast_datetime = settings['forecast_start'],
-								  end_datetime = settings['forecast_end'] + dt.timedelta(days=1),
-								  locations = {"MS":"166176984",
-											   "J-S":"4587092",
-											   "Mill":"4587100"},
-								  forecast_type="medium_range_mem1",
-								  data_dir=os.path.join(settings['root_dir'], 'hindcastData/'),
-								  load_threads=1,
-								  google_buckets = True)
+						end_datetime = settings['forecast_end'] + dt.timedelta(days=1),
+						locations = {"MS":"166176984",
+								     "J-S":"4587092",
+								     "Mill":"4587100"},
+						forecast_type = settings['nwm_forecast_member'],
+						data_dir = os.path.join(settings['root_dir'], 'hindcastData/'),
+						load_threads = 1,
+						google_buckets = True)
 			
 	
 	# Need to adjust for column names
-	flowdf = pd.concat([observedUSGS['MS']['streamflow'], forecastNWM['MS']['streamflow']]).rename_axis('time').astype('float').to_frame()
-	mlflow = pd.concat([observedUSGS['Mill']['streamflow'], forecastNWM['Mill']['streamflow']]).rename_axis('time').astype('float').to_frame()
-	jsflow = pd.concat([observedUSGS['J-S']['streamflow'], forecastNWM['J-S']['streamflow']]).rename_axis('time').astype('float').to_frame()
+	flowdf = pd.concat([observedHydro['MS']['streamflow'], forecastHydro['MS']['streamflow']]).rename_axis('time').astype('float').to_frame()
+	mlflow = pd.concat([observedHydro['Mill']['streamflow'], forecastHydro['Mill']['streamflow']]).rename_axis('time').astype('float').to_frame()
+	jsflow = pd.concat([observedHydro['J-S']['streamflow'], forecastHydro['J-S']['streamflow']]).rename_axis('time').astype('float').to_frame()
 
 	# these df's may not be the same length, there may be missing data from USGS gauges
 	logger.info(flowdf)
@@ -276,8 +275,8 @@ def getflowfiles(whichbay, settings):
 	global AXES
 	SUBPLOT_PACKAGES['streamflow'] = {'labelled_data':flow_data,
 								   	  'ylabel':'Streamflow (m/s^3)',
-									  'title':'USGS vs. NWM Streamflow',
-									  'fc_start':forecast_start,
+									  'title':f'{settings['hydrology_dataset_observed']} vs. {settings['hydrology_dataset_forecast']} Streamflow',
+									  'fc_start':settings['forecast_start'],
 									  'row':0,
 									  'col':0,
 									  'axis':AXES}
@@ -339,71 +338,7 @@ def getflowfiles(whichbay, settings):
 #
 ##########################################################################
 
-
-def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, spinup_date, directory_flag):
-
-	global SCENARIO
-
-	THEBAY = whichbay   # passed object defining bay characteristics
-	year=THEBAY.year   # starting year pulled from IAMBAY class object (lib.py)
-
-	#
-	#   Read WRF climate data
-	#
-	logger.info('Processing Meterological Data')
-
-	climateObsBTV = lcd_ob.get_data(start_date = spinup_date - dt.timedelta(days=1),
-								 	end_date = forecast_start,
-									locations = {"BTV":"72617014742"})
-	
-	## TODOFEE: Need to move all the nudging and zone assignments to here!!!
-	
-	climateObsCR = femc_ob.get_data(start_date = spinup_date - dt.timedelta(days=1),
-									end_date = forecast_start,
-									locations = {'CR':'ColReefQAQC'})#.rename_axis('time')
-	
-	# if flag is true, use new (post-update) dir struture. This is the default behavior
-	if directory_flag:
-		# new dir structure
-		gfs_download_dir = f'forecastData/gfs/gfs.{forecast_start.strftime("%Y%m%d")}'
-	else:
-		# old dir structure
-		gfs_download_dir = f'forecastData/gfs/raw_fc_data/gfs.{forecast_start.strftime("%Y%m%d")}'
-
-	############## Use this bit to load forecast climate from .csvs previously created above
-	if gfs_csv:
-		logger.info("Loading GFS From CSVs")
-		climateForecast = {}
-		for zone in ['401', '402', '403']:
-			climateForecast[zone] = pd.read_csv(
-						os.path.join(root_dir, gfs_download_dir, f'gfs{zone}.csv'),
-						index_col='time',
-						parse_dates=True)
-	##############
-	else:
-	############## Use this bit to load forecast climate from original GRIB files and create .csvs for quick loading later
-
-		logger.info(f"Begin GFS get_data()")
-		climateForecast = gfs_fc_thredds.get_data(forecast_datetime = forecast_start,
-												  end_datetime = forecast_end + dt.timedelta(days=1),
-												  locations = {'401': (45.00, -73.25),
-					 										   '402': (44.75, -73.25),
-					 										   '403': (44.75, -73.25)},
-												  data_dir = os.path.join(root_dir, 'hindcastData/'),
-												  load_threads = 1)
-	##############
-
-	logger.info('BTV Data')
-	logger.info(climateObsBTV['BTV'])
-	logger.info('Colchester Data')
-	logger.info(climateObsCR['CR'])
-	logger.info('GFS Data (Zone 401)')
-	logger.info(climateForecast['401'])
-
-	#
-	#   Generate the Ordinal Date (yeardayofyear.percentseconds)
-	#
-
+def adjustCRTemp(dataset):
 	# S.E.T. - 20240206 - Adjust Colchester Reef Observed temp by month for the Missisquoi Bay Zone (401)
 	# the adjustment, by month, to apply to CR data for use in MissBay
 	tempadjust = {
@@ -421,22 +356,149 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
     	12 : -2.4 }
 
 	adjustedCRtemp = pd.Series()
-	for row in range(climateObsCR['CR']['T2'].shape[0]):
-		adjustedCRtemp[row] = climateObsCR['CR']['T2'].iloc[row] + tempadjust[climateObsCR['CR']['T2'].index[row].month]
-	adjustedCRtemp = adjustedCRtemp.set_axis(climateObsCR['CR']['T2'].index)
+	for row in range(dataset['CR']['T2'].shape[0]):
+		adjustedCRtemp[row] = dataset['CR']['T2'].iloc[row] + tempadjust[dataset['CR']['T2'].index[row].month]
+	adjustedCRtemp = adjustedCRtemp.set_axis(dataset['CR']['T2'].index)
+	return adjustedCRtemp
 
+def adjustFEMCLCD(dataset):
+	# BTV rain adjustment
+	dataset['403']['RAIN'] = dataset['403']['RAIN'] * 0.6096
+	for zone in dataset.keys():
+		# air temp adjustments
+		if zone == '401':
+			dataset[zone]['T2'] = remove_nas(adjustCRTemp(dataset))
+		else:
+			dataset[zone]['T2]'] = remove_nas(dataset[zone]['T2]'])
+		# wind speed adjustments
+		if zone == '403':
+			dataset[zone]['WSPEED'] = remove_nas(dataset[zone]['WSPEED']) * 0.75
+		else:
+			dataset[zone]['WSPEED'] = remove_nas(dataset[zone]['WSPEED']) * 0.65
+		# Removing NAs for wind direction, relative humidity, and short-wave radiation
+		dataset[zone]['WDIR'] = remove_nas(dataset[zone]['WDIR'])
+		dataset[zone]['RH2'] = remove_nas(dataset[zone]['RH2'])
+		dataset[zone]['SWDOWN'] = remove_nas(dataset[zone]['SWDOWN'])
+	return dataset
 
-	air_temp = {"401": pd.concat([remove_nas(adjustedCRtemp),climateForecast['401']['T2']-273.15]),
-				"402": pd.concat([remove_nas(climateObsCR['CR']['T2']),climateForecast['402']['T2']-273.15]),
-				"403": pd.concat([remove_nas(climateObsCR['CR']['T2']),climateForecast['403']['T2']-273.15])
-	 }
+def adjustGFS(dataset):
+	# slice GFS data at forecast start date, so that AEM3D uses observed dataset up to forecast start date
+	for zone in dataset.keys():
+		# GFS rain adjustment
+		dataset[zone]['RAIN'] = dataset[zone]['RAIN'] * 86.4
+		# GFS temperature adjustment
+		dataset[zone]['T2'] = dataset[zone]['T2']-273.15
+		# GFS TCDC adjustment
+		dataset[zone]['TCDC'] = dataset[zone]['TCDC']/100.0
+		# GFS windspeed adjustments
+		dataset[zone]['WSPEED'] = np.sqrt(np.square(dataset[zone]['U10']) + np.square(dataset[zone]['V10']))
+		# GFS wind direction adjustments
+		dataset[zone]['WDIR'] = 180 + np.arctan2(dataset[zone]['U10'], dataset[zone]['V10']) * 180 / np.pi
+	return dataset
+
+def genclimatefiles(whichbay, settings):
+
+	global SCENARIO
+
+	THEBAY = whichbay   # passed object defining bay characteristics
+	year=THEBAY.year   # starting year pulled from IAMBAY class object (lib.py)
+
+	#
+	#   Read WRF climate data
+	#
+	logger.info('Processing Meterological Data')
+
+	##### GRABBING OBSERVATIONAL CLIMATE DATA #####
+	if settings['weather_dataset_observed'] == 'NOAA_LCD+FEMC_CR':
+		observedClimateBTV = lcd_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
+										end_date = settings['forecast_start'],
+										locations = {"401":"72617014742",
+													"402":"72617014742",
+													"403":"72617014742"})
+		
+		## TODOFEE: Need to move all the nudging and zone assignments to here!!!
+		
+		observedClimateCR = femc_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
+										end_date = settings['forecast_start'],
+										locations = {'401':'ColReefQAQC',
+													 '402':'ColReefQAQC',
+													 '403':'ColReefQAQC'})
+		
+		###### FEMC+LCD DATA ADJUSTMENTS HERE ######
+		# cool new way to combine dictionaries (python >= 3.9)
+		observedClimate = adjustFEMCLCD(observedClimateBTV | observedClimateCR)
+
+	else:
+		raise ValueError(f"'{settings['weather_dataset_observed']}' is not a valid observational weather dataset")
+
+	##### GRABBING FORECASTED CLIMATE DATA #####
+	if settings['weather_dataset_forecast'] == 'NOAA_LCD+FEMC_CR':
+		forecastClimateBTV = lcd_ob.get_data(start_date = settings['forecast_start'],
+								end_date = settings['forecast_end'] + dt.timedelta(days=1),
+								locations = {"401":"72617014742",
+											"402":"72617014742",
+											"403":"72617014742"})
+		
+		## TODOFEE: Need to move all the nudging and zone assignments to here!!!
+		
+		forecastClimateCR = femc_ob.get_data(start_date = settings['forecast_start'],
+										end_date = settings['forecast_end'] + dt.timedelta(days=1),
+										locations = {'401':'ColReefQAQC',
+													 '402':'ColReefQAQC',
+													 '403':'ColReefQAQC'})
+		
+		###### FEMC+LCD DATA ADJUSTMENTS HERE ######
+		# cool new way to combine dictionaries (python >= 3.9)
+		forecastClimate = adjustFEMCLCD(forecastClimateBTV | forecastClimateCR)
+
+	elif settings['weather_dataset_forecast'] == 'NOAA_GFS':
+		############## Use this bit to load forecast climate from .csvs previously created above
+		if settings['csv']:
+			logger.info("Loading GFS From CSVs")
+			forecastClimate = {}
+			for zone in ['401', '402', '403']:
+				forecastClimate[zone] = pd.read_csv(
+							os.path.join(settings['root_dir'], f'hindcastData/gfs{zone}.csv'),
+							index_col='time',
+							parse_dates=True)
+		else:
+		############## Use this bit to load forecast climate from original GRIB files and create .csvs for quick loading later
+			logger.info(f"Begin GFS get_data()")
+			# determine the timedelta adjustment for GFS based of NWM forecast memeber
+			member = settings['nwm_forecast_member'][-1]
+			# if there is no member num (such as 'short_range/') default to 1 so that there is no timedelta adjust
+			if not member.isdigit():
+				member = '1'
+			forecastClimate = gfs_fc_thredds.get_data(forecast_datetime = settings['forecast_start'] - dt.timedelta(hours=(6*(int(member)-1))),
+													end_datetime = settings['forecast_end'] + dt.timedelta(days=1),
+													locations = {'401': (45.00, -73.25),
+																'402': (44.75, -73.25),
+																'403': (44.75, -73.25)},
+													data_dir = os.path.join(settings['root_dir'], 'hindcastData/'),
+													load_threads = 1)
+			
+			###### GFS DATA ADJUSTMENTS HERE ######
+			# slice GFS data at forecast start date, so that AEM3D uses observed dataset up to forecast start date
+			for zone in forecastClimate.keys():
+				for var in forecastClimate[zone].keys():
+					forecastClimate[zone][var] = forecastClimate[zone][var].loc[pd.to_datetime(settings['forecast_start'].replace(tzinfo=dt.timezone.utc)):]
+			forecastClimate = adjustGFS(forecastClimate)
+
+	logger.info('Cliamte Observed Data')
+	logger.info(observedClimate)
+	logger.info('Climate Forecast Data (Zone 401)')
+	logger.info(forecastClimate)
+
+	air_temp = {"401": pd.concat([observedClimate['401']['T2'],forecastClimate['401']['T2']]),
+				"402": pd.concat([observedClimate['402']['T2'],forecastClimate['402']['T2']]),
+				"403": pd.concat([observedClimate['403']['T2'],forecastClimate['403']['T2']])}
 
 	global SUBPLOT_PACKAGES
 	global AXES
 	SUBPLOT_PACKAGES['air temp'] = {'labelled_data':air_temp,
 								   	'ylabel':'Air Temp at 2m (C)',
-									'title':'Observed vs. Forecasted Air Temperature',
-									'fc_start':forecast_start,
+									'title':f'{settings['weather_dataset_observed']} vs. {settings['weather_dataset_forecast']} Air Temperature',
+									'fc_start':settings['forecast_start'],
 									'row':0,
 									'col':1,
 									'axis':AXES}
@@ -506,7 +568,7 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 		# GFS is in kg/m^2/s. kg/m^2 is mm, so really mm/s. To convert, * 86400 to get sec -> day,
 		#   and / 1000 to get mm to m, so, in all, * 86.4
 		#   GFS Ref: https://www.nco.ncep.noaa.gov/pmb/products/gfs/gfs.t00z.pgrb2.0p25.f003.shtml
-		bay_rain[zone] = pd.concat([climateObsBTV['BTV']['RAIN'] * 0.6096, climateForecast[zone]['RAIN'] * 86.4])
+		bay_rain[zone] = pd.concat([observedClimate[zone]['RAIN'], forecastClimate[zone]['RAIN']])
 
 		print(air_temp[zone])
 		TEMP = air_temp[zone].reindex(bay_rain[zone].index, method='nearest')
@@ -557,7 +619,7 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	SUBPLOT_PACKAGES['bay rain'] = {'labelled_data':bay_rain,
 									'ylabel':'Rainfall (m/day)',
 									'title':'Rainfall for Inland Sea',
-									'fc_start':forecast_start,
+									'fc_start':settings['forecast_start'],
 									'row':0,
 									'col':2,
 									'axis':AXES}
@@ -565,7 +627,7 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	SUBPLOT_PACKAGES['bay snow'] = {'labelled_data':bay_snow,
 									'ylabel':'Snow Fall (m/day)',
 									'title':'Snow Fall for Inland Sea',
-									'fc_start':forecast_start,
+									'fc_start':settings['forecast_start'],
 									'row':0,
 									'col':3,
 									'axis':AXES}
@@ -614,12 +676,12 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 
 	# Use Cloud Cover
 	cloud_plot_data = {}
-	for zone in climateForecast.keys():
+	for zone in forecastClimate.keys():
 		filename = f'CLOUDS_{zone}.dat'
 		logger.info('Generating Bay Cloud Cover File: '+filename)
 
-		# Divide GFS TCDC by 100 to get true percentage
-		full_cloud_series = pd.concat([climateObsBTV['BTV']['TCDC'],climateForecast[zone]['TCDC']/100.0])
+		# Divide GFS TCDC by 100 to get true percentage (see new adjustments function)
+		full_cloud_series = pd.concat([observedClimate['403']['TCDC'],forecastClimate[zone]['TCDC']])
 		## TODOFEE:
 		# Preferred concat format: 
 		# Probably need to create some dictionaries that standardize the location / variable names between climate sources
@@ -642,7 +704,7 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	SUBPLOT_PACKAGES['cloud cover'] = {'labelled_data':cloud_plot_data,
 										'ylabel':'% Total Cloud Cover',
 										'title':'Cloud Cover',
-										'fc_start':forecast_start,
+										'fc_start':settings['forecast_start'],
 										'row':1,
 										'col':0,
 										'axis':AXES}
@@ -655,24 +717,24 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 
 	windspd = dict()
 	winddir = dict()
-	for zone in climateForecast.keys():
-		# a bit of vector math to combine the East(U) and North(V) wind components
-		windspd[zone] = np.sqrt(
-			np.square(climateForecast[zone]['U10']) +
-			np.square(climateForecast[zone]['V10'])
-		)
+	for zone in forecastClimate.keys():
+		# # a bit of vector math to combine the East(U) and North(V) wind components
+		# windspd[zone] = np.sqrt(
+		# 	np.square(forecastClimate[zone]['U10']) +
+		# 	np.square(forecastClimate[zone]['V10'])
+		# )
 		if zone == '403':
-			windspd[zone] = pd.concat([(remove_nas(climateObsCR['CR']['WSPEED']) * 0.75), windspd[zone]])
+			windspd[zone] = pd.concat([observedClimate[zone]['WSPEED'], forecastClimate[zone]['WSPEED']])
 		else:
-			windspd[zone] = pd.concat([(remove_nas(climateObsCR['CR']['WSPEED']) * 0.65), windspd[zone]])
+			windspd[zone] = pd.concat([observedClimate[zone]['WSPEED'], forecastClimate[zone]['WSPEED']])
 
-		#  a bit of trig to map the wind vector components into a direction
-		#  𝜙 =180+(180/𝜋)*atan2(𝑢,𝑣)
-		winddir[zone] = 180 + np.arctan2(
-				climateForecast[zone]['U10'],
-				climateForecast[zone]['V10']
-			) * 180 / np.pi
-		winddir[zone] = pd.concat([remove_nas(climateObsCR['CR']['WDIR']), winddir[zone]])
+		# #  a bit of trig to map the wind vector components into a direction
+		# #  𝜙 =180+(180/𝜋)*atan2(𝑢,𝑣)
+		# winddir[zone] = 180 + np.arctan2(
+		# 		forecastClimate[zone]['U10'],
+		# 		forecastClimate[zone]['V10']
+		# 	) * 180 / np.pi
+		winddir[zone] = pd.concat([observedClimate[zone]['WDIR'], forecastClimate[zone]['WDIR']])
 
 		logger.info(f'WINDSP for zone {zone}')
 		logger.info(print_df(windspd[zone]))        
@@ -682,7 +744,7 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	SUBPLOT_PACKAGES['wind speed'] = {'labelled_data':windspd,
 										'ylabel':'m/s',
 										'title':'Wind Speed',
-										'fc_start':forecast_start,
+										'fc_start':settings['forecast_start'],
 										'row':1,
 										'col':1,
 										'axis':AXES}
@@ -690,7 +752,7 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	SUBPLOT_PACKAGES['wind direction'] = {'labelled_data':windspd,
 										'ylabel':'degrees clockwise from North',
 										'title':'Wind Direction',
-										'fc_start':forecast_start,
+										'fc_start':settings['forecast_start'],
 										'row':1,
 										'col':2,
 										'axis':AXES}
@@ -736,7 +798,7 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	#
 
 	rhum = {}
-	rhum['403'] = pd.concat([remove_nas(climateObsCR['CR']['RH2']) * .01, climateForecast['403']['RH2'] * .01])   
+	rhum['403'] = pd.concat([observedClimate['403']['RH2'] * .01, forecastClimate['403']['RH2'] * .01])   
 	
 	logger.info(f'RH2')
 	logger.info(print_df(rhum['403']))
@@ -744,7 +806,7 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	SUBPLOT_PACKAGES['relative humidity'] = {'labelled_data':rhum,
 										'ylabel':'Relative Humidity (%)',
 										'title':'Relative Humidity at 2 Meters',
-										'fc_start':forecast_start,
+										'fc_start':settings['forecast_start'],
 										'row':1,
 										'col':3,
 										'axis':AXES}
@@ -780,14 +842,14 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	swradjust = pd.read_csv(os.path.join(THEBAY.template_dir, 'SolarRadiationFactor_MB.csv'))
 	# Use the passed forecast date to only nudge the observed values before the forecast
 	swradjust['NudgeObs'] = swradjust['Ratio (MB/CR)']  # copy entire original nudge column
-	dayofyear = int(forecast_start.strftime('%j'))
+	dayofyear = int(settings['forecast_start'].strftime('%j'))
 	swradjust.loc[swradjust['Day of Year'] >= dayofyear,'NudgeObs'] = 1.0   # don't adjust forecast data
 
 	swdown_plot_data = {}
-	for zone in climateForecast.keys():
+	for zone in forecastClimate.keys():
 		filename = f'SOLAR_{zone}.dat'
 		logger.info('Generating Short Wave Radiation File: '+filename)
-		full_swdown_series = pd.concat([remove_nas(climateObsCR['CR']['SWDOWN']), climateForecast[zone]['SWDOWN']])
+		full_swdown_series = pd.concat([observedClimate[zone]['SWDOWN'], forecastClimate[zone]['SWDOWN']])
 		swdown_plot_data[zone] = full_swdown_series
 		swdown_series = seriesIndexToOrdinalDate(full_swdown_series)
 		
@@ -822,7 +884,7 @@ def genclimatefiles(forecast_start, forecast_end, whichbay, gfs_csv, root_dir, s
 	SUBPLOT_PACKAGES['short wave rad'] = {'labelled_data':swdown_plot_data,
 										'ylabel':'W/m^2',
 										'title':'Short-Wave Downward Radiation (Un-nudged)s',
-										'fc_start':forecast_start,
+										'fc_start':settings['forecast_start'],
 										'row':1,
 										'col':4,
 										'axis':AXES}
@@ -986,12 +1048,12 @@ def gentracerfiles(theBay):
 	#
 
 
-def gencntlfile(forecast_start, theBay, spinup_date):
+def gencntlfile(theBay, settings):
 
 	# Calculate 1 hour in iterations
 	hourIter = int(86400 / AEM3D_DEL_T / 24)
 	# Calculate iterations: Time between forecast date and spinup start + 7 more days
-	iterations = int((forecast_start - (spinup_date + dt.timedelta(days=1))).total_seconds() / AEM3D_DEL_T) + (7 * 24 * hourIter)
+	iterations = int((settings['forecast_start'] - (settings['spinup_date'] + dt.timedelta(days=1))).total_seconds() / AEM3D_DEL_T) + (7 * 24 * hourIter)
 
 	logger.info(f'Configuring AEM3D to run {iterations} iterations')
 	
@@ -1034,12 +1096,12 @@ def gencntlfile(forecast_start, theBay, spinup_date):
 # end of control file generation
 
 
-def gendatablockfile(forecast_start, theBay, spinup_date):
+def gendatablockfile(theBay, settings):
 
 	# Calculate 1 hour in iterations
 	hourIter = int(86400 / AEM3D_DEL_T / 24)
 	# Calculate iteration for forecast start: Time between forecast date and spinup start
-	forecastStartIter = int((forecast_start - (spinup_date + dt.timedelta(days=1))).total_seconds() / AEM3D_DEL_T) + 1
+	forecastStartIter = int((settings['forecast_start'] - (settings['spinup_date'] + dt.timedelta(days=1))).total_seconds() / AEM3D_DEL_T) + 1
 
 	logger.info(f'Configuring datablock.xml file')
 	generate_file_from_template('datablock.xml.template',
@@ -1054,20 +1116,9 @@ def gendatablockfile(forecast_start, theBay, spinup_date):
 								'datablock_file')
 # end of datablock.xml generation
  
-def AEM3D_prep_FEE_IAM(settings, theBay):
+def AEM3D_prep_FEE_IAM(theBay, settings):
 
 	## TODOFEE: Replace individual settings getting passed to each function with the entire settings object
-	
-	# grab settings
-	FORECASTSTART = settings['forecast_start']
-	# default forecast end date is 7 days after forecast start date
-	FORECASTEND = settings['forecast_end']
-	SPINUP = settings['spinup_date']
-	USE_GFS_CSVS = settings['csv']
-	ROOT_DIR = settings['root_dir']
-	# this settings is no longer needed since adopting new directory structure for all production runs
-	# Won't remove it for now but will create an issue
-	DIRFLAG = settings['new_dirs']
 
 	logger.info(f'Processing Bay: {theBay.bayid} for year {theBay.year}')
 
@@ -1076,8 +1127,7 @@ def AEM3D_prep_FEE_IAM(settings, theBay):
 	getflowfiles(theBay, settings)
 
 	# generate climate files including lake levels
-	genclimatefiles(FORECASTSTART, FORECASTEND, theBay, USE_GFS_CSVS, ROOT_DIR, SPINUP, DIRFLAG)
-	#genclimatefiles(theBay, settings)
+	genclimatefiles(theBay, settings)
 
 	# generate salinity file
 	gensalinefile(theBay)
@@ -1092,10 +1142,10 @@ def AEM3D_prep_FEE_IAM(settings, theBay):
 	genwqfiles(theBay)
 
 	# generate the datablock.xml file
-	gendatablockfile(FORECASTSTART, theBay, SPINUP)
+	gendatablockfile(theBay, settings)
 
 	# generate control file
-	gencntlfile(FORECASTSTART, theBay, SPINUP)
+	gencntlfile(theBay, settings)
 
 	global FIG
 	global SUBPLOT_PACKAGES
