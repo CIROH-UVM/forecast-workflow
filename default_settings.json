@@ -8,7 +8,9 @@
 	"weather_dataset_forecast" : "NOAA_GFS",
 	"hydrology_dataset_observed" : "USGS_IV",
 	"hydrology_dataset_forecast" : "NOAA_NWM_PROD",
+	"nwm_forecast_member" : "medium_range_mem1",
 	"csv" : false,
-	"root_dir" : "/data/",
-	"new_dirs": true
+	"root_dir" : "/netfiles/ciroh/7dayHABsHindcast/",
+	"aem3d_input_dir" : "/netfiles/ciroh/models/aem3d/current/AEM3D-inputs",
+	"aem3d_command_path" : "/gpfs1/home/n/b/nbeckage/ciroh/aem3d-1.1.2-535/aem3d_openmp.exe"
 }

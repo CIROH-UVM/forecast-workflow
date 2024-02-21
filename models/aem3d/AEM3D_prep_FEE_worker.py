@@ -27,7 +27,7 @@ def main():
     prep_path = 'aem3d-run'
 
 
-    SETTINGS = get_args(default_fpath="/gpfs1/home/n/b/nbeckage/ciroh/forecast-workflow/default_settings.json")
+    SETTINGS = get_args()
 
     #THEBAY = IAMBAY(settings['whichbay'])   # Create Bay Object for Bay specified
     THEBAY = IAMBAY(bayid='ILS')   # Create Bay Object for Bay specified
@@ -45,7 +45,7 @@ def main():
     THEBAY.run_dir = prep_path
 
     # Copy current aem3d run template
-    cp('-R', '/netfiles/ciroh/models/aem3d/current/AEM3D-inputs', prep_path)
+    cp('-R', SETTINGS["aem3d_input_dir"], prep_path)
 
     with cd('.'):
 
@@ -58,7 +58,7 @@ def main():
             preprc = AEM3D_prep_FEE_IAM(forecastDate=today, theBay=THEBAY)
             """
             # source the python file prep script
-            preprc = AEM3D_prep_FEE_IAM(settings=SETTINGS, theBay=THEBAY)
+            preprc = AEM3D_prep_FEE_IAM(theBay=THEBAY, settings=SETTINGS)
 
         except Exception as e:
             logger.info('AEM3D_prep_FEE_IAM.py failed. Exiting.')

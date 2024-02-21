@@ -260,20 +260,6 @@ def check_frame(frame):
 		return True
 	return False
 
-# old get_calling_package() - doesn't work
-"""
-def get_calling_package():
-	calling_package = None
-
-	current_frame = list(sys._current_frames().values())[0]
-	while(check_frame(current_frame)):
-		current_frame = current_frame.f_back
-
-	calling_package = current_frame.f_globals['__package__']
-	# print(f'Calling Package: {calling_package}')
-	return calling_package
-"""
-
 # New get_calling_package()
 def get_calling_package():
 	"""
