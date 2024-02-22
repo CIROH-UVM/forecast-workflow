@@ -479,8 +479,12 @@ def genclimatefiles(whichbay, settings):
 			# if there is no member num (such as 'short_range/') default to 1 so that there is no timedelta adjust
 			if not member.isdigit():
 				member = '1'
+			# NOTE forecast_end adjustment: between forecast_start and end, we only want 7.5 days of data.
+				# forecast_start will be adjusted based on the NWM member, but end will stay the same
+				# this means that we will be grabbing more data ofr higher members
+				# ex. member 7 uses a GFS adjustment of forecast_start-1.5 days, so will grab 9 days total (1.5+7.5)
 			forecastClimate = gfs_fc_thredds.get_data(forecast_datetime = settings['forecast_start'] - dt.timedelta(hours=(6*(int(member)-1))),
-													end_datetime = settings['forecast_end'] + dt.timedelta(days=1),
+													end_datetime = settings['forecast_end'] + dt.timedelta(hours=12),
 													locations = {'401': (45.00, -73.25),
 																'402': (44.75, -73.25),
 																'403': (44.75, -73.25)},
