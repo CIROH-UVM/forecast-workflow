@@ -241,7 +241,7 @@ def getflowfiles(whichbay, settings):
 			forecastHydro[location]['streamflow'] = forecastHydro[location]['streamflow'] * 0.0283168
 	
 	elif(settings['hydrology_dataset_forecast'] == 'NOAA_NWM_PROD'):
-		nwm_fc.get_data(forecast_datetime = settings['forecast_start'],
+		forecastHydro = nwm_fc.get_data(forecast_datetime = settings['forecast_start'],
 						end_datetime = settings['forecast_end'] + dt.timedelta(days=1),
 						locations = {"MS":"166176984",
 								     "J-S":"4587092",
@@ -250,6 +250,8 @@ def getflowfiles(whichbay, settings):
 						data_dir = os.path.join(settings['root_dir'], 'hindcastData/'),
 						load_threads = 1,
 						google_buckets = True)
+	else:
+		raise ValueError(f"'{settings['hydrology_dataset_forecast']}' is not a valid hydrology forecast dataset")
 			
 	
 	# Need to adjust for column names
