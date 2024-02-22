@@ -231,8 +231,8 @@ def getflowfiles(whichbay, settings):
 	
 	forecastHydro = None
 	if settings['hydrology_dataset_forecast'] == 'USGS_IV':
-		forecastHydro = usgs_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
-								 		 end_date = settings['forecast_start'],
+		forecastHydro = usgs_ob.get_data(start_date = settings['forecast_start'],
+								 		 end_date = settings['forecast_end'] + dt.timedelta(days=1),
 										 locations = {"MS":'04294000',
 			   									 	  "J-S":'04292810',
 			   										  "Mill":'04292750'})
@@ -275,7 +275,7 @@ def getflowfiles(whichbay, settings):
 	global AXES
 	SUBPLOT_PACKAGES['streamflow'] = {'labelled_data':flow_data,
 								   	  'ylabel':'Streamflow (m/s^3)',
-									  'title':f'{settings['hydrology_dataset_observed']} vs. {settings['hydrology_dataset_forecast']} Streamflow',
+									  'title':f"{settings['hydrology_dataset_observed']} vs. {settings['hydrology_dataset_forecast']} Streamflow",
 									  'fc_start':settings['forecast_start'],
 									  'row':0,
 									  'col':0,
@@ -338,7 +338,7 @@ def getflowfiles(whichbay, settings):
 #
 ##########################################################################
 
-def adjustCRTemp(dataset):
+def adjustCRTemp(air_data):
 	# S.E.T. - 20240206 - Adjust Colchester Reef Observed temp by month for the Missisquoi Bay Zone (401)
 	# the adjustment, by month, to apply to CR data for use in MissBay
 	tempadjust = {
@@ -356,20 +356,20 @@ def adjustCRTemp(dataset):
     	12 : -2.4 }
 
 	adjustedCRtemp = pd.Series()
-	for row in range(dataset['CR']['T2'].shape[0]):
-		adjustedCRtemp[row] = dataset['CR']['T2'].iloc[row] + tempadjust[dataset['CR']['T2'].index[row].month]
-	adjustedCRtemp = adjustedCRtemp.set_axis(dataset['CR']['T2'].index)
+	for row in range(air_data.shape[0]):
+		adjustedCRtemp[row] = air_data.iloc[row] + tempadjust[air_data.index[row].month]
+	adjustedCRtemp = adjustedCRtemp.set_axis(air_data.index)
 	return adjustedCRtemp
 
 def adjustFEMCLCD(dataset):
 	# BTV rain adjustment
-	dataset['403']['RAIN'] = dataset['403']['RAIN'] * 0.6096
+	dataset['403']['RAIN'] = remove_nas(dataset['403']['RAIN']) * 0.6096
 	for zone in dataset.keys():
 		# air temp adjustments
 		if zone == '401':
-			dataset[zone]['T2'] = remove_nas(adjustCRTemp(dataset))
+			dataset[zone]['T2'] = remove_nas(adjustCRTemp(dataset[zone]['T2']))
 		else:
-			dataset[zone]['T2]'] = remove_nas(dataset[zone]['T2]'])
+			dataset[zone]['T2'] = remove_nas(dataset[zone]['T2'])
 		# wind speed adjustments
 		if zone == '403':
 			dataset[zone]['WSPEED'] = remove_nas(dataset[zone]['WSPEED']) * 0.75
@@ -408,6 +408,7 @@ def genclimatefiles(whichbay, settings):
 	#
 	logger.info('Processing Meterological Data')
 
+	observedClimate = {}
 	##### GRABBING OBSERVATIONAL CLIMATE DATA #####
 	if settings['weather_dataset_observed'] == 'NOAA_LCD+FEMC_CR':
 		observedClimateBTV = lcd_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
@@ -425,12 +426,16 @@ def genclimatefiles(whichbay, settings):
 													 '403':'ColReefQAQC'})
 		
 		###### FEMC+LCD DATA ADJUSTMENTS HERE ######
-		# cool new way to combine dictionaries (python >= 3.9)
-		observedClimate = adjustFEMCLCD(observedClimateBTV | observedClimateCR)
+		# cool new way to combine dictionaries (python >= 3.9)for zone, ds in climateObsCR.items():
+		# Both FEMC and LCD data grabbers now need mathing location keys to work since they are being combine
+		for zone in observedClimateCR.keys():
+			observedClimate[zone] = observedClimateCR[zone] | observedClimateBTV[zone]
+		observedClimate = adjustFEMCLCD(observedClimate)
 
 	else:
 		raise ValueError(f"'{settings['weather_dataset_observed']}' is not a valid observational weather dataset")
 
+	forecastClimate = {}
 	##### GRABBING FORECASTED CLIMATE DATA #####
 	if settings['weather_dataset_forecast'] == 'NOAA_LCD+FEMC_CR':
 		forecastClimateBTV = lcd_ob.get_data(start_date = settings['forecast_start'],
@@ -448,8 +453,11 @@ def genclimatefiles(whichbay, settings):
 													 '403':'ColReefQAQC'})
 		
 		###### FEMC+LCD DATA ADJUSTMENTS HERE ######
-		# cool new way to combine dictionaries (python >= 3.9)
-		forecastClimate = adjustFEMCLCD(forecastClimateBTV | forecastClimateCR)
+		# cool new way to combine dictionaries (python >= 3.9)for zone, ds in climateObsCR.items():
+		# Both FEMC and LCD data grabbers now need mathing location keys to work since they are being combine
+		for zone in forecastClimateCR.keys():
+			forecastClimate[zone] = forecastClimateCR[zone] | forecastClimateBTV[zone]
+		forecastClimate = adjustFEMCLCD(forecastClimate)
 
 	elif settings['weather_dataset_forecast'] == 'NOAA_GFS':
 		############## Use this bit to load forecast climate from .csvs previously created above
@@ -497,7 +505,7 @@ def genclimatefiles(whichbay, settings):
 	global AXES
 	SUBPLOT_PACKAGES['air temp'] = {'labelled_data':air_temp,
 								   	'ylabel':'Air Temp at 2m (C)',
-									'title':f'{settings['weather_dataset_observed']} vs. {settings['weather_dataset_forecast']} Air Temperature',
+									'title':f"{settings['weather_dataset_observed']} vs. {settings['weather_dataset_forecast']} Air Temperature",
 									'fc_start':settings['forecast_start'],
 									'row':0,
 									'col':1,
