@@ -443,8 +443,14 @@ def multithreaded_loading(load_func, file_list, n_threads):
 	with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as executor:
 		datasets = executor.map(load_func, file_list)
 	# returns datasets in the order in which they were submited; order of file_list will be preserved
-	dataset_list = [d for d in datasets]
-
+	# dataset_list = [d for d in datasets]
+	dataset_list = []
+	# try to capture errors from failed file loads, but continue on since a missing file or too won't hurt AEM3D much
+	for d in datasets:
+		try:
+			dataset_list.append(d)
+		except Exception as e:
+			print(e)
 	return dict(zip(file_list, dataset_list))
 
 IAMLogger.setup_logging()
