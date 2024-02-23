@@ -101,6 +101,15 @@ def process_gfs_data(date,
 
 	station_dict = {}
 	file_list = sorted(glob(f'{gfs_data_dir}/gfs.0p25.{date.strftime("%Y%m%d")}{date.hour:02d}.f[0-9][0-9][0-9].grib2.nc'))
+	# Checking the filelist for bad data. Most gfs netcdfs are around 200kb, so checking for any less thean 1 kb should suffice
+	for file in file_list:
+		# if a bad file is larger than 1000 bytes, it will get through and multithreaded_loading will fail
+		if os.path.getsize(file) < 1000:
+			print(f"BAD FILE: {file}")
+			print(f"FILE SIZE: {os.path.getsize(file)} BYTES")
+			print("REMOVING FILE")
+			# remove bad file from list; this is usually fine as AEM3D can interpolate over a missing timestep here and there
+			file_list.remove(file)
 	dataset_dict = multithreaded_loading(xr.open_dataset, file_list, num_threads)
 	for fname, ds in dataset_dict.items():
 		# making a timestamp for each file based on the filename. Doing this b/c the NetCDFs have no reliable (aka conisistently named) timestamp column.
