@@ -237,6 +237,8 @@ def genwqfiles (theBay):
         #TODO: Implement BREE2021Seg
         #TODO: Move all this junk to THEBAY, choose cqVersion at THEBAY creation
 
+		# make wQ a settings, have peter's stuff be an option
+		# if cqVersion = "islesRF"
         if cqVersion == 'Clelia':
             # Clelia TP Concentration - Discharge Relationship
             #   Same for ALL ILS inputs!!

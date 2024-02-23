@@ -15,6 +15,7 @@
 #
 #  Control File
 
+import copy
 from lib import *
 from data import (femc_ob,
 				  nwm_fc, 
@@ -415,19 +416,20 @@ def genclimatefiles(whichbay, settings):
 	if settings['weather_dataset_observed'] == 'NOAA_LCD+FEMC_CR':
 		observedClimateBTV = lcd_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
 										end_date = settings['forecast_start'],
-										locations = {"401":"72617014742",
-													"402":"72617014742",
-													"403":"72617014742"})
+										locations = {"401":"72617014742"})
 		
 		## TODOFEE: Need to move all the nudging and zone assignments to here!!!
 		
 		observedClimateCR = femc_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
 										end_date = settings['forecast_start'],
-										locations = {'401':'ColReefQAQC',
-													 '402':'ColReefQAQC',
-													 '403':'ColReefQAQC'})
+										locations = {'401':'ColReefQAQC'})
 		
 		###### FEMC+LCD DATA ADJUSTMENTS HERE ######
+		# make additional location dictionaries here rather than call for the same location multiple times in get_data()'s
+		for key in ['402', '403']:
+			observedClimateBTV[key] = copy.deepcopy(observedClimateBTV['401'])
+			observedClimateCR[key] = copy.deepcopy(observedClimateCR['401'])
+
 		# cool new way to combine dictionaries (python >= 3.9)for zone, ds in climateObsCR.items():
 		# Both FEMC and LCD data grabbers now need mathing location keys to work since they are being combine
 		for zone in observedClimateCR.keys():
@@ -442,19 +444,21 @@ def genclimatefiles(whichbay, settings):
 	if settings['weather_dataset_forecast'] == 'NOAA_LCD+FEMC_CR':
 		forecastClimateBTV = lcd_ob.get_data(start_date = settings['forecast_start'],
 								end_date = settings['forecast_end'] + dt.timedelta(days=1),
-								locations = {"401":"72617014742",
-											"402":"72617014742",
-											"403":"72617014742"})
+								locations = {"401":"72617014742"})
 		
 		## TODOFEE: Need to move all the nudging and zone assignments to here!!!
 		
 		forecastClimateCR = femc_ob.get_data(start_date = settings['forecast_start'],
 										end_date = settings['forecast_end'] + dt.timedelta(days=1),
-										locations = {'401':'ColReefQAQC',
-													 '402':'ColReefQAQC',
-													 '403':'ColReefQAQC'})
+										locations = {'401':'ColReefQAQC'})
+		
+		# copy data from 401 for 402, 403. Mzke sure it's a deep copy, not memeory reference
 		
 		###### FEMC+LCD DATA ADJUSTMENTS HERE ######
+			# make additional location dictionaries here rather than call for the same location multiple times in get_data()'s
+		for key in ['402', '403']:
+			forecastClimateBTV[key] = copy.deepcopy(forecastClimateBTV['401'])
+			forecastClimateCR[key] = copy.deepcopy(forecastClimateCR['401'])
 		# cool new way to combine dictionaries (python >= 3.9)for zone, ds in climateObsCR.items():
 		# Both FEMC and LCD data grabbers now need mathing location keys to work since they are being combine
 		for zone in forecastClimateCR.keys():
