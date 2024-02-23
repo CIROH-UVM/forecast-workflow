@@ -1,0 +1,13 @@
+{
+	"scenario":"<experiment_scenario>",
+	"job_name_prefix": "<scenario_job_prefix>",
+	"start_year":"<start_year>",
+	"end_year":"<end_year>",
+	"start_date":"<start_date>",
+	"end_date":"<end_date>",
+	"weather_dataset_observed" : "NOAA_LCD+FEMC_CR",
+	"weather_dataset_forecast" : "NOAA_GFS",
+	"hydrology_dataset_observed" : "USGS_IV",
+	"hydrology_dataset_forecast" : "NOAA_NWM_PROD",
+	"nwm_forecast_member" : "<nwm_forecast_member>"
+}
