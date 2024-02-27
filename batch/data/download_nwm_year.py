@@ -11,7 +11,7 @@ end_dt = dt.datetime(2023,10,31)
 # forecast type
 fc_type = "medium_range_mem"
 # days of forecast data to download (for generate_hours_list())
-fc_days = 8
+fc_days = 7.5
 # define yearly gfs dir
 year_dir = f"/netfiles/ciroh/7dayHABsHindcast/hindcastData/nwm/{year}/"
 delta = end_dt - start_dt
@@ -19,7 +19,7 @@ delta = end_dt - start_dt
 # download nwm data for members 1-7
 for member in range(1, 8):
 	# hours list will be the same for NWM, regardless of member
-	hours = generate_hours_list(num_hours=(24*fc_days), source='nwm', forecast_type='medium')
+	hours = generate_hours_list(num_hours=int(24*fc_days), source='nwm', forecast_type='medium')
 	dates = [(start_dt + dt.timedelta(days=d)) for d in range(delta.days+1)]
 	print(f"Downloading NWM {fc_type}{member} for year: {year}")
 	print(f"\t START DATE: {dates[0].strftime('%Y%m%d')}")
