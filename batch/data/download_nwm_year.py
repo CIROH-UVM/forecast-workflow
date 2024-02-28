@@ -6,8 +6,8 @@ import os
 # define year for download
 year = 2023
 # start date for data grab - note that forecast cycle info is grabbed form the 'date' object in the active for loop
-start_dt = dt.datetime(2023,6,1)
-end_dt = dt.datetime(2023,10,31)
+start_dt = dt.datetime(year,6,1)
+end_dt = dt.datetime(year,10,31)
 # forecast type
 fc_type = "medium_range_mem"
 # days of forecast data to download (for generate_hours_list())

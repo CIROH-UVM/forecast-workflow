@@ -6,8 +6,8 @@ import os
 # define year for download
 year = 2023
 # start date for data grab - note that forecast cycle info is grabbed form the 'date' object in the active for loop
-start_dt = dt.datetime(2023,6,1)
-end_dt = dt.datetime(2023,10,31)
+start_dt = dt.datetime(year,6,1)
+end_dt = dt.datetime(year,10,31)
 # number of forecast days to download - this is the amount of forecast data we want for all members
 # from forecast_start to forecast_end
 # member 7, for example, will grab 9 total days of data (1.5 for member timedelta adjustment, 7.5 from forecast_start to end)
