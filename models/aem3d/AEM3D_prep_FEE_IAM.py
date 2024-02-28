@@ -411,16 +411,28 @@ def genclimatefiles(whichbay, settings):
 	#
 	logger.info('Processing Meterological Data')
 
+	##### adjusting spinup date for LCD dataset due to weird blackout dates between 12/26/2021 - 12/31/2021. Data is there if you request an earlier date, just directly request these dates
+	# blackout begins on this date
+	blackout_start = dt.datetime(2021,12,26, tzinfo = dt.timezone.utc)
+	# blackout is over by this date
+	blackout_end = dt.datetime(2022,1,1, tzinfo = dt.timezone.utc)
+	blackout_dates = [blackout_start + dt.timedelta(days=d) for d in range((blackout_end - blackout_start).days)]
+	adjusted_spinup = settings['spinup_date'] - dt.timedelta(days=1)
+	if adjusted_spinup in blackout_dates:
+		adjusted_spinup = blackout_start - dt.timedelta(days=1)
+	#####
+	print(f"ADJUSTED SPINUP: {adjusted_spinup}")
+
 	observedClimate = {}
 	##### GRABBING OBSERVATIONAL CLIMATE DATA #####
 	if settings['weather_dataset_observed'] == 'NOAA_LCD+FEMC_CR':
-		observedClimateBTV = lcd_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
+		observedClimateBTV = lcd_ob.get_data(start_date = adjusted_spinup,
 										end_date = settings['forecast_start'],
 										locations = {"401":"72617014742"})
 		
 		## TODOFEE: Need to move all the nudging and zone assignments to here!!!
 		
-		observedClimateCR = femc_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
+		observedClimateCR = femc_ob.get_data(start_date = adjusted_spinup,
 										end_date = settings['forecast_start'],
 										locations = {'401':'ColReefQAQC'})
 		
@@ -622,6 +634,13 @@ def genclimatefiles(whichbay, settings):
 		logger.info(print_df(snowcalc_df))
 		bay_snow[zone] = snowcalc_df['RAIN'] * snowcalc_df['T2']
 		
+		# remove duplicate indices from bay_snow, bay_rain and TEMP
+		# duplicated timestamps was creating some concat and .loc issues down the line
+		# removing these duplicated timestamps seems to work nicely
+		bay_rain[zone] = bay_rain[zone][~bay_rain[zone].index.duplicated()]
+		bay_snow[zone] = bay_snow[zone][~bay_snow[zone].index.duplicated()]
+		TEMP = TEMP[~TEMP.index.duplicated()]
+
 		# If too warm, no snow - Use -2.0 C to get mean snowfall for 2017-2020 close to calibration data
 		#  NOAA table above uses 34 F (1.1 C)
 		bay_snow[zone].loc[TEMP > -2.0] = 0.0
