@@ -58,7 +58,7 @@ for year in years:
 
 		# wrtie the run-specific config file
 		with open('configuration.json', 'w') as config_file:
-			json.dump(config, config_file)
+			json.dump(config, config_file, indent=2)
 			config_file.write('\n')
 
 		# define the job params for the run
