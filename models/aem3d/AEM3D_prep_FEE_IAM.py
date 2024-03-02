@@ -523,7 +523,7 @@ def genclimatefiles(whichbay, settings):
 					forecastClimate[zone][var] = forecastClimate[zone][var].loc[pd.to_datetime(settings['forecast_start'].replace(tzinfo=dt.timezone.utc)):]
 			forecastClimate = adjustGFS(forecastClimate)
 
-	logger.info('Cliamte Observed Data')
+	logger.info('Climate Observed Data')
 	logger.info(observedClimate)
 	logger.info('Climate Forecast Data (Zone 401)')
 	logger.info(forecastClimate)
