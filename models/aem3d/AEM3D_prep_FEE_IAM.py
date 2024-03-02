@@ -412,16 +412,25 @@ def genclimatefiles(whichbay, settings):
 	logger.info('Processing Meterological Data')
 
 	##### adjusting spinup date for LCD dataset due to weird blackout dates between 12/26/2021 - 12/31/2021. Data is there if you request an earlier date, just directly request these dates
+	'''
 	# blackout begins on this date
 	blackout_start = dt.datetime(2021,12,26, tzinfo = dt.timezone.utc)
 	# blackout is over by this date
 	blackout_end = dt.datetime(2022,1,1, tzinfo = dt.timezone.utc)
 	blackout_dates = [blackout_start + dt.timedelta(days=d) for d in range((blackout_end - blackout_start).days)]
+	
 	adjusted_spinup = settings['spinup_date'] - dt.timedelta(days=1)
 	if adjusted_spinup in blackout_dates:
 		adjusted_spinup = blackout_start - dt.timedelta(days=1)
-	#####
+	'''
+	# NEW METHOD because blackout seems to be for 2020 as well
+	# Move a day back so AEM3D is happy
+	adjusted_spinup = settings['spinup_date'] - dt.timedelta(days=1)
+	# Keep moving a day back until out of blackout region
+	while (adjusted_spinup.year in [2019, 2020, 2021] and adjusted_spinup.month == 12 and adjusted_spinup.day > 25):
+		adjusted_spinup = adjusted_spinup - dt.timedelta(days=1)
 	print(f"ADJUSTED SPINUP: {adjusted_spinup}")
+	#####
 
 	observedClimate = {}
 	##### GRABBING OBSERVATIONAL CLIMATE DATA #####
