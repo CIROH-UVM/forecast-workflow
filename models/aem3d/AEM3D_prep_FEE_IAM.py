@@ -443,7 +443,8 @@ def genclimatefiles(whichbay, settings):
 		
 		observedClimateCR = femc_ob.get_data(start_date = adjusted_spinup,
 										end_date = settings['forecast_start'],
-										locations = {'401':'ColReefQAQC'})
+										locations = {'401':'ColReefQAQC'},
+										data_dir = os.path.join(settings['root_dir'], 'hindcastData/'))
 		
 		###### FEMC+LCD DATA ADJUSTMENTS HERE ######
 		# make additional location dictionaries here rather than call for the same location multiple times in get_data()'s
@@ -471,7 +472,8 @@ def genclimatefiles(whichbay, settings):
 		
 		forecastClimateCR = femc_ob.get_data(start_date = settings['forecast_start'],
 										end_date = settings['forecast_end'] + dt.timedelta(days=1),
-										locations = {'401':'ColReefQAQC'})
+										locations = {'401':'ColReefQAQC'},
+										data_dir = os.path.join(settings['root_dir'], 'hindcastData/'))
 		
 		# copy data from 401 for 402, 403. Mzke sure it's a deep copy, not memeory reference
 		

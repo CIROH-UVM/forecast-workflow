@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 def get_data(start_date,
 			 end_date,
 			 locations = {'CR':'ColReefQAQC'},
+			 data_dir = '/data/forecastData/',
 			 return_type='dict'):
 	"""
 	A function to download and process observational meterological data from UVM FEMC (Forest Ecosysytem Monitoring Cooperative - https://www.uvm.edu/femc/) to return nested dictionary of pandas series fore each variable, for each location.
@@ -37,7 +38,7 @@ def get_data(start_date,
 	femc_data = {loc:{} for loc in locations.keys()}
 
 	for loc, loc_value in femc_data.items():
-		with open(os.path.join("/gpfs1/home/n/b/nbeckage/ciroh/forecastData/colchesterReefFEMC/", "Z0080_CR_QAQC.csv")) as file:
+		with open(os.path.join(data_dir, 'colchesterReefFEMC/Z0080_CR_QAQC.csv')) as file:
 			cached_data = pd.read_csv(file, delimiter=",", header=0, index_col=0, parse_dates=True) # Make DateTime as index
 			cached_df = pd.DataFrame(cached_data)
 
