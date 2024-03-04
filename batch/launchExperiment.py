@@ -73,6 +73,6 @@ for year in years:
 		print(scenario_dir_date)
 		# Uncomment to submit
 		subprocess.run(['sbatch ' 'submit.sh'], shell=True)
-		# wait so as to not overwhelm the THREDDS server
-		# time.sleep(180)
+		# wait so as to not overwhelm the VACC with GFS / NWM file reads for AEM3D_prep_IAM
+		time.sleep(30)
 os.chdir(orig)
