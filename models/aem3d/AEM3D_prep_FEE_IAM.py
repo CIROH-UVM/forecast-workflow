@@ -464,14 +464,20 @@ def genclimatefiles(whichbay, settings):
 	forecastClimate = {}
 	##### GRABBING FORECASTED CLIMATE DATA #####
 	if settings['weather_dataset_forecast'] == 'NOAA_LCD+FEMC_CR':
+		# Adjust end_date for FEMC data gap 2021-06-14 21:15:00+00:00 -> 2021-06-18 10:45:00+00:00
+		adjusted_end_date = settings['forecast_end'] + dt.timedelta(days=1)
+		while adjusted_end_date.year == 2021 and adjusted_end_date.month == 6 and adjusted_end_date.day in [16, 17, 18]:
+			adjusted_end_date = adjusted_end_date + dt.timedelta(days=1)
+		print(f"ADJUSTED END_DATE: {adjusted_end_date}")
+
 		forecastClimateBTV = lcd_ob.get_data(start_date = settings['forecast_start'],
-								end_date = settings['forecast_end'] + dt.timedelta(days=1),
+								end_date = adjusted_end_date,
 								locations = {"401":"72617014742"})
 		
 		## TODOFEE: Need to move all the nudging and zone assignments to here!!!
 		
 		forecastClimateCR = femc_ob.get_data(start_date = settings['forecast_start'],
-										end_date = settings['forecast_end'] + dt.timedelta(days=1),
+										end_date = adjusted_end_date,
 										locations = {'401':'ColReefQAQC'},
 										data_dir = os.path.join(settings['root_dir'], 'hindcastData/'))
 		
