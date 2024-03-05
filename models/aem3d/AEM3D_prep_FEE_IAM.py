@@ -1120,7 +1120,7 @@ def gencntlfile(theBay, settings):
 	
 
 	# Calculate iterations: Time between forecast end and start of sim
-	iterations = int((settings['forecast_end'] - (simstart + dt.timedelta(days=1))).total_seconds() / AEM3D_DEL_T)
+	iterations = int((settings['forecast_end'] - simstart).total_seconds() / AEM3D_DEL_T)
 	logger.info(f'Configuring AEM3D to run {iterations} iterations')
 
 
