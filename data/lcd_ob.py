@@ -9,7 +9,10 @@ def splitsky ( instring ) :
 	if len(tokens) > 1 :
 		token = tokens[-2].split()[-1]  # keep the cover code just before last : marker
 	else:
-		token = " "     # any records without a : cover code separator end up as a blank
+		token = ' '     # any records without a : cover code separator end up as a blank and discarded later
+	# Remove X:10 (Obscured Sky) Observations
+	if token == 'X':
+		token = ' '
 	return token
 
 def sky2prop (theskycode) :
@@ -126,9 +129,9 @@ def get_data(start_date,
 		returnDict = {}
 
 		cloud_df['skycode'] = cloud_df['HourlySkyConditions'].apply(splitsky)
-		cloud_df['TCDC'] = cloud_df['skycode'].apply(sky2prop).astype('float')
 		# Remove those that don't convert to skycode... junk entries
 		cloud_df = cloud_df[cloud_df['skycode'] != ' ']
+		cloud_df['TCDC'] = cloud_df['skycode'].apply(sky2prop).astype('float')
 		
 		# First replace 'T's for trace precip with 0.0
 		#  leavenotrace also removes 's' notations on some precip values
