@@ -190,6 +190,9 @@ def get_data(forecast_datetime,
 	# determining what source we are downlaoding data from in order to create proper hours list
 	if google_buckets:
 		source = 'buckets'
+		# Set archive = true if forecast older than 11/1/2020.  Might need to go even later... need to test
+		if forecast_datetime < parse_to_datetime('20201101'):
+			archive = True
 	else: source = 'nwm'
 
 	# calculate the number of hours of forecast data to grab. I.e. for a 5 day forecast, hours would be 120
