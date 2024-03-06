@@ -803,7 +803,7 @@ def genclimatefiles(whichbay, settings):
 										'col':1,
 										'axis':AXES}
 	
-	SUBPLOT_PACKAGES['wind direction'] = {'labelled_data':windspd,
+	SUBPLOT_PACKAGES['wind direction'] = {'labelled_data':winddir,
 										'ylabel':'degrees clockwise from North',
 										'title':'Wind Direction',
 										'fc_start':settings['forecast_start'],
