@@ -23,6 +23,10 @@ def sky2prop (theskycode) :
 def leavenotrace (precip) :
 	if str(precip) == 'T' :
 		return '0.00'
+	# Some suspect values (marked with s) contain junk data with 2 decimal points
+	# (i.e. STN 72617014742 DATE 2020-01-16T09:54:00)
+	elif len(str(precip).split('.')) > 2 :
+		return 'NaN'
 	else :
 		#return precip
 		return str(precip).replace('s', '')
