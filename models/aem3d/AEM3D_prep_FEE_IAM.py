@@ -987,7 +987,10 @@ def genclimatefiles(whichbay, settings):
 	
 	## Now...
 	### Need to merge these df's together on time stamp
-	lakeLevel_df = pd.merge(lakeLevel_df, air_temp['403'], on='time', how='inner')
+	### Moved from inner merge to outer merge 3/7/2024 to account for mis-matched time stamps between time series and
+	###   data gaps in either time series
+	# lakeLevel_df = pd.merge(lakeLevel_df, air_temp['403'], on='time', how='inner')
+	lakeLevel_df = pd.merge(lakeLevel_df, air_temp['403'], on='time', how='outer').interpolate(method="time").dropna()
 	logger.info(f'lakelevel_df after merge')
 	logger.info(print_df(lakeLevel_df))
 
