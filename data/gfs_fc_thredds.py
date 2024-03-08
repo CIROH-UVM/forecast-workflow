@@ -24,7 +24,9 @@ def append_timestamp(sta_dict, loc_dict, loc_dfs, timestamp):
 	-- loc_dfs (dict) [req]: the dictionary where keys are the lat/long tuple and values are the corresponding data for the given timestamp (f00, f001, ect.) for that location
 	"""
 	for stationID, loc in loc_dict.items():
+		#print(f'shape before: {loc_dfs[loc].shape}')
 		df_to_append = loc_dfs[loc].drop_duplicates().drop(columns = ['latitude','longitude'])
+		#print(f'shape after: {df_to_append.shape}')
 		df_to_append['time'] = timestamp
 		df_to_append.set_index('time', inplace=True)
 		if stationID in sta_dict:
@@ -57,13 +59,23 @@ def download_gfs_threaded(date,
 		# if the grib file isn't downloaded already, then download it
 		if not os.path.exists(fpath):
 			ts_date = date.replace(tzinfo=None) + dt.timedelta(days=int(int(h)/24), hours=int(h)%24)
+			# Variable Total_cloud_cover_entire_atmosphere isn't available before 2021, instead, need to use average like Downward_Short-Wave_Radiation_Flux_surface
+			tcdc_variable_string = '&var=Total_cloud_cover_entire_atmosphere'
+			swdown_variable_string = '&var=Downward_Short-Wave_Radiation_Flux_surface'
 			if h == '000':
-				url = f'https://thredds.rda.ucar.edu/thredds/ncss/grid/files/g/ds084.1/{date.year}/{date.strftime("%Y%m%d")}/gfs.0p25.{date.strftime("%Y%m%d")}{fc_cycle}.f{h}.grib2?var=u-component_of_wind_height_above_ground&var=v-component_of_wind_height_above_ground&var=Temperature_height_above_ground&var=Relative_humidity_height_above_ground&var=Per_cent_frozen_precipitation_surface&var=Precipitation_rate_surface&var=Total_cloud_cover_entire_atmosphere&north=47.5&west=280&east=293.25&south=40.25&horizStride=1&time_start={ts_date.isoformat()}Z&time_end={ts_date.isoformat()}Z&&&accept=netcdf4-classic'
+				swdown_variable_string = ''
+				if date.year < 2021:
+					tcdc_variable_string = ''
 			elif int(h) % 6 == 3:
-				url = f'https://thredds.rda.ucar.edu/thredds/ncss/grid/files/g/ds084.1/{date.year}/{date.strftime("%Y%m%d")}/gfs.0p25.{date.strftime("%Y%m%d")}{fc_cycle}.f{h}.grib2?var=Downward_Short-Wave_Radiation_Flux_surface_3_Hour_Average&var=u-component_of_wind_height_above_ground&var=v-component_of_wind_height_above_ground&var=Temperature_height_above_ground&var=Relative_humidity_height_above_ground&var=Per_cent_frozen_precipitation_surface&var=Precipitation_rate_surface&var=Total_cloud_cover_entire_atmosphere&north=47.5&west=280&east=293.25&south=40.25&horizStride=1&time_start={ts_date.isoformat()}Z&time_end={ts_date.isoformat()}Z&&&accept=netcdf4-classic'
+				swdown_variable_string = swdown_variable_string + '_3_Hour_Average'
+				if date.year < 2021:
+					tcdc_variable_string = tcdc_variable_string + '_3_Hour_Average'
 			elif int(h) % 6 == 0:
-				url = f'https://thredds.rda.ucar.edu/thredds/ncss/grid/files/g/ds084.1/{date.year}/{date.strftime("%Y%m%d")}/gfs.0p25.{date.strftime("%Y%m%d")}{fc_cycle}.f{h}.grib2?var=Downward_Short-Wave_Radiation_Flux_surface_6_Hour_Average&var=u-component_of_wind_height_above_ground&var=v-component_of_wind_height_above_ground&var=Temperature_height_above_ground&var=Relative_humidity_height_above_ground&var=Per_cent_frozen_precipitation_surface&var=Precipitation_rate_surface&var=Total_cloud_cover_entire_atmosphere&north=47.5&west=280&east=293.25&south=40.25&horizStride=1&time_start={ts_date.isoformat()}Z&time_end={ts_date.isoformat()}Z&&&accept=netcdf4-classic'
-			# Ending False is to now use a google bucket -- that's not an option for GFS
+				swdown_variable_string = swdown_variable_string + '_6_Hour_Average'
+				if date.year < 2021:
+					tcdc_variable_string = tcdc_variable_string + '_6_Hour_Average'
+			url = f'https://thredds.rda.ucar.edu/thredds/ncss/grid/files/g/ds084.1/{date.year}/{date.strftime("%Y%m%d")}/gfs.0p25.{date.strftime("%Y%m%d")}{fc_cycle}.f{h}.grib2?var=u-component_of_wind_height_above_ground&var=v-component_of_wind_height_above_ground&var=Temperature_height_above_ground&var=Relative_humidity_height_above_ground&var=Per_cent_frozen_precipitation_surface&var=Precipitation_rate_surface{swdown_variable_string}{tcdc_variable_string}&north=47.5&west=280&east=293.25&south=40.25&horizStride=1&time_start={ts_date.isoformat()}Z&time_end={ts_date.isoformat()}Z&&&accept=netcdf4-classic'
+			# Ending False is to not use a google bucket -- that's not an option for GFS
 			download_list.append((url, fpath, False))
 		else:
 			print(f'Skipping download; {os.path.basename(fpath)} found at: {gfs_data_dir}')
@@ -84,6 +96,7 @@ def download_gfs_threaded(date,
 
 def process_gfs_data(date,
 					 location_dict,
+					 variables_dict,
 					 gfs_data_dir,
 					 num_threads):
 	"""
@@ -119,20 +132,35 @@ def process_gfs_data(date,
 		# grabbing just the lat/long coords we need based on locations
 		loc_ds = isolate_loc_rows(remap_longs(ds), location_dict)
 		# selecting the hight levelss we need, and then dropping a bunch of junk
-		loc_ds = loc_ds.sel({'height_above_ground2':10, 'height_above_ground3':2}).drop(['reftime','LatLon_721X1440-0p13S-180p00E','height_above_ground2','height_above_ground3','height_above_ground4'])
+		#print(loc_ds.sel({'height_above_ground2':10, 'height_above_ground3':2}).drop(['LatLon_721X1440-0p13S-180p00E','height_above_ground2','height_above_ground3']).to_dataframe())
+		#loc_ds.to_dataframe().filter(regex='Total_cloud_cover_entire_atmosphere').to_csv(f"{fname}_TCDC.csv")
+		#loc_ds.to_dataframe().filter(regex='Downward_Short-Wave_Radiation_Flux_surface').to_csv(f"{fname}_SWDOWN.csv")
+		if 'bounds_dim' in loc_ds.dims.keys():
+			print('Selecting time_bounds dimension 0')
+			loc_ds = loc_ds.sel({'bounds_dim':0})
+		#print(f"Selecting on {loc_ds['Temperature_height_above_ground'].dims}, {loc_ds['u-component_of_wind_height_above_ground'].dims}")
+		## TODO: do better on finding dims... should be [1], but something above is messing with them
+		loc_ds = loc_ds.sel(
+			{loc_ds['Temperature_height_above_ground'].dims[2]         :  2,
+			 loc_ds['u-component_of_wind_height_above_ground'].dims[2] : 10,}).drop(
+			['reftime','LatLon_721X1440-0p13S-180p00E',
+	  		 loc_ds['Temperature_height_above_ground'].dims[2],
+			 loc_ds['u-component_of_wind_height_above_ground'].dims[2],
+			 loc_ds['Relative_humidity_height_above_ground'].dims[2]])
 		# convert to a flat datafranme
 		loc_df = loc_ds.to_dataframe().reset_index()
-		# grab only the columns we need, except swdown b/c the4 name of that column is inconsistent
-		filtered_df = loc_df.filter(items=['latitude','longitude','Relative_humidity_height_above_ground','Total_cloud_cover_entire_atmosphere','Precipitation_rate_surface','Temperature_height_above_ground','u-component_of_wind_height_above_ground','v-component_of_wind_height_above_ground','Per_cent_frozen_precipitation_surface'], axis=1)
+		# grab only the columns we need, except SWDOWN and TCDC b/c the4 name of that column is inconsistent
+		filtered_df = loc_df.filter(items=['latitude','longitude','Relative_humidity_height_above_ground','Precipitation_rate_surface','Temperature_height_above_ground','u-component_of_wind_height_above_ground','v-component_of_wind_height_above_ground','Per_cent_frozen_precipitation_surface'], axis=1)
 		# rename columns appropriately
-		filtered_df.rename({'Temperature_height_above_ground': 'T2', 'Total_cloud_cover_entire_atmosphere':'TCDC', 'u-component_of_wind_height_above_ground':'U10', 'v-component_of_wind_height_above_ground':'V10', 'Relative_humidity_height_above_ground':'RH2', 'Precipitation_rate_surface':'RAIN', 'Per_cent_frozen_precipitation_surface':'CPOFP'}, axis=1, inplace=True)
-		# for .f000, set swdon to 0
-		if fname.endswith('.f000.grib2.nc'):
-			filtered_df['SWDOWN'] = 0
-		# for all other timestamps, grab the data and add it to the df
-		else:
-			swdown = loc_df.filter(regex='Downward_Short-Wave_Radiation_Flux_surface*', axis=1)
-			filtered_df['SWDOWN'] = swdown
+		filtered_df.rename({'Temperature_height_above_ground': 'T2', 'u-component_of_wind_height_above_ground':'U10', 'v-component_of_wind_height_above_ground':'V10', 'Relative_humidity_height_above_ground':'RH2', 'Precipitation_rate_surface':'RAIN', 'Per_cent_frozen_precipitation_surface':'CPOFP'}, axis=1, inplace=True)
+		# Now, grab SWDOWN and TCDC with their inconsistent names
+		ave_vars_dict = {x:y for x,y in variables_dict.items() if '_$3OR6' in y}
+		for short_name, gfs_name in ave_vars_dict.items():
+			value = loc_df.filter(regex=gfs_name.split('_$3OR6')[0])
+			if value.shape[1] == 0:
+				filtered_df[short_name] = pd.NA
+			else:
+				filtered_df[short_name] = value
 		# group by lat/long
 		location_groups = filtered_df.groupby(["latitude", "longitude"])
 		location_dataframes = {name: group for name, group in location_groups}
@@ -169,6 +197,17 @@ def get_data(forecast_datetime,
 	Returns:
 	GFS forecast data for the given locations in the format specified by return_type
 	"""
+	variables_dict = {
+		'T2'    :'Temperature_height_above_ground',
+		'TCDC'  :'Total_cloud_cover_entire_atmosphere_$3OR6_Hour_Average',
+		'U10'   :'u-component_of_wind_height_above_ground',
+		'V10'   :'v-component_of_wind_height_above_ground',
+		'RH2'   :'Relative_humidity_height_above_ground',
+		'RAIN'  :'Precipitation_rate_surface',
+		'CPOFP' :'Per_cent_frozen_precipitation_surface',
+		'SWDOWN':'Downward_Short-Wave_Radiation_Flux_surface_$3OR6_Hour_Average'
+	}
+		
 	forecast_datetime = parse_to_datetime(forecast_datetime)
 	end_datetime = parse_to_datetime(end_datetime)
 
@@ -176,8 +215,9 @@ def get_data(forecast_datetime,
 	forecast_cycle = f"{forecast_datetime.hour:02d}"
 
 	# we need the end_datetime to match the time of forecast_Datetime in order to calculate the number of forecast hours to download accurately
-	end_datetime = dt.datetime.combine(end_datetime.date(), forecast_datetime.time()).replace(tzinfo=dt.timezone.utc)
+	# end_datetime = dt.datetime.combine(end_datetime.date(), forecast_datetime.time()).replace(tzinfo=dt.timezone.utc)
 	# calculate the number of hours of forecast data to grab. I.e. for a 5 day forecast, hours would be 120
+	print(f"forecast_datetime: {forecast_datetime} | end_datetime: {end_datetime} | hour_diff: {get_hour_diff(forecast_datetime, end_datetime)}")
 	forecast_hours = generate_hours_list(get_hour_diff(forecast_datetime, end_datetime), 'gfs', archive=True)
 	forecast_date = forecast_datetime.strftime("%Y%m%d")
 
@@ -194,6 +234,7 @@ def get_data(forecast_datetime,
 	# Now, load and process the data
 	loc_data = process_gfs_data(date=forecast_datetime,
 							    location_dict=locations,
+								variables_dict=variables_dict,
 								gfs_data_dir=gfs_date_dir,
 								num_threads=load_threads)
 	# ensure return_type is a valid value
@@ -201,7 +242,7 @@ def get_data(forecast_datetime,
 		raise ValueError(f"'{return_type}' is not a valid return_type. Please use 'dict' or 'dataframe'")
 	elif return_type == 'dict':
 		# created nested dictionary of pd.Series for each variable for each location
-		gfs_data = {location:{name:data for name, data in loc_df.T.iterrows()} for location, loc_df in loc_data.items()}
+		gfs_data = {location:{name:data.dropna() for name, data in loc_df.T.iterrows()} for location, loc_df in loc_data.items()}
 	elif return_type == 'dataframe':
 		raise Exception("'dataframe' option not implemented yet. Please use return_type = 'dict'")
 	
