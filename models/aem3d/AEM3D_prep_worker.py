@@ -23,82 +23,29 @@ def is_num(value):
     except:
         return
 
-
-# def get_output_file_name(year):
-#     global SCENARIO
-
-#     return '{}-AEM3D-inputs.tar.gz'.format(SCENARIO.id)
-
 def main():
     prep_path = 'aem3d-run'
 
-    # read in settings
-    # Need to incorporate root_dir as a setting in which will contain forecast*/ dirs, including forecast-workflow
-    # for production run
-    # SETTINGS = get_args(default_fpath='/data/forecastScripts/forecast-workflow/default_settings.json')
-    # for my own testing - Noah
-    SETTINGS = get_args(default_fpath="/gpfs1/home/n/b/nbeckage/ciroh/forecast-workflow/default_settings.json")
 
+    SETTINGS = get_args()
 
-    # for i in range(len(sys.argv)):
-    #     if sys.argv[i] == '--aem3d-dir':
-    #         logger.info(f'Setting path to {sys.argv[i+1]}')
-    #         prep_path=sys.argv[i+1]
-
-    # Create prep_path if doesn't exist
-    # if not os.path.exists(prep_path):
-    #     logger.info(f'Creating prep_path at {prep_path}')
-    #     os.makedirs(prep_path)
-    
     #THEBAY = IAMBAY(settings['whichbay'])   # Create Bay Object for Bay specified
     THEBAY = IAMBAY(bayid='ILS')   # Create Bay Object for Bay specified
 
 
-    """ PRE-SETTINGS UPDATE
-         - these lines (I think?) hardcode the model's spinup date the last date of the model forecast
-
-    # Make today and today at midnight
-    today = datetime.date.today()
-    #today = datetime.date(2023,9,13)
-    todayMidnight = datetime.datetime.combine(today, datetime.datetime.min.time())
-    
-    THEBAY.FirstDate = datetimeToOrdinal(datetime.datetime.combine(datetime.date(2023,1,2), datetime.datetime.min.time()))
-    THEBAY.LastDate = datetimeToOrdinal(todayMidnight + datetime.timedelta(days=7))
-
-    POST-SETTINGS UPDATE BELOW
-    """
     # These two settings return datetime objs set to midnight already
     THEBAY.FirstDate = datetimeToOrdinal(SETTINGS['spinup_date'])
     THEBAY.LastDate = datetimeToOrdinal(SETTINGS['forecast_end'])
 
 
     ## Need dataframes for hydrology from Missisquoi, Mill, JewittStevens
-    
-    # cp('p_reductions.csv', 'AEM3D-file-prep/')
-
-    # template_files = [
-    #     file
-    #     for file in pkg_resources.resource_listdir(
-    #         'workers.prep_aem3d_worker', 'resources')
-    #     if file.endswith('.txt')
-    # ]
-
-    # for f in template_files:
-    #     with open(os.path.join('AEM3D-file-prep','TEMPLATES',f), 'w') as output_file:
-    #         output_file.write(
-    #             pkg_resources.resource_string('workers.prep_aem3d_worker.resources', f).decode('utf-8')
-    #         )
 
     THEBAY.infile_dir = os.path.join(prep_path, 'infiles')
     THEBAY.template_dir = os.path.join(prep_path, 'TEMPLATES')
     THEBAY.run_dir = prep_path
 
-    # Probably don't need this with the cp anymore...
-    # if not os.path.exists(prep_path):
-    #     os.makedirs(prep_path)
-    
     # Copy current aem3d run template
-    cp('-R', '/netfiles/ciroh/models/aem3d/current/AEM3D-inputs', prep_path)
+    cp('-R', SETTINGS["aem3d_input_dir"], prep_path)
 
     with cd('.'):
 
@@ -107,11 +54,8 @@ def main():
             if not os.path.exists(THEBAY.infile_dir):
                 os.makedirs(THEBAY.infile_dir)
 
-            """
-            preprc = AEM3D_prep_IAM(forecastDate=today, theBay=THEBAY)
-            """
             # source the python file prep script
-            preprc = AEM3D_prep_IAM(settings=SETTINGS, theBay=THEBAY)
+            preprc = AEM3D_prep_IAM(theBay=THEBAY, settings=SETTINGS)
 
         except Exception as e:
             logger.info('AEM3D_prep_IAM.py failed. Exiting.')
