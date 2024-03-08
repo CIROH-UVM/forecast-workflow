@@ -45,6 +45,10 @@ def check_values(settings_dict):
 	if not isinstance(settings_dict['spinup_date'], datetime):
 		settings_dict['spinup_date'] = parse_to_datetime(settings_dict['spinup_date'])
 
+	if not isinstance(settings_dict['output_write_start_datetime'], datetime):
+		settings_dict['output_write_start_datetime'] = parse_to_datetime(settings_dict['output_write_start_datetime'])
+
+
 	# # check blending variable to make sure it's a valid var name
 	# if settings_dict['blending_variable'] not in valid_vars:
 	# 	raise ValueError(f'{settings_dict["blending_variable"]} is an invalid variable name.')
@@ -52,6 +56,8 @@ def check_values(settings_dict):
 	if not 0 <= settings_dict['blending_ratio'] <= 1.0:
 		raise ValueError(f"'{settings_dict['blending_ratio']}' is not a valid blending ratio; must be between 0 and 1.")
 	
+	print("Settings to be checked ", settings_dict)
+
 	valid_datasets = {'wdo':["NOAA_LCD+FEMC_CR"],
 				   	  'wdf':["NOAA_LCD+FEMC_CR", "NOAA_GFS"],
 					  'hdo':["USGS_IV"],
@@ -92,6 +98,11 @@ def get_cmdln_args():
 	parser.add_argument('--fc_start', type=str, help='forecast start date')
 	parser.add_argument('--fc_end', type=str, help='forecast end date')
 	parser.add_argument('--spinup', type=str, help='model spinup date')
+	parser.add_argument('--write_start', type=str, help='model output start date')
+	parser.add_argument('--write_iters', type=int, help='iterations between model writes')
+	parser.add_argument('--write_path', type=str, help='output write file path')
+	parser.add_argument('--write_prefix', type=str, help='model output file prefix')
+	parser.add_argument('--restart_file', type=str, help='model restart file name')
 	parser.add_argument('--bl_var', type=str, help='name of the input variable to be blended')
 	parser.add_argument('--bl_ratio', type=float, help='blending ratio')
 	parser.add_argument('--wdo', type=str, help='observed weather dataset to use for model run')
@@ -148,12 +159,16 @@ def load_defaults(default_fpath):
 def load_json(fpath):
 	with open(fpath) as file:
 		data = json.load(file)
+		print("data from json ",fpath)
+		#print(data)
 	return data
 
 def process_args(args):
 	SETTINGS_KEYS = get_settings_keys()
+	print("SETTINGS_KEYS", SETTINGS_KEYS)
 	# convert args from a Namespace to a dict
 	args = vars(args)
+	print("Raw Args", args)
 	# we don't need the configuration file setting anymore
 	args.pop('conf')
 	# create a mapping from json-format setting names to command-line setting names
@@ -163,6 +178,7 @@ def process_args(args):
 	renamed_args = {setting[0]: args[setting[1]] for setting in key_map}
 	# we only want to update settings with command-line args if they were passed
 	passed_args = {key:renamed_args[key] for key in renamed_args if renamed_args[key] is not None}
+	print("Arg List Generate ", passed_args)
 	return passed_args
 
 
@@ -193,6 +209,7 @@ def get_args(default_fpath = get_default_fpath(), command_line = True):
 		custom_settings = load_config(args.conf)
 		# updating settings dict with config file settings
 		settings.update(custom_settings)
+	print("Settings before args ", settings)
 	# processing cmd line args to match cmd line arg names with json arg names
 	cmd_args = process_args(args)
 	# update settings with cmd line arguments
