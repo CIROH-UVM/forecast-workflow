@@ -1070,10 +1070,69 @@ def gencntlfile(theBay, settings):
 
 	# Calculate 1 hour in iterations
 	hourIter = int(86400 / AEM3D_DEL_T / 24)
-	# Calculate iterations: Time between forecast date and spinup start + 7 more days
-	iterations = int((settings['forecast_start'] - (settings['spinup_date'] + dt.timedelta(days=1))).total_seconds() / AEM3D_DEL_T) + (7 * 24 * hourIter)
 
+	output_iters = settings['output_write_iteration_hours']*hourIter
+	simstart = settings['spinup_date']	# initial sim start time, pending restart override
+	restartswitch = 0		# begin with assumption there will be no restart file
+
+	# aem3d control file parser wants a value for restart file key, even if restart inactive
+	#		alternate method would be to programmtically comment the line out
+	restart_read_base = "norestartinput"	# the base (pathless) name for incomming restart file
+
+	##
+	# Check and setup for an incomming restart file
+	if settings['restart_read_file'] != "" :
+		if not os.path.exists(settings['restart_read_file']):
+				logger.critical(
+				'File {} does not exist. Exiting.'.format(
+				settings['restart_read_file']
+ 			)
+		)
+		#exit_with_code_based_on_host()
+
+		# copy restart file to runtime infiles directory
+		os.system('cp '+ settings['restart_read_file'] + " " + theBay.infile_dir)
+
+		restart_read_base = os.path.basename(settings['restart_read_file'])  # strip path off
+
+		with open(settings['restart_read_file'], 'rb') as restartfile:
+			# extract restart file's timestamp for use in setting interation count
+
+			# unpack original julian date from binary array
+			#  number of full days since Jan 1, 4713BC with fraction of day since noon as decimal
+			#  3rd record of the unf file after two character (Len=256) vars
+			#  Julian date is Fortran double
+
+			# {4bytecount}{256 chars}{copy of 4bytecount}
+			# {4bytecount}{256 chars}{copy of 4bytecount}
+			# {4bytecount}{Fortran double value for date}
+
+			restartfile.seek((256+8)*2+4)   # skip first two records and a count
+			lastsimtime = np.fromfile(restartfile, dtype='float64',count=1)[0]
+			epoch = pd.to_datetime(0, unit='s').to_julian_date()  #first datetime (1970)
+			simdatetime = pd.to_datetime(lastsimtime - epoch, unit='D', utc=True)
+
+			simstart = simdatetime
+			print('Restart time as Datetime ', simdatetime)
+
+		output_iters = output_iters + 1  	# when using restart and extra iteration needed to line up first save
+		restartswitch = 1 		# turn on restart in control file
+	
+
+	# Calculate iterations: Time between forecast end and start of sim
+	iterations = int((settings['forecast_end'] - (simstart + dt.timedelta(days=1))).total_seconds() / AEM3D_DEL_T)
 	logger.info(f'Configuring AEM3D to run {iterations} iterations')
+
+
+	##
+	#	Check and setup for possible restart file generation
+	#		If no write_start specified, no saves to schedule
+	if settings['output_write_start_datetime'] != "" :
+		# Convert write_start datetime to a sim iteration count
+		output_start_iter = 1 + int((settings['output_write_start_datetime'] - simstart).total_seconds() / AEM3D_DEL_T)
+	else :
+		output_start_iter = iterations + 1 	# set output start after max sim iterations
+
 	
 	with open(os.path.join(theBay.template_dir, 'aem3dcntl.template.txt'), 'r') as file:
 		template = Template(file.read())
@@ -1082,14 +1141,17 @@ def gencntlfile(theBay, settings):
 	pathedfile = os.path.join(theBay.run_dir, 'run_aem3d.dat')
 	with open(pathedfile, 'w') as output_file:
 		output_file.write(template.substitute(**{
-			'start_date': theBay.FirstDate,
+			'start_date': datetimeToOrdinal(simstart),
 			'del_t': AEM3D_DEL_T,
 			# number of 300s steps in a 364 days (year minus 1 day, because 1st day is a start, not a step)
 			# 27936 for 97 days (97*24*12)
 			'iter_max': iterations,
-			'hour': hourIter,
+			'output_iters': output_iters,
 			'eighthours': (hourIter * 8),
-			'daysthirty': (hourIter * 24 * 30)
+			'daysthirty': (hourIter * 24 * 30),
+			'output_start' : output_start_iter,
+			'userestart' : restartswitch,
+			'restart_to_read' : restart_read_base
 			}))
 
 		# update the control file with all generated input files
