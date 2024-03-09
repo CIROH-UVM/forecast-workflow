@@ -128,8 +128,6 @@ def get_stack():
 	settings_path = os.path.join(settings_path, "default_settings.json")
 	return settings_path
 
-
-# "/gpfs1/home/n/b/nbeckage/ciroh/forecast-workflow/default_settings.json"
 def get_default_fpath():
 	stack = inspect.stack()
 	settings_path = stack[0].filename

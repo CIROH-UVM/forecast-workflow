@@ -5,6 +5,7 @@ import datetime as dt
 import time
 from string import Template
 import sys
+import models.aem3d.get_args as get_args
 
 '''
 Script to Launch Model Runs for a given hindcast scenario
@@ -20,8 +21,10 @@ with open(experiment_conf_file) as experiment_config:
 	experiment_launch_params = json.load(experiment_config)
 
 # load in the default run config file
-with open("/gpfs1/home/n/b/nbeckage/ciroh/forecast-workflow/default_settings.json") as default_json_file:
-	config = json.load(default_json_file)
+# with open("/gpfs1/home/n/b/nbeckage/ciroh/forecast-workflow/default_settings.json") as default_json_file:
+	# config = json.load(default_json_file)
+# I think we can do this instead
+config = get_args.load_defaults()
 
 # load in the default job script template
 with open('/netfiles/ciroh/7dayHABsHindcast/submitTEMPLATE.sh') as f:

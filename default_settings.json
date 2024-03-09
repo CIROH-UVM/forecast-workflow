@@ -17,5 +17,5 @@
 	"csv" : false,
 	"root_dir" : "/netfiles/ciroh/7dayHABsHindcast/",
 	"aem3d_input_dir" : "/netfiles/ciroh/models/aem3d/current/AEM3D-inputs",
-	"aem3d_command_path" : "/gpfs1/home/n/b/nbeckage/ciroh/aem3d-1.1.2-535/aem3d_openmp.exe"
+	"aem3d_command_path" : "/usr/local/aem3d-1.1.2-535/aem3d_openmp.exe"
 }
