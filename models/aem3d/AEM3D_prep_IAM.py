@@ -644,9 +644,9 @@ def genclimatefiles(whichbay, settings):
 		logger.info('bay_rain before write')
 		logger.info(print_df(bay_rain[zone])) 
 
-		logger.info('Snow Stats for zone ', zone)
+		logger.info(f'Snow Stats for zone {zone}')
 		logger.info(bay_snow[zone].describe(percentiles=[]))
-		logger.info('Rain Stats for zone ', zone)
+		logger.info(f'Rain Stats for zone {zone}')
 		logger.info(bay_rain[zone].describe(percentiles=[]))		
 
 	SUBPLOT_PACKAGES['bay rain'] = {'labelled_data':bay_rain,
