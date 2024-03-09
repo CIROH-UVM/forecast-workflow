@@ -1158,10 +1158,11 @@ def gencntlfile(theBay, settings):
 			# number of 300s steps in a 364 days (year minus 1 day, because 1st day is a start, not a step)
 			# 27936 for 97 days (97*24*12)
 			'iter_max': iterations,
-			'output_iters': output_iters,
+			'hour': hourIter,
 			'eighthours': (hourIter * 8),
 			'daysthirty': (hourIter * 24 * 30),
 			'output_start' : output_start_iter,
+			'output_iters': output_iters,
 			'userestart' : restartswitch,
 			'restart_to_read' : restart_read_base
 			}))
