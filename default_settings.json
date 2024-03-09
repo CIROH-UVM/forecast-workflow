@@ -1,6 +1,6 @@
 {
-	"forecast_start" : "today",
-	"forecast_end" : "7 days from today",
+	"forecast_start" : "20230701",
+	"forecast_end" : "20230708",
 	"spinup_date" : "20230101",
 	"output_write_start_datetime" : "",
 	"output_write_iteration_hours" : 24,

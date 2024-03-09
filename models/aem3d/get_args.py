@@ -31,23 +31,19 @@ def check_keys(settings_dict):
 	SETTINGS_KEYS = get_settings_keys()
 	for key in settings_dict:
 		if key not in SETTINGS_KEYS:
-			raise KeyError(f'invalid settings key: {key}')
+			raise KeyError(f'Invalid settings key: {key}')
 		
 def check_values(settings_dict):
-	# forecast start date must be datetime object
+	# dates must be datetime objects
 	if not isinstance(settings_dict['forecast_start'], datetime):
-		settings_dict['forecast_start']  = parse_to_datetime(settings_dict['forecast_start'])
-	# forecast end date must be datetime object
+		settings_dict['forecast_start'] = parse_to_datetime(settings_dict['forecast_start'])
 	if not isinstance(settings_dict['forecast_end'], datetime):
-		if settings_dict['forecast_end'] == '7 days from today':
-			settings_dict['forecast_end'] = settings_dict['forecast_start'] + timedelta(days=7)
-		else: settings_dict['forecast_end'] = parse_to_datetime(settings_dict['forecast_end'])
+		settings_dict['forecast_end'] = parse_to_datetime(settings_dict['forecast_end'])
 	if not isinstance(settings_dict['spinup_date'], datetime):
 		settings_dict['spinup_date'] = parse_to_datetime(settings_dict['spinup_date'])
 
 	if not isinstance(settings_dict['output_write_start_datetime'], datetime):
 		settings_dict['output_write_start_datetime'] = parse_to_datetime(settings_dict['output_write_start_datetime'])
-
 
 	# # check blending variable to make sure it's a valid var name
 	# if settings_dict['blending_variable'] not in valid_vars:
@@ -120,14 +116,6 @@ def get_cmdln_args():
 
 	return args
 
-def get_stack():
-	stack = inspect.stack()
-	settings_path = stack[0].filename
-	for _ in range(3):
-		settings_path = os.path.dirname(settings_path)
-	settings_path = os.path.join(settings_path, "default_settings.json")
-	return settings_path
-
 def get_default_fpath():
 	stack = inspect.stack()
 	settings_path = stack[0].filename
@@ -137,8 +125,7 @@ def get_default_fpath():
 	return settings_path
 
 def get_settings_keys():
-	default_fpath = get_default_fpath()
-	return list(load_json(default_fpath).keys())
+	return list(load_defaults().keys())
 
 def load_config(config_fpath):
 	config_settings = load_json(config_fpath)
@@ -146,24 +133,21 @@ def load_config(config_fpath):
 	return config_settings
 
 # reads default settings json file and returns dictionary of default settings
-def load_defaults(default_fpath):
-	today = date.today()
+def load_defaults(default_fpath = get_default_fpath()):
+	print(f"Loading default settings from: {default_fpath}")
 	defaults = load_json(default_fpath)
-	# manually set the current date and 7 days from today - can't do this programmatically in json
-	defaults['forecast_start'] = datetime(today.year, today.month, today.day)
-	defaults['spinup_date'] = parse_to_datetime(defaults['spinup_date'])
+	# Convert defaults to appropriate objects
+	check_values(defaults)
 	return defaults
 
 def load_json(fpath):
 	with open(fpath) as file:
 		data = json.load(file)
-		print("data from json ",fpath)
-		#print(data)
 	return data
 
 def process_args(args):
 	SETTINGS_KEYS = get_settings_keys()
-	print("SETTINGS_KEYS", SETTINGS_KEYS)
+	print("SETTINGS_KEYS:\n", SETTINGS_KEYS)
 	# convert args from a Namespace to a dict
 	args = vars(args)
 	print("Raw Args", args)
