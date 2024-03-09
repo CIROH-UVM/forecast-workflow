@@ -304,6 +304,8 @@ def parse_to_datetime(date):
 		# return as a datetime, time set to midnight by default
 		return dt.datetime.combine(date, dt.datetime.min.time()).replace(tzinfo=dt.timezone.utc)
 	elif isinstance(date, str):
+		if date == "":
+			return None
 		try:
 			date = dt.datetime.strptime(date, "%Y%m%d").replace(tzinfo=dt.timezone.utc)
 			return date

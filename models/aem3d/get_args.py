@@ -41,7 +41,6 @@ def check_values(settings_dict):
 		settings_dict['forecast_end'] = parse_to_datetime(settings_dict['forecast_end'])
 	if not isinstance(settings_dict['spinup_date'], datetime):
 		settings_dict['spinup_date'] = parse_to_datetime(settings_dict['spinup_date'])
-
 	if not isinstance(settings_dict['output_write_start_datetime'], datetime):
 		settings_dict['output_write_start_datetime'] = parse_to_datetime(settings_dict['output_write_start_datetime'])
 

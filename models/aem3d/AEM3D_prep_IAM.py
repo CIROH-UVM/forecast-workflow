@@ -1139,7 +1139,7 @@ def gencntlfile(theBay, settings):
 	##
 	#	Check and setup for possible restart file generation
 	#		If no write_start specified, no saves to schedule
-	if settings['output_write_start_datetime'] != "" :
+	if settings['output_write_start_datetime'] != None :
 		# Convert write_start datetime to a sim iteration count
 		output_start_iter = 1 + int((settings['output_write_start_datetime'] - simstart).total_seconds() / AEM3D_DEL_T)
 	else :
