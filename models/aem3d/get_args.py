@@ -33,7 +33,7 @@ def check_keys(settings_dict):
 		if key not in SETTINGS_KEYS:
 			raise KeyError(f'Invalid settings key: {key}')
 		
-def check_values(settings_dict):
+def check_values(settings_dict, defaults=False):
 	# dates must be datetime objects
 	if not isinstance(settings_dict['forecast_start'], datetime):
 		settings_dict['forecast_start'] = parse_to_datetime(settings_dict['forecast_start'])
@@ -74,15 +74,16 @@ def check_values(settings_dict):
 
 	# don't need to check csv flag, as default is false, and if the flag is passed, it will change to true. Trying to pass a
 	#  string or number for --csv will throw an error as an unrecognized bool
-	# check to see if root dir exists
-	if not os.path.isdir(settings_dict['root_dir']):
-		raise ValueError(f"path '{settings_dict['root_dir']}' does not exist")
-	# check to see if aem3d input dir exists
-	if not os.path.isdir(settings_dict['aem3d_input_dir']):
-		raise ValueError(f"path '{settings_dict['aem3d_input_dir']}' does not exist")
-	# check to see if aem3d command exists
-	if not os.path.isfile(settings_dict['aem3d_command_path']):
-		raise ValueError(f"file '{settings_dict['aem3d_command_path']}' not found")
+	if not defaults:	
+		# check to see if root dir exists
+		if not os.path.isdir(settings_dict['root_dir']):
+			raise ValueError(f"path '{settings_dict['root_dir']}' does not exist")
+		# check to see if aem3d input dir exists
+		if not os.path.isdir(settings_dict['aem3d_input_dir']):
+			raise ValueError(f"path '{settings_dict['aem3d_input_dir']}' does not exist")
+		# check to see if aem3d command exists
+		if not os.path.isfile(settings_dict['aem3d_command_path']):
+			raise ValueError(f"file '{settings_dict['aem3d_command_path']}' not found")
 	
 # setting up command-line argument parser
 def get_cmdln_args():
@@ -136,7 +137,7 @@ def load_defaults(default_fpath = get_default_fpath()):
 	print(f"Loading default settings from: {default_fpath}")
 	defaults = load_json(default_fpath)
 	# Convert defaults to appropriate objects
-	check_values(defaults)
+	check_values(defaults, defaults = True)
 	return defaults
 
 def load_json(fpath):
