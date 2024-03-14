@@ -18,5 +18,5 @@ export PYTHONPATH=~/ciroh/forecast-workflow
 
 cd $run_dir
 
-python -m models.aem3d.AEM3D_prep_FEE_worker --conf configuration.json
+python -m models.aem3d.AEM3D_prep_worker --conf configuration.json
 python -m models.aem3d.AEM3D_worker

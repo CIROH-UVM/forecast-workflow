@@ -58,6 +58,7 @@ for year in years:
 		config['hydrology_dataset_observed'] = experiment_launch_params['hydrology_dataset_observed']
 		config['hydrology_dataset_forecast'] = experiment_launch_params['hydrology_dataset_forecast']
 		config['nwm_forecast_member'] = experiment_launch_params['nwm_forecast_member']
+		config['aem3d_command_path'] = experiment_launch_params['aem3d_command_path']
 
 		# wrtie the run-specific config file
 		with open('configuration.json', 'w') as config_file:

@@ -9,5 +9,6 @@
 	"weather_dataset_forecast" : "NOAA_GFS",
 	"hydrology_dataset_observed" : "USGS_IV",
 	"hydrology_dataset_forecast" : "NOAA_NWM_PROD",
-	"nwm_forecast_member" : "<nwm_forecast_member>"
+	"nwm_forecast_member" : "<nwm_forecast_member>",
+	"aem3d_command_path" : "<path_to_aem3d>"
 }
