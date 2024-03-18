@@ -14,9 +14,10 @@ set -x
 
 source /users/n/b/nbeckage/miniconda3/etc/profile.d/conda.sh
 conda activate forecast
-export PYTHONPATH=~/ciroh/forecast-workflow
+# export PYTHONPATH=/users/p/c/pclemins/repos/forecast-workflow
+export PYTHONPATH=/users/n/b/nbeckage/ciroh/forecast-workflow
 
 cd $run_dir
 
 python -m models.aem3d.AEM3D_prep_worker --conf configuration.json
-python -m models.aem3d.AEM3D_worker
+python -m models.aem3d.AEM3D_worker --conf configuration.json
