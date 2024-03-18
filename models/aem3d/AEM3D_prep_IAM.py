@@ -405,7 +405,7 @@ def genclimatefiles(whichbay, settings):
 	# Move a day back so AEM3D is happy
 	adjusted_spinup = settings['spinup_date'] - dt.timedelta(days=1)
 	# Keep moving a day back until out of blackout region
-	while (adjusted_spinup.year in [2019, 2020, 2021] and adjusted_spinup.month == 12 and adjusted_spinup.day > 25):
+	while (adjusted_spinup.year in [2018, 2019, 2020, 2021] and adjusted_spinup.month == 12 and adjusted_spinup.day > 25):
 		adjusted_spinup = adjusted_spinup - dt.timedelta(days=1)
 	print(f"ADJUSTED SPINUP: {adjusted_spinup}")
 	#####
