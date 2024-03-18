@@ -18,8 +18,12 @@ delta = end_dt - start_dt
 
 # download nwm data for members 1-7
 for member in range(1, 8):
-	# hours list will be the same for NWM, regardless of member
-	hours = generate_hours_list(num_hours=int(24*fc_days), source='nwm', forecast_type='medium')
+	# hours list will be the same for NWM for each member
+	# hours list will change based on year; for 2020 and 2019, nwm forecast is only archived at 3-hour intervals
+	if year < 2021:
+		arch = True
+	else: arch = False
+	hours = generate_hours_list(num_hours=int(24*fc_days), source='buckets', forecast_type='medium', archive=arch)
 	dates = [(start_dt + dt.timedelta(days=d)) for d in range(delta.days+1)]
 	print(f"Downloading NWM {fc_type}{member} for year: {year}")
 	print(f"\t START DATE: {dates[0].strftime('%Y%m%d')}")
