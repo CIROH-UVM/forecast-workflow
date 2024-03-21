@@ -579,13 +579,30 @@ def genclimatefiles(whichbay, settings):
 	wtr_temp = wtr_temp + 0.75    # 0.75 correction based on WQS Docs 2021.05.27
 	'''
 
+	wtr_temp_dict = {
+		'201': '401',
+		'202': '401',
+		'203': '401',
+		'204': '401',
+		'21':  '401',
+		'22':  '401',
+		'17':  '402',
+		'19':  '402'
+	}
+
 	wtr_temp_zones = {'401' : air_temp['401'].resample("15min").interpolate("time").rolling(window=96,min_periods=1).mean(),
 				   	  '402' : air_temp['402'].resample("15min").interpolate("time").rolling(window=96,min_periods=1).mean()}
+	
+	# General water temp nudges
+	for zone, data in wtr_temp_zones:
+		wtr_temp_zones[zone].loc[wtr_temp_zones[zone] < 0.0] = 0.0  # no subfreezing water
+		wtr_temp_zones[zone] = wtr_temp_zones[zone] + 0.75          # 0.75 correction based on WQS Docs 2021.05.27
 
-	# Store temp series in bay object for later use in wq calcs
+	# Create water temp dictionary for bay object for later use in wq calcs
 	# THEBAY.tempdf = wrfdf[['ordinaldate', 'wtr_temp']].copy()
-	THEBAY.tempdf = pd.DataFrame({'ordinaldate' : wtr_temp.index.to_series().apply(datetimeToOrdinal), 'wtr_temp' : wtr_temp.array})
-
+	THEBAY.wtr_temp_dict = {}
+	for inflow, climZone in wtr_temp_dict:
+		THEBAY.wtr_temp_dict[inflow] = wtr_temp_zones[climZone]
 
 	#
 	#       Write the temperature file for each source of the bay
@@ -595,15 +612,6 @@ def genclimatefiles(whichbay, settings):
 		bs_name = THEBAY.sourcemap[baysource]['name']
 		filename = bs_name + '_Temp.dat'
 		logger.info('Generating Bay Source Temperature File: '+filename)
-
-		# assign zone for water temperature based on baysource
-		if baysource in ['201', '202', '203', '204', '21', '22']:
-			wtr_temp = wtr_temp_zones['401']
-		elif baysource in ['17', '19']:
-			wtr_temp = wtr_temp_zones['402']
-		# now do general water temp nudges
-		wtr_temp.loc[wtr_temp<0] = 0  # no subfreezing water
-		wtr_temp = wtr_temp + 0.75    # 0.75 correction based on WQS Docs 2021.05.27
 
 		# Write Temp File
 		# open the file in output directory
@@ -624,7 +632,7 @@ def genclimatefiles(whichbay, settings):
 			output_file.write('TIME      WTR_TEMP\n')
 
 			# output the ordinal date and temp dataframe columns
-			seriesIndexToOrdinalDate(wtr_temp).to_csv(path_or_buf = output_file, float_format='%.3f',
+			seriesIndexToOrdinalDate(wtr_temp_dict[baysource]).to_csv(path_or_buf = output_file, float_format='%.3f',
 			sep=' ', index=True, header=False)
 
 	#
