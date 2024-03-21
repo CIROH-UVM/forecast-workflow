@@ -570,11 +570,17 @@ def genclimatefiles(whichbay, settings):
 	
 	logger.info(print_df(air_temp['401']))
 
+	'''
+	# OLD METHOD FOR WATER TEMP - BASED ON ZONE 403 FOR ALL BAYSOURCES
 	# Use air temp at zone 403 (ILS)
 	wtr_temp = air_temp['403'].rolling(window=96,min_periods=1).mean() # moving average over 4 days
 
 	wtr_temp.loc[wtr_temp<0] = 0  # no subfreezing water
 	wtr_temp = wtr_temp + 0.75    # 0.75 correction based on WQS Docs 2021.05.27
+	'''
+
+	wtr_temp_zones = {'401' : air_temp['401'].resample("15min").interpolate("time").rolling(window=96,min_periods=1).mean(),
+				   	  '402' : air_temp['402'].resample("15min").interpolate("time").rolling(window=96,min_periods=1).mean()}
 
 	# Store temp series in bay object for later use in wq calcs
 	# THEBAY.tempdf = wrfdf[['ordinaldate', 'wtr_temp']].copy()
@@ -589,6 +595,15 @@ def genclimatefiles(whichbay, settings):
 		bs_name = THEBAY.sourcemap[baysource]['name']
 		filename = bs_name + '_Temp.dat'
 		logger.info('Generating Bay Source Temperature File: '+filename)
+
+		# assign zone for water temperature based on baysource
+		if baysource in ['201', '202', '203', '204', '21', '22']:
+			wtr_temp = wtr_temp_zones['401']
+		elif baysource in ['17', '19']:
+			wtr_temp = wtr_temp_zones['402']
+		# now do general water temp nudges
+		wtr_temp.loc[wtr_temp<0] = 0  # no subfreezing water
+		wtr_temp = wtr_temp + 0.75    # 0.75 correction based on WQS Docs 2021.05.27
 
 		# Write Temp File
 		# open the file in output directory
