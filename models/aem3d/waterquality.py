@@ -14,6 +14,7 @@ import os
 from string import Template
 import numpy as np
 import pandas as pd
+from .AEM3D_prep_IAM import seriesIndexToOrdinalDate
 
 
 '''
@@ -123,52 +124,48 @@ def gensilicafile(theBay):
 
 def genwqfiles (theBay):
 
+    THEBAY = theBay
+
     # print('That is some Quality Water, right there.')
 
     # print('Copy Bay Flow')
     flowdf = theBay.flowdf.copy()       # get flow dataframe from bay object
-    # print('Copy Bay Temp')
-    tempdf = theBay.tempdf.copy()       # copy of bay water temp dataframe
-
-    # Dissolved Oxygen based on Water Temp
-    tempdf['DO'] = 14.652 \
-                 - 4.1022e-1  * tempdf['wtr_temp'] \
-                 + 7.991e-3   * np.power(tempdf['wtr_temp'], 2) \
-                 - 7.77774e-5 * np.power(tempdf['wtr_temp'], 3)
-
-    #   write out DO file
-    #       all the sources are modeled with same DO,
-    #       in one file repeat the calculated series for each source
-
-    filename = 'WQ_DO.dat'
-    logger.info('Writing Dissolved Oxygen File ' + filename)
-
-    pathedfile = os.path.join(theBay.infile_dir, filename)
-    with open(pathedfile, mode='w', newline='') as output_file:
-
-        theBay.addfile(fname=filename)        # remember generated bay files
-        # output the header text
-        output_file.write(
-            '!-----------------------------------------------------!\n')
-        output_file.write(
-            '! Written by AEM3D_prep_IAM                           !\n')
-        output_file.write('! Bay ID: ' + theBay.bayid +
-                        '                            !\n')
-        output_file.write(
-            '!-----------------------------------------------------!\n')
-        output_file.write('6 data sets\n')
-        output_file.write('0 seconds between data\n')
-        output_file.write('0 '+ '  '.join(theBay.sourcelist) + ' \n')
-        # TODO- The number of DO columns should be auto-synched with the length of the sourcelist
-        output_file.write('TIME	  DO  DO  DO  DO  DO  DO  DO  DO\n')
-
-        # output the ordinal date and flow value time dataframe columns
-        # TODO-  Match the number of DO dataseries columns to the auto-synch of the length of sourcelist
-        tempdf.to_csv(path_or_buf=output_file, columns=['ordinaldate', 'DO', 'DO', 'DO','DO','DO','DO', 'DO', 'DO'], float_format='%.3f',
-                    sep=' ', index=False, header=False)
+   
     #
-    #   End of Dissolved Oxygen From Temp
+    #       Write the water temperature file for each source of the bay
     #
+    for baysource in THEBAY.sourcelist :
+
+        # Dissolved Oxygen based on Water Temp
+        DO  = 14.652 \
+            - 4.1022e-1  * THEBAY.wtr_temp_dict[baysource] \
+            + 7.991e-3   * np.power(THEBAY.wtr_temp_dict[baysource], 2) \
+            - 7.77774e-5 * np.power(THEBAY.wtr_temp_dict[baysource], 3)
+
+        bs_name = THEBAY.sourcemap[baysource]['name']
+        filename = "WQ_" + bs_name + '_DO.dat'
+        logger.info('Generating Bay Source DO File: '+filename)
+
+        # open the file in output directory
+        pathedfile = os.path.join(THEBAY.infile_dir, filename)
+        with open(pathedfile, mode='w', newline='') as output_file:
+
+            THEBAY.addfile(fname=filename)        # remember generated bay files
+
+            # output the header text
+            output_file.write('!-----------------------------------------------------!\n')
+            output_file.write('! Written by AEM3D_prep_IAM                           !\n')
+            output_file.write('! Bay ID: '+ THEBAY.bayid + '                         !\n')
+            output_file.write('! Bay Source: ' + bs_name + '                         !\n')
+            output_file.write('!-----------------------------------------------------!\n')
+            output_file.write('1 data sets\n')
+            output_file.write('0 seconds between data\n')
+            output_file.write('0    '+baysource+'\n')
+            output_file.write('TIME      DO\n')
+
+            # output the ordinal date and temp dataframe columns
+            seriesIndexToOrdinalDate(DO).to_csv(path_or_buf = output_file, float_format='%.3f',
+            sep=' ', index=True, header=False)
 
     ##
     #
@@ -237,8 +234,8 @@ def genwqfiles (theBay):
         #TODO: Implement BREE2021Seg
         #TODO: Move all this junk to THEBAY, choose cqVersion at THEBAY creation
 
-		# make wQ a settings, have peter's stuff be an option
-		# if cqVersion = "islesRF"
+        # make wQ a settings, have peter's stuff be an option
+        # if cqVersion = "islesRF"
         if cqVersion == 'Clelia':
             # Clelia TP Concentration - Discharge Relationship
             #   Same for ALL ILS inputs!!
