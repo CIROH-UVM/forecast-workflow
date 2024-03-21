@@ -854,7 +854,7 @@ def genclimatefiles(whichbay, settings):
 			pd.concat([
 				seriesIndexToOrdinalDate(windspd[zone]),
 				seriesIndexToOrdinalDate(winddir[zone])],
-				axis=1).to_csv(
+				axis=1).dropna().to_csv(
 				path_or_buf = output_file,
 				float_format='%.3f',
 				sep=' ',
