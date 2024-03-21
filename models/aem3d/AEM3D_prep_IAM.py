@@ -379,6 +379,9 @@ class ShortwaveNudger:
 def adjustFEMCLCD(whichbay, dataset):
 	# BTV rain adjustment
 	dataset['403']['RAIN'] = remove_nas(dataset['403']['RAIN']) * 0.6096
+	# define a function to set relative humidity values to 100 if greater than 100
+	# seems to be a problem in observations prior to 6/6/2019 in colchesterReefFEMC/Z0080_CR_QAQC.csv
+	cap_rhum_at_100 = lambda x: 100 if x > 100 else x
 	for zone in dataset.keys():
 		# air temp and swr adjustments
 		if zone == '401':
@@ -396,7 +399,10 @@ def adjustFEMCLCD(whichbay, dataset):
 			dataset[zone]['WSPEED'] = remove_nas(dataset[zone]['WSPEED']) * 0.65
 		# Removing NAs for wind direction, relative humidity, and short-wave radiation
 		dataset[zone]['WDIR'] = remove_nas(dataset[zone]['WDIR'])
-		dataset[zone]['RH2'] = remove_nas(dataset[zone]['RH2'])
+		dataset[zone]['RH2'] = remove_nas(dataset[zone]['RH2'].apply(cap_rhum_at_100))
+		logger.info("REL_HUM ABOIVE 100:")
+		logger.info(dataset[zone]['RH2'][dataset[zone]['RH2'] > 100])
+		logger.info("The abover should be an empty series")
 		dataset[zone]['SWDOWN'] = remove_nas(dataset[zone]['SWDOWN'])
 	return dataset
 
@@ -827,7 +833,8 @@ def genclimatefiles(whichbay, settings):
 	for zone in windspd.keys():
 		filename = f'WS_WD_{zone}.dat'
 		logger.info('Generating Wind Speed and Direction File: '+filename)
-
+		logger.info(seriesIndexToOrdinalDate(windspd[zone]))
+		logger.info(seriesIndexToOrdinalDate(winddir[zone]))
 		with open(os.path.join(THEBAY.infile_dir, filename), mode='w', newline='') as output_file:
 
 			THEBAY.addfile(fname=filename)        # remember generated bay files
