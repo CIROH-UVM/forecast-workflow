@@ -41,6 +41,7 @@ for year in years:
 	delta = end_dt - start_dt
 	scenario_dir_year = os.path.join(scenario_dir, f'{year}/')
 	dates = [start_dt + dt.timedelta(days=d) for d in range(delta.days+1)]
+	spinup_month_and_day = dt.datetime.strptime(experiment_launch_params['spinup_date'], "%m%d")
 	for date in dates:
 		scenario_dir_date = os.path.join(scenario_dir_year,date.strftime('%Y%m%d'))
 		# if the run exists, skip it
@@ -49,6 +50,7 @@ for year in years:
 		os.makedirs(scenario_dir_date)
 		os.chdir(scenario_dir_date)
 
+		config['spinup_date'] = dt.datetime(date.year, spinup_month_and_day.month, spinup_month_and_day.day).strftime('%Y%m%d')
 		config['spinup_date'] = dt.datetime(date.year, 1, 1).strftime('%Y%m%d')
 		config['forecast_start'] = date.strftime('%Y%m%d')
 		config['forecast_end'] = (date + dt.timedelta(days=7)).strftime('%Y%m%d')
