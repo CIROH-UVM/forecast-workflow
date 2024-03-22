@@ -400,9 +400,9 @@ def adjustFEMCLCD(whichbay, dataset):
 		# Removing NAs for wind direction, relative humidity, and short-wave radiation
 		dataset[zone]['WDIR'] = remove_nas(dataset[zone]['WDIR'])
 		dataset[zone]['RH2'] = remove_nas(dataset[zone]['RH2'].apply(cap_rhum_at_100))
-		logger.info("REL_HUM ABOIVE 100:")
-		logger.info(dataset[zone]['RH2'][dataset[zone]['RH2'] > 100])
-		logger.info("The abover should be an empty series")
+		# logger.info("REL_HUM ABOIVE 100:")
+		# logger.info(dataset[zone]['RH2'][dataset[zone]['RH2'] > 100])
+		# logger.info("The abover should be an empty series")
 		dataset[zone]['SWDOWN'] = remove_nas(dataset[zone]['SWDOWN'])
 	return dataset
 
@@ -594,14 +594,14 @@ def genclimatefiles(whichbay, settings):
 				   	  '402' : air_temp['402'].resample("15min").interpolate("time").rolling(window=96,min_periods=1).mean()}
 	
 	# General water temp nudges
-	for zone, data in wtr_temp_zones:
+	for zone, data in wtr_temp_zones.items():
 		wtr_temp_zones[zone].loc[wtr_temp_zones[zone] < 0.0] = 0.0  # no subfreezing water
 		wtr_temp_zones[zone] = wtr_temp_zones[zone] + 0.75          # 0.75 correction based on WQS Docs 2021.05.27
 
 	# Create water temp dictionary for bay object for later use in wq calcs
 	# THEBAY.tempdf = wrfdf[['ordinaldate', 'wtr_temp']].copy()
 	THEBAY.wtr_temp_dict = {}
-	for inflow, climZone in wtr_temp_dict:
+	for inflow, climZone in wtr_temp_dict.items():
 		THEBAY.wtr_temp_dict[inflow] = wtr_temp_zones[climZone]
 
 	#
@@ -632,7 +632,7 @@ def genclimatefiles(whichbay, settings):
 			output_file.write('TIME      WTR_TEMP\n')
 
 			# output the ordinal date and temp dataframe columns
-			seriesIndexToOrdinalDate(wtr_temp_dict[baysource]).to_csv(path_or_buf = output_file, float_format='%.3f',
+			seriesIndexToOrdinalDate(wtr_temp_zones[wtr_temp_dict[baysource]]).to_csv(path_or_buf = output_file, float_format='%.3f',
 			sep=' ', index=True, header=False)
 
 	#
