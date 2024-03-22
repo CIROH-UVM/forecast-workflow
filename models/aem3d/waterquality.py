@@ -14,7 +14,7 @@ import os
 from string import Template
 import numpy as np
 import pandas as pd
-from .AEM3D_prep_IAM import seriesIndexToOrdinalDate
+# from .AEM3D_prep_IAM import seriesIndexToOrdinalDate
 
 
 '''
@@ -93,6 +93,29 @@ SSOL1 = 17.7558 * z2 + 59.5663 * z + 48.0127
 where z = (Q - 170.0903)/ 142.1835
 
 '''
+
+def datetimeToOrdinal(date):
+
+	dayofyear = date.strftime('%j')
+
+	# Left pad dayofyear to length 3 by zeros
+	yearday = str(date.year) + dayofyear.zfill(3)
+
+	totseconds = date.hour * 3600 + \
+				 date.minute * 60 + \
+				 date.second
+	fracsec = totseconds / dt.timedelta(days=1).total_seconds()  #Fraction of the day's seconds
+
+	ordinaldate = yearday + str(fracsec)[1:6].ljust(5,'0')  # add the percentage seconds since noon
+	return ordinaldate
+
+def seriesIndexToOrdinalDate(series):
+	# Now, using datetimeToOrdinal()
+	ordinaldate = series.index.to_series().apply(datetimeToOrdinal)
+
+	#ordinaldate = pandasDatetimeToOrdinal(series.index)
+	#ordinaldate = pd.Series(wrfdf['ordinaldate'].array, index = wrfdf['wrftime'])
+	return pd.Series(series.array, index = ordinaldate)
 
 def gencarbonfile(theBay):
     #
