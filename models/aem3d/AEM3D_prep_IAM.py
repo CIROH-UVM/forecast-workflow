@@ -477,6 +477,19 @@ def genclimatefiles(whichbay, settings):
 			observedClimateBTV[key] = copy.deepcopy(observedClimateBTV['401'])
 			observedClimateCR[key] = copy.deepcopy(observedClimateCR['401'])
 
+		# For MB (zone 401), we actually want cloud cover from Franklin Airport
+		# Franklin airport ID: 00152
+		# common code prefix for vermont stations: 726170
+		observedClimateFSO = lcd_ob.get_data(start_date = adjusted_spinup,
+									  	  end_date = settings['forecast_start'],
+									  	  locations = {"401":"72617000152"})
+
+		logger.info("Observed TCDC BTV:")
+		logger.info(observedClimateBTV['401']['TCDC'])
+		# now overwrite cloud cover for 401 
+		observedClimateBTV['401']['TCDC'] = copy.deepcopy(observedClimateFSO['401']['TCDC'])
+		logger.info("Observed TCDC FSO:")
+		logger.info(observedClimateBTV['401']['TCDC'])
 		# cool new way to combine dictionaries (python >= 3.9)for zone, ds in climateObsCR.items():
 		# Both FEMC and LCD data grabbers now need mathing location keys to work since they are being combine
 		for zone in observedClimateCR.keys():
@@ -504,13 +517,27 @@ def genclimatefiles(whichbay, settings):
 										locations = {'401':'ColReefQAQC'},
 										data_dir = os.path.join(settings['root_dir'], 'hindcastData/'))
 		
-		# copy data from 401 for 402, 403. Mzke sure it's a deep copy, not memeory reference
-		
+		# copy data from 401 for 402, 403. Make sure it's a deep copy, not memeory reference
 		###### FEMC+LCD DATA ADJUSTMENTS HERE ######
-			# make additional location dictionaries here rather than call for the same location multiple times in get_data()'s
+		# make additional location dictionaries here rather than call for the same location multiple times in get_data()'s
 		for key in ['402', '403']:
 			forecastClimateBTV[key] = copy.deepcopy(forecastClimateBTV['401'])
 			forecastClimateCR[key] = copy.deepcopy(forecastClimateCR['401'])
+
+		# For MB (zone 401), we actually want cloud cover from Franklin Airport
+		# Franklin airport ID: 00152
+		# common code prefix for vermont stations: 726170
+		forecastClimateFSO = lcd_ob.get_data(start_date = settings['forecast_start'],
+									  	  end_date = adjusted_end_date,
+									  	  locations = {"401":"72617000152"})
+		
+		logger.info("forecast TCDC BTV:")
+		logger.info(forecastClimateBTV['401']['TCDC'])
+		# now overwrite cloud cover for 401 
+		forecastClimateBTV['401']['TCDC'] = copy.deepcopy(forecastClimateFSO['401']['TCDC'])
+		logger.info("forecast TCDC FSO:")
+		logger.info(forecastClimateBTV['401']['TCDC'])
+
 		# cool new way to combine dictionaries (python >= 3.9)for zone, ds in climateObsCR.items():
 		# Both FEMC and LCD data grabbers now need mathing location keys to work since they are being combine
 		for zone in forecastClimateCR.keys():
