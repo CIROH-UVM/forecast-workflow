@@ -116,6 +116,10 @@ def seriesIndexToOrdinalDate(series):
 	#ordinaldate = pd.Series(wrfdf['ordinaldate'].array, index = wrfdf['wrftime'])
 	return pd.Series(series.array, index = ordinaldate)
 
+def dataFrameIndexToOrdinalDate(dataframe):
+	ordinaldate = dataframe.index.to_series().apply(datetimeToOrdinal)
+	return pd.DataFrame(dataframe.values, index=ordinaldate)
+
 def ordinalnudgerow(rowtonudge, columntonudge, nudgeframe):
 	# apply a proportional nudge value that is specific to the day of year in the passed row
 	#   rowtonudge - row from a dataframe with TIME column and a value column
@@ -414,6 +418,7 @@ def adjustGFS(dataset):
 		# GFS temperature adjustment
 		dataset[zone]['T2'] = dataset[zone]['T2']-273.15
 		# GFS TCDC adjustment
+		# Divide GFS TCDC by 100 to get true percentage (see new adjustments function)
 		dataset[zone]['TCDC'] = dataset[zone]['TCDC']/100.0
 		# GFS windspeed adjustments
 		dataset[zone]['WSPEED'] = np.sqrt(np.square(dataset[zone]['U10']) + np.square(dataset[zone]['V10']))
@@ -778,7 +783,6 @@ def genclimatefiles(whichbay, settings):
 		filename = f'CLOUDS_{zone}.dat'
 		logger.info('Generating Bay Cloud Cover File: '+filename)
 
-		# Divide GFS TCDC by 100 to get true percentage (see new adjustments function)
 		full_cloud_series = pd.concat([observedClimate['403']['TCDC'],forecastClimate[zone]['TCDC']])
 		cloud_plot_data[zone] = full_cloud_series
 
@@ -817,10 +821,7 @@ def genclimatefiles(whichbay, settings):
 		# 	np.square(forecastClimate[zone]['U10']) +
 		# 	np.square(forecastClimate[zone]['V10'])
 		# )
-		if zone == '403':
-			windspd[zone] = pd.concat([observedClimate[zone]['WSPEED'], forecastClimate[zone]['WSPEED']])
-		else:
-			windspd[zone] = pd.concat([observedClimate[zone]['WSPEED'], forecastClimate[zone]['WSPEED']])
+		windspd[zone] = pd.concat([observedClimate[zone]['WSPEED'], forecastClimate[zone]['WSPEED']])
 
 		# #  a bit of trig to map the wind vector components into a direction
 		# #  𝜙 =180+(180/𝜋)*atan2(𝑢,𝑣)
@@ -856,8 +857,8 @@ def genclimatefiles(whichbay, settings):
 	for zone in windspd.keys():
 		filename = f'WS_WD_{zone}.dat'
 		logger.info('Generating Wind Speed and Direction File: '+filename)
-		logger.info(seriesIndexToOrdinalDate(windspd[zone]))
-		logger.info(seriesIndexToOrdinalDate(winddir[zone]))
+		# logger.info(seriesIndexToOrdinalDate(windspd[zone]))
+		# logger.info(seriesIndexToOrdinalDate(winddir[zone]))
 		with open(os.path.join(THEBAY.infile_dir, filename), mode='w', newline='') as output_file:
 
 			THEBAY.addfile(fname=filename)        # remember generated bay files
@@ -874,10 +875,22 @@ def genclimatefiles(whichbay, settings):
 			output_file.write('TIME         WIND_SPEED	  WIND_DIR\n')
 
 			# output the ordinal date and flow value time dataframe columns
+			'''
 			pd.concat([
 				seriesIndexToOrdinalDate(windspd[zone]),
 				seriesIndexToOrdinalDate(winddir[zone])],
-				axis=1).dropna().to_csv(
+				axis=1).drop_na().sort().to_csv(
+				path_or_buf = output_file,
+				float_format='%.3f',
+				sep=' ',
+				index=True, header=False)
+			'''
+			# now interpolating instead of dropping rows with missing data afger calibration
+			# converting index to ordinal date last, as we need a datetime index in order to interpolate
+			dataFrameIndexToOrdinalDate(pd.concat([
+				windspd[zone],
+				winddir[zone]],
+				axis=1).sort_index().interpolate(method='time')).to_csv(
 				path_or_buf = output_file,
 				float_format='%.3f',
 				sep=' ',
