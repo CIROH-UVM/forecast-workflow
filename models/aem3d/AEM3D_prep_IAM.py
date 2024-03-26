@@ -482,14 +482,14 @@ def genclimatefiles(whichbay, settings):
 		# common code prefix for vermont stations: 726170
 		observedClimateFSO = lcd_ob.get_data(start_date = adjusted_spinup,
 									  	  end_date = settings['forecast_start'],
-									  	  locations = {"401":"72617000152"})
+									  	  locations = {"401":"72214103731"})
 
 		logger.info("Observed TCDC BTV:")
-		logger.info(observedClimateBTV['401']['TCDC'])
+		logger.info(observedClimateBTV['401']['TCDC'].info())
 		# now overwrite cloud cover for 401 
 		observedClimateBTV['401']['TCDC'] = copy.deepcopy(observedClimateFSO['401']['TCDC'])
 		logger.info("Observed TCDC FSO:")
-		logger.info(observedClimateBTV['401']['TCDC'])
+		logger.info(observedClimateBTV['401']['TCDC'].info())
 		# cool new way to combine dictionaries (python >= 3.9)for zone, ds in climateObsCR.items():
 		# Both FEMC and LCD data grabbers now need mathing location keys to work since they are being combine
 		for zone in observedClimateCR.keys():
@@ -529,14 +529,14 @@ def genclimatefiles(whichbay, settings):
 		# common code prefix for vermont stations: 726170
 		forecastClimateFSO = lcd_ob.get_data(start_date = settings['forecast_start'],
 									  	  end_date = adjusted_end_date,
-									  	  locations = {"401":"72617000152"})
+									  	  locations = {"401":"72214103731"})
 		
 		logger.info("forecast TCDC BTV:")
-		logger.info(forecastClimateBTV['401']['TCDC'])
+		logger.info(forecastClimateBTV['401']['TCDC'].info())
 		# now overwrite cloud cover for 401 
 		forecastClimateBTV['401']['TCDC'] = copy.deepcopy(forecastClimateFSO['401']['TCDC'])
 		logger.info("forecast TCDC FSO:")
-		logger.info(forecastClimateBTV['401']['TCDC'])
+		logger.info(forecastClimateBTV['401']['TCDC'].info())
 
 		# cool new way to combine dictionaries (python >= 3.9)for zone, ds in climateObsCR.items():
 		# Both FEMC and LCD data grabbers now need mathing location keys to work since they are being combine
@@ -810,7 +810,7 @@ def genclimatefiles(whichbay, settings):
 		filename = f'CLOUDS_{zone}.dat'
 		logger.info('Generating Bay Cloud Cover File: '+filename)
 
-		full_cloud_series = pd.concat([observedClimate['403']['TCDC'],forecastClimate[zone]['TCDC']])
+		full_cloud_series = pd.concat([observedClimate[zone]['TCDC'],forecastClimate[zone]['TCDC']])
 		cloud_plot_data[zone] = full_cloud_series
 
 		cloud_series = seriesIndexToOrdinalDate(full_cloud_series)
