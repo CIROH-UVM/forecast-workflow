@@ -38,6 +38,20 @@ def create_final_df(df, colToKeep, index):
 	# 20231211 - set index as datetime with timezone suffix set to UTC; data is in UTC, tz_localize() tells pandas that
 	return pd.DataFrame(data={colToKeep: df[colToKeep].to_numpy()}, index=pd.DatetimeIndex(data=pd.to_datetime(df[index]), name='time')).tz_localize('UTC')
 
+def process_rain(precip_df):
+	# First replace 'T's for trace precip with 0.0
+	#  leavenotrace also removes 's' notations on some precip values
+	#  Also, convert to float
+	precip_df['RAIN'] = precip_df['HourlyPrecipitation'].apply(leavenotrace).astype('float')
+	# Then, dump rows with NaN for RAIN
+	precip_df = precip_df[~precip_df['RAIN'].isna()]
+
+def process_clouds(cloud_df):
+	cloud_df['skycode'] = cloud_df['HourlySkyConditions'].apply(splitsky)
+	# Remove those that don't convert to skycode... junk entries
+	cloud_df = cloud_df[cloud_df['skycode'] != ' ']
+	cloud_df['TCDC'] = cloud_df['skycode'].apply(sky2prop).astype('float')
+
 def retrieve_data(startDate, endDate, variable, station_id):
 	# put this in loop since this fails frequently
 	returnValue = None
@@ -74,7 +88,8 @@ def retrieve_data(startDate, endDate, variable, station_id):
 
 def get_data(start_date,
 			 end_date,
-			 locations={"BTV":"72617014742"},
+			 locations,
+			 variables,
 			 return_type='dict'):
 	"""
 	A function to download and process NOAA Local Climatological Data data to return nested dictionary of pandas series for each variable, for each location.
@@ -83,6 +98,7 @@ def get_data(start_date,
 	-- start_date (str, date, or datetime) [req]: the start date for which to grab LCD data
 	-- end_date (str, date, or datetime) [req]: the end date for which to grab LCD data
 	-- locations (dict) [req]: a dictionary (stationID/name:IDValue/latlong tuple) of locations to get USGS data for.
+	-- variables (dict) [req]: a dictionary of variables to download. Values should be AEM3D-specfic variable shortname, key should be LCD-specific variable name. See LCD spreadsheet for full list of available vars.
 	-- return_type (string) [opt]: string indicating which format to return data in. Default is "dict", which will return data in a nested dict format:
 									{locationID1:{
 										var1_name:pd.Series,
@@ -103,49 +119,45 @@ def get_data(start_date,
 	start_date = parse_to_datetime(start_date).date()
 	end_date = parse_to_datetime(end_date).date()
 	lcd_data = {loc:{} for loc in locations.keys()}
-	
-	# requeststring = 'https://www.ncei.noaa.gov/access/services/data/v1/'+\
-	#                         '?dataset=local-climatological-data'+\
-	#                         '&stations=72617014742'+\
-	#                         '&startDate='+\
-	#                          str(start_date)+\
-	#                         '&endDate='+\
-	#                          str(end_date)+\
-	#                         '&dataTypes=HourlyPrecipitation,HourlySkyConditions'+\
-	#                         '&format=json' 
-	# print(requeststring)
-	# result = requests.get(requeststring)
 
-	# df = pd.DataFrame(result.json())
-	
+	variables = {'HourlySkyConditions':'TCDC',
+			  	 'HourlyPrecipitation':'Rain'}
 	for station, id in locations.items():
-		cloud_df = retrieve_data(start_date, end_date, 'HourlySkyConditions', id)
-		precip_df = retrieve_data(start_date, end_date, 'HourlyPrecipitation', id)
-		
-		try:
-			logger.info('cloud_df in btv_met')
-			logger.info(cloud_df)
-			logger.info('precip_df in btv_met')		
-			logger.info(precip_df)
-		except Exception as e:
-			print(f'{type(e)}:{e}')
-		
+		# define an empty return dict for each station
 		returnDict = {}
+		# define dicionaries to hold raw and processed lcd data
+		raw_data = {}
+		processed_data = {}
+		# retrieve all of the data in the variables dictionary
+		for lcd_name, short_name in variables.items():
+			raw_data[short_name] = retrieve_data(start_date, end_date, lcd_name, id)
+			# add more cases as more variables come in and need specific processing
+			match lcd_name:
+				case 'HourlySkyConditions':
+					processed_data[short_name] = process_clouds(raw_data[short_name])
+				case 'HourlyPrecipitation':
+					processed_data[short_name] = process_rain(raw_data[short_name])
+		# try:
+		# 	logger.info('cloud_df in btv_met')
+		# 	logger.info(cloud_df)
+		# 	logger.info('precip_df in btv_met')		
+		# 	logger.info(precip_df)
+		# except Exception as e:
+		# 	print(f'{type(e)}:{e}')
 
-		cloud_df['skycode'] = cloud_df['HourlySkyConditions'].apply(splitsky)
-		# Remove those that don't convert to skycode... junk entries
-		cloud_df = cloud_df[cloud_df['skycode'] != ' ']
-		cloud_df['TCDC'] = cloud_df['skycode'].apply(sky2prop).astype('float')
+		# cloud_df['skycode'] = cloud_df['HourlySkyConditions'].apply(splitsky)
+		# # Remove those that don't convert to skycode... junk entries
+		# cloud_df = cloud_df[cloud_df['skycode'] != ' ']
+		# cloud_df['TCDC'] = cloud_df['skycode'].apply(sky2prop).astype('float')
 		
-		# First replace 'T's for trace precip with 0.0
-		#  leavenotrace also removes 's' notations on some precip values
-		#  Also, convert to float
-		precip_df['RAIN'] = precip_df['HourlyPrecipitation'].apply(leavenotrace).astype('float')
-		# Then, dump rows with NaN for RAIN
-		precip_df = precip_df[~precip_df['RAIN'].isna()]
+		# # First replace 'T's for trace precip with 0.0
+		# #  leavenotrace also removes 's' notations on some precip values
+		# #  Also, convert to float
+		# precip_df['RAIN'] = precip_df['HourlyPrecipitation'].apply(leavenotrace).astype('float')
+		# # Then, dump rows with NaN for RAIN
+		# precip_df = precip_df[~precip_df['RAIN'].isna()]
 
-		returnDict['TCDC'] = create_final_df(cloud_df, 'TCDC', 'DATE')
-		returnDict['RAIN'] = create_final_df(precip_df, 'RAIN', 'DATE')
+			returnDict[short_name] = create_final_df(processed_data[short_name], short_name, 'DATE')
 
 		# ensure return_type is a valid value
 		if return_type not in ['dict', 'dataframe']:
