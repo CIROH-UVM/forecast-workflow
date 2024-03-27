@@ -45,12 +45,14 @@ def process_rain(precip_df):
 	precip_df['RAIN'] = precip_df['HourlyPrecipitation'].apply(leavenotrace).astype('float')
 	# Then, dump rows with NaN for RAIN
 	precip_df = precip_df[~precip_df['RAIN'].isna()]
+	return precip_df
 
 def process_clouds(cloud_df):
 	cloud_df['skycode'] = cloud_df['HourlySkyConditions'].apply(splitsky)
 	# Remove those that don't convert to skycode... junk entries
 	cloud_df = cloud_df[cloud_df['skycode'] != ' ']
 	cloud_df['TCDC'] = cloud_df['skycode'].apply(sky2prop).astype('float')
+	return cloud_df
 
 def retrieve_data(startDate, endDate, variable, station_id):
 	# put this in loop since this fails frequently
@@ -120,8 +122,8 @@ def get_data(start_date,
 	end_date = parse_to_datetime(end_date).date()
 	lcd_data = {loc:{} for loc in locations.keys()}
 
-	variables = {'HourlySkyConditions':'TCDC',
-			  	 'HourlyPrecipitation':'Rain'}
+	# variables = {'HourlySkyConditions':'TCDC',
+	# 		  	 'HourlyPrecipitation':'Rain'}
 	for station, id in locations.items():
 		# define an empty return dict for each station
 		returnDict = {}
@@ -131,6 +133,11 @@ def get_data(start_date,
 		# retrieve all of the data in the variables dictionary
 		for lcd_name, short_name in variables.items():
 			raw_data[short_name] = retrieve_data(start_date, end_date, lcd_name, id)
+			try:
+				logger.info(f"{lcd_name} for station ID {id}")
+				logger.info(raw_data[short_name])
+			except Exception as e:
+				print(f'{type(e)}:{e}')
 			# add more cases as more variables come in and need specific processing
 			match lcd_name:
 				case 'HourlySkyConditions':
