@@ -464,7 +464,9 @@ def genclimatefiles(whichbay, settings):
 	if settings['weather_dataset_observed'] == 'NOAA_LCD+FEMC_CR':
 		observedClimateBTV = lcd_ob.get_data(start_date = adjusted_spinup,
 										end_date = settings['forecast_start'],
-										locations = {"401":"72617014742"})
+										locations = {"401":"72617014742"},
+										variables = {'HourlySkyConditions':'TCDC',
+					   								 'HourlyPrecipitation':'RAIN'})
 		
 		observedClimateCR = femc_ob.get_data(start_date = adjusted_spinup,
 										end_date = settings['forecast_start'],
@@ -482,7 +484,8 @@ def genclimatefiles(whichbay, settings):
 		# common code prefix for vermont stations: 726170
 		observedClimateFSO = lcd_ob.get_data(start_date = adjusted_spinup,
 									  	  end_date = settings['forecast_start'],
-									  	  locations = {"401":"72049400152"})
+									  	  locations = {"401":"72049400152"},
+										  variables = {'HourlySkyConditions':'TCDC'})
 
 		logger.info("Observed TCDC BTV:")
 		logger.info(observedClimateBTV['401']['TCDC'].info())
@@ -510,7 +513,9 @@ def genclimatefiles(whichbay, settings):
 
 		forecastClimateBTV = lcd_ob.get_data(start_date = settings['forecast_start'],
 								end_date = adjusted_end_date,
-								locations = {"401":"72617014742"})
+								locations = {"401":"72617014742"},
+								variables = {'HourlySkyConditions':'TCDC',
+					   						 'HourlyPrecipitation':'RAIN'})
 		
 		forecastClimateCR = femc_ob.get_data(start_date = settings['forecast_start'],
 										end_date = adjusted_end_date,
@@ -529,7 +534,8 @@ def genclimatefiles(whichbay, settings):
 		# common code prefix for vermont stations: 726170
 		forecastClimateFSO = lcd_ob.get_data(start_date = settings['forecast_start'],
 									  	  end_date = adjusted_end_date,
-									  	  locations = {"401":"72049400152"})
+									  	  locations = {"401":"72049400152"},
+										  variables = {'HourlySkyConditions':'TCDC'})
 		
 		logger.info("forecast TCDC BTV:")
 		logger.info(forecastClimateBTV['401']['TCDC'].info())
