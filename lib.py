@@ -85,28 +85,31 @@ class IAMBAY:
 		#                   MS - Missisquoi (rhessys or swat)
 		#                   ML - Mill (swat)
 		#                   JS - Jewett Stevens (swat)
+		#					prop: proportion of the associated watershed value to use for the source's flow
+		#					adjust: adjust to flow as defined when bay sim model was calibrated (1.0 for no adjust)
+
 		sourcelist_STRUCT = {
 			'MB': {
-				'201': {'name': 'MissisquoiRiverDC', 'wshed': 'msflow', 'prop': 0.57},      # proportions of Miss River Flow
-				'202': {'name': 'MissisquoiRiverNE', 'wshed': 'msflow', 'prop': 0.15},
-				'203': {'name': 'MissisquoiRiverCE', 'wshed': 'msflow', 'prop': 0.14},
-				'204': {'name': 'MissisquoiRiverNW', 'wshed': 'msflow', 'prop': 0.14},
-				'21':  {'name': 'RockRiver',         'wshed': 'msflow', 'prop': 0.038},     # .03 of Total Miss Bay Inflow
-				'22':  {'name': 'PikeRiver',         'wshed': 'msflow', 'prop': 0.228}      # .18 of Total Miss Bay Inflow
+				'201': {'name': 'MissisquoiRiverDC', 'wshed': 'msflow', 'prop': 0.57, 'adjust': 1.0},      # proportions of Miss River Flow
+				'202': {'name': 'MissisquoiRiverNE', 'wshed': 'msflow', 'prop': 0.15, 'adjust': 1.0},
+				'203': {'name': 'MissisquoiRiverCE', 'wshed': 'msflow', 'prop': 0.14, 'adjust': 1.0},
+				'204': {'name': 'MissisquoiRiverNW', 'wshed': 'msflow', 'prop': 0.14, 'adjust': 1.0},
+				'21':  {'name': 'RockRiver',         'wshed': 'msflow', 'prop': 0.038, 'adjust': 2.17},     # .03 of Total Miss Bay Inflow
+				'22':  {'name': 'PikeRiver',         'wshed': 'msflow', 'prop': 0.228, 'adjust': 1.23}      # .18 of Total Miss Bay Inflow
 			},
 			'STA': {
-				'17': {'name': 'MillRiver', 'wshed': 'mlflow', 'prop': 1.0},                # Mill River flow
-				'19': {'name': 'JewettStevens', 'wshed': 'jsflow', 'prop': 1.0}             # JewettStevens flow
+				'17': {'name': 'MillRiver', 'wshed': 'mlflow', 'prop': 1.0, 'adjust': 1.04},                # Mill River flow
+				'19': {'name': 'JewettStevens', 'wshed': 'jsflow', 'prop': 1.0, 'adjust': 4.28}             # JewettStevens flow
 			},
 			'ILS': {
-				'201': {'name': 'MissisquoiRiverDC', 'wshed': 'msflow', 'prop': 0.57},      # proportions of Miss River Flow
-				'202': {'name': 'MissisquoiRiverNE', 'wshed': 'msflow', 'prop': 0.15},
-				'203': {'name': 'MissisquoiRiverCE', 'wshed': 'msflow', 'prop': 0.14},
-				'204': {'name': 'MissisquoiRiverNW', 'wshed': 'msflow', 'prop': 0.14},
-				'21':  {'name': 'RockRiver',         'wshed': 'msflow', 'prop': 0.038},    # .03 of Total Miss Bay Inflow
-				'22':  {'name': 'PikeRiver',         'wshed': 'msflow', 'prop': 0.228},    # .18 of Total Miss Bay Inflow
-				'17':  {'name': 'MillRiver',         'wshed': 'mlflow', 'prop': 1.0},      #  about 1/3 volume of Rock
-				'19':  {'name': 'JewettStevens',     'wshed': 'jsflow', 'prop': 1.0}       #  about the volume of Rock
+				'201': {'name': 'MissisquoiRiverDC', 'wshed': 'msflow', 'prop': 0.57, 'adjust': 1.0},      # proportions of Miss River Flow
+				'202': {'name': 'MissisquoiRiverNE', 'wshed': 'msflow', 'prop': 0.15, 'adjust': 1.0},
+				'203': {'name': 'MissisquoiRiverCE', 'wshed': 'msflow', 'prop': 0.14, 'adjust': 1.0},
+				'204': {'name': 'MissisquoiRiverNW', 'wshed': 'msflow', 'prop': 0.14, 'adjust': 1.0},
+				'21':  {'name': 'RockRiver',         'wshed': 'msflow', 'prop': 0.038, 'adjust': 2.17},    # .03 of Total Miss Bay Inflow
+				'22':  {'name': 'PikeRiver',         'wshed': 'msflow', 'prop': 0.228, 'adjust': 1.23},    # .18 of Total Miss Bay Inflow
+				'17':  {'name': 'MillRiver',         'wshed': 'mlflow', 'prop': 1.0, 'adjust': 1.04},      #  about 1/3 volume of Rock
+				'19':  {'name': 'JewettStevens',     'wshed': 'jsflow', 'prop': 1.0, 'adjust': 4.28}       #  about the volume of Rock
 			}
 		}
 

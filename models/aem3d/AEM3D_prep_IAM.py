@@ -279,11 +279,13 @@ def getflowfiles(whichbay, settings):
 
 	logger.info('Daily Flow Data Scaled')
 	# Scale Additional Inflows from Predicted Inflow
-	#       sourcelist has list of source IDs
-	#       sourcemap defines the source name and proportion of hydromodel output flow
+	#       sourcelist has list of water source IDs
+	#       sourcemap defines the source name (wshed) and proportion of hydromodel output flow
+	#		the adjust value is defined from InlandSeaModel_Notes Document describing how model calibration was done
+
 	for baysource in THEBAY.sourcelist :
 		logger.info('Generating Bay Source File for Id: '+baysource)
-		bs_prop = THEBAY.sourcemap[baysource]['prop']           # proportion of input file for this source
+		bs_prop = THEBAY.sourcemap[baysource]['prop'] * THEBAY.sourcemap[baysource]['adjust']  # proportion of input file for this source
 		wshed = THEBAY.sourcemap[baysource]['wshed']            # get column name of watershed flow source for this stream
 		flowdf[baysource] = flowdf[wshed] * bs_prop             # scale source from hydromodel flow (some are split)
 		bs_name = THEBAY.sourcemap[baysource]['name']
@@ -342,15 +344,51 @@ def adjustCRTemp(air_data):
 	adjustedCRtemp = adjustedCRtemp.set_axis(air_data.index)
 	return adjustedCRtemp
 
-def adjustFEMCLCD(dataset):
+
+# Class for adjusting shortwave radiation
+
+class ShortwaveNudger:
+
+	nudge_df = None
+
+	@classmethod
+	def initialize(cls,nudgefile):
+		if cls.nudge_df == None:
+			cls.nudge_df = pd.read_csv(nudgefile,index_col="Day of Year")
+
+	@classmethod
+	def nudgeDF(cls, swdownobj):
+
+		# the day of year for each data record to nudge
+		#dayofyear = dt.strftime(swdownDF.index, '%-j')
+		dayofyear = swdownobj.index.strftime('%j').astype(int).to_series()
+
+		#print('Days of Year ',dayofyear)
+		#print(cls.nudge_df)
+
+		multiplier = cls.nudge_df.iloc[dayofyear]['Ratio (MB/CR)'] # the multiplier for each data record
+		#print('Multipliers ',multiplier)
+
+		#swdownobj_nudged = swdownobj.reset_index(drop=True) * multiplier.reset_index(drop=True)
+		swdownobj_nudged = swdownobj.multiply(multiplier.to_numpy()) 
+ 
+		#swdownready = pd.Series(swdownobj_nudged.array,swdownobj.index)
+		return swdownobj_nudged
+
+
+def adjustFEMCLCD(whichbay, dataset):
 	# BTV rain adjustment
 	dataset['403']['RAIN'] = remove_nas(dataset['403']['RAIN']) * 0.6096
 	for zone in dataset.keys():
-		# air temp adjustments
+		# air temp and swr adjustments
 		if zone == '401':
 			dataset[zone]['T2'] = remove_nas(adjustCRTemp(dataset[zone]['T2']))
+
+			ShortwaveNudger.initialize(os.path.join(whichbay.template_dir, 'SolarRadiationFactor_MB.csv'))
+			dataset[zone]['SWDOWN'] = ShortwaveNudger.nudgeDF(dataset[zone]['SWDOWN'])
 		else:
 			dataset[zone]['T2'] = remove_nas(dataset[zone]['T2'])
+
 		# wind speed adjustments
 		if zone == '403':
 			dataset[zone]['WSPEED'] = remove_nas(dataset[zone]['WSPEED']) * 0.75
@@ -432,7 +470,7 @@ def genclimatefiles(whichbay, settings):
 		# Both FEMC and LCD data grabbers now need mathing location keys to work since they are being combine
 		for zone in observedClimateCR.keys():
 			observedClimate[zone] = observedClimateCR[zone] | observedClimateBTV[zone]
-		observedClimate = adjustFEMCLCD(observedClimate)
+		observedClimate = adjustFEMCLCD(THEBAY, observedClimate)
 
 	else:
 		raise ValueError(f"'{settings['weather_dataset_observed']}' is not a valid observational weather dataset")
@@ -466,7 +504,7 @@ def genclimatefiles(whichbay, settings):
 		# Both FEMC and LCD data grabbers now need mathing location keys to work since they are being combine
 		for zone in forecastClimateCR.keys():
 			forecastClimate[zone] = forecastClimateCR[zone] | forecastClimateBTV[zone]
-		forecastClimate = adjustFEMCLCD(forecastClimate)
+		forecastClimate = adjustFEMCLCD(THEBAY, forecastClimate)
 
 	elif settings['weather_dataset_forecast'] == 'NOAA_GFS':
 		############## Use this bit to load forecast climate from .csvs previously created above
@@ -865,12 +903,14 @@ def genclimatefiles(whichbay, settings):
 
 
 	# Write ShortwaveRad File
+	
+	# SET 20240326 - Depricated by move of nudge to adjustFEMCLCD
 	# Load the CSV that nudges SWR values based on Day Of Year
-	swradjust = pd.read_csv(os.path.join(THEBAY.template_dir, 'SolarRadiationFactor_MB.csv'))
-	# Use the passed forecast date to only nudge the observed values before the forecast
-	swradjust['NudgeObs'] = swradjust['Ratio (MB/CR)']  # copy entire original nudge column
-	dayofyear = int(settings['forecast_start'].strftime('%j'))
-	swradjust.loc[swradjust['Day of Year'] >= dayofyear,'NudgeObs'] = 1.0   # don't adjust forecast data
+	#swradjust = pd.read_csv(os.path.join(THEBAY.template_dir, 'SolarRadiationFactor_MB.csv'))
+	## Use the passed forecast date to only nudge the observed values before the forecast
+	#swradjust['NudgeObs'] = swradjust['Ratio (MB/CR)']  # copy entire original nudge column
+	#dayofyear = int(settings['forecast_start'].strftime('%j'))
+	#swradjust.loc[swradjust['Day of Year'] >= dayofyear,'NudgeObs'] = 1.0   # don't adjust forecast data
 
 	swdown_plot_data = {}
 	for zone in forecastClimate.keys():
@@ -880,26 +920,26 @@ def genclimatefiles(whichbay, settings):
 		swdown_plot_data[zone] = full_swdown_series
 		swdown_series = seriesIndexToOrdinalDate(full_swdown_series)
 		
+		# SET 20240326 - Depricated by move of nudge to adjustFEMCLCD
 		# build a dataframe to nudge the data series
-		swdown_df = pd.concat([swdown_series.index.to_series(),swdown_series], axis = 1)
-		swdown_df.columns = ['TIME', 'SWDOWN']
-		swdown_df['SWNUDGED'] = swdown_df.apply(ordinalnudgerow, args = ('SWDOWN', swradjust), axis = 1)
+		#swdown_df = pd.concat([swdown_series.index.to_series(),swdown_series], axis = 1)
+		#swdown_df.columns = ['TIME', 'SWDOWN']
+		#swdown_df['SWNUDGED'] = swdown_df.apply(ordinalnudgerow, args = ('SWDOWN', swradjust), axis = 1)
 
 		logger.info(f'SWDOWN for zone {zone}')
-		logger.info(print_df(swdown_df))
+		logger.info(print_df(swdown_series))
 		
+		# SET 20240326 - Depricated by move of nudge to adjustFEMCLCD
+		#writeFile(
+		#	os.path.join(THEBAY.infile_dir, filename),
+		#	THEBAY.bayid,
+		#	zone,
+		#	"SOLAR_RAD",
+		#	swdown_df['SWNUDGED']
+		#)
+
 		writeFile(
 			os.path.join(THEBAY.infile_dir, filename),
-			THEBAY.bayid,
-			zone,
-			"SOLAR_RAD",
-			swdown_df['SWNUDGED']
-		)
-
-		# this is the raw solar_rad data, without the data nudge
-		filenameorig = 'raw'+filename
-		writeFile(
-			os.path.join(THEBAY.infile_dir, filenameorig),
 			THEBAY.bayid,
 			zone,
 			"SOLAR_RAD",
