@@ -464,7 +464,7 @@ def genclimatefiles(whichbay, settings):
 		logger.info("Observed TCDC BTV:")
 		logger.info(observedClimateBTV['401']['TCDC'].info())
 		# now overwrite cloud cover for 401 
-		observedClimateBTV['401']['TCDC'] = copy.deepcopy(observedClimateFSO['401']['TCDC'])
+		observedClimateBTV['401']['TCDC'] = observedClimateFSO['401']['TCDC']
 		logger.info("Observed TCDC FSO:")
 		logger.info(observedClimateBTV['401']['TCDC'].info())
 		# cool new way to combine dictionaries (python >= 3.9)for zone, ds in climateObsCR.items():
@@ -514,7 +514,7 @@ def genclimatefiles(whichbay, settings):
 		logger.info("forecast TCDC BTV:")
 		logger.info(forecastClimateBTV['401']['TCDC'].info())
 		# now overwrite cloud cover for 401 
-		forecastClimateBTV['401']['TCDC'] = copy.deepcopy(forecastClimateFSO['401']['TCDC'])
+		forecastClimateBTV['401']['TCDC'] = forecastClimateFSO['401']['TCDC']
 		logger.info("forecast TCDC FSO:")
 		logger.info(forecastClimateBTV['401']['TCDC'].info())
 
