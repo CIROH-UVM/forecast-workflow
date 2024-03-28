@@ -51,7 +51,6 @@ for year in years:
 		os.chdir(scenario_dir_date)
 
 		config['spinup_date'] = dt.datetime(date.year, spinup_month_and_day.month, spinup_month_and_day.day).strftime('%Y%m%d')
-		config['spinup_date'] = dt.datetime(date.year, 1, 1).strftime('%Y%m%d')
 		config['forecast_start'] = date.strftime('%Y%m%d')
 		config['forecast_end'] = (date + dt.timedelta(days=7)).strftime('%Y%m%d')
 		config['root_dir'] = root_dir
