@@ -327,11 +327,11 @@ def adjustCRTemp(air_data):
 
 class ShortwaveNudger:
 
-	nudge_df = None
+	nudge_df = pd.DataFrame()
 
 	@classmethod
 	def initialize(cls,nudgefile):
-		if cls.nudge_df == None:
+		if cls.nudge_df.empty:
 			cls.nudge_df = pd.read_csv(nudgefile,index_col="Day of Year")
 
 	@classmethod
