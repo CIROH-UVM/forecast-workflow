@@ -25,6 +25,7 @@ from data import (femc_ob,
 )
 
 from .waterquality import *
+from .AEM3D import *
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -93,33 +94,6 @@ def remove_nas(series):
 	# return new_series
 	return series[~series.isna()]
 
-def datetimeToOrdinal(date):
-
-	dayofyear = date.strftime('%j')
-
-	# Left pad dayofyear to length 3 by zeros
-	yearday = str(date.year) + dayofyear.zfill(3)
-
-	totseconds = date.hour * 3600 + \
-				 date.minute * 60 + \
-				 date.second
-	fracsec = totseconds / dt.timedelta(days=1).total_seconds()  #Fraction of the day's seconds
-
-	ordinaldate = yearday + str(fracsec)[1:6].ljust(5,'0')  # add the percentage seconds since noon
-	return ordinaldate
-
-def seriesIndexToOrdinalDate(series):
-	# Now, using datetimeToOrdinal()
-	ordinaldate = series.index.to_series().apply(datetimeToOrdinal)
-
-	#ordinaldate = pandasDatetimeToOrdinal(series.index)
-	#ordinaldate = pd.Series(wrfdf['ordinaldate'].array, index = wrfdf['wrftime'])
-	return pd.Series(series.array, index = ordinaldate)
-
-def dataFrameIndexToOrdinalDate(dataframe):
-	ordinaldate = dataframe.index.to_series().apply(datetimeToOrdinal)
-	return pd.DataFrame(dataframe.values, index=ordinaldate)
-
 def ordinalnudgerow(rowtonudge, columntonudge, nudgeframe):
 	# apply a proportional nudge value that is specific to the day of year in the passed row
 	#   rowtonudge - row from a dataframe with TIME column and a value column
@@ -160,7 +134,7 @@ def writeLongwaveRadiationDownward(climate, THEBAY):
 			THEBAY.bayid,
 			zone,
 			"LW_RAD_IN",
-			seriesIndexToOrdinalDate(climate['AEMLW'][zone]))
+			index_to_ordinal_date(climate['AEMLW'][zone]))
 		THEBAY.addfile(fname=filename)
 
 
@@ -178,7 +152,7 @@ def writeCloudCover(climate, THEBAY):
 			THEBAY.bayid,
 			zone,
 			"CLOUDS",
-			seriesIndexToOrdinalDate(climate['AEMLW'][zone]))
+			index_to_ordinal_date(climate['AEMLW'][zone]))
 		THEBAY.addfile(fname=filename)
 
 
@@ -670,7 +644,7 @@ def genclimatefiles(whichbay, settings):
 			output_file.write('TIME      WTR_TEMP\n')
 
 			# output the ordinal date and temp dataframe columns
-			seriesIndexToOrdinalDate(wtr_temp_zones[wtr_temp_dict[baysource]]).to_csv(path_or_buf = output_file, float_format='%.3f',
+			index_to_ordinal_date(wtr_temp_zones[wtr_temp_dict[baysource]]).to_csv(path_or_buf = output_file, float_format='%.3f',
 			sep=' ', index=True, header=False)
 
 	#
@@ -796,8 +770,8 @@ def genclimatefiles(whichbay, settings):
 
 			# output the ordinal date and flow value time dataframe columns
 			pd.concat([
-					seriesIndexToOrdinalDate(bay_rain[zone]),
-					seriesIndexToOrdinalDate(bay_snow[zone])],
+					index_to_ordinal_date(bay_rain[zone]),
+					index_to_ordinal_date(bay_snow[zone])],
 					axis=1).to_csv(
 					path_or_buf = output_file,
 					float_format='%.3f',
@@ -819,7 +793,7 @@ def genclimatefiles(whichbay, settings):
 		full_cloud_series = pd.concat([observedClimate[zone]['TCDC'],forecastClimate[zone]['TCDC']])
 		cloud_plot_data[zone] = full_cloud_series
 
-		cloud_series = seriesIndexToOrdinalDate(full_cloud_series)
+		cloud_series = index_to_ordinal_date(full_cloud_series)
 		logger.info(f'TCDC for zone {zone}') 
 		logger.info(print_df(cloud_series))
 
@@ -890,8 +864,8 @@ def genclimatefiles(whichbay, settings):
 	for zone in windspd.keys():
 		filename = f'WS_WD_{zone}.dat'
 		logger.info('Generating Wind Speed and Direction File: '+filename)
-		# logger.info(seriesIndexToOrdinalDate(windspd[zone]))
-		# logger.info(seriesIndexToOrdinalDate(winddir[zone]))
+		# logger.info(index_to_ordinal_date(windspd[zone]))
+		# logger.info(index_to_ordinal_date(winddir[zone]))
 		with open(os.path.join(THEBAY.infile_dir, filename), mode='w', newline='') as output_file:
 
 			THEBAY.addfile(fname=filename)        # remember generated bay files
@@ -910,8 +884,8 @@ def genclimatefiles(whichbay, settings):
 			# output the ordinal date and flow value time dataframe columns
 			'''
 			pd.concat([
-				seriesIndexToOrdinalDate(windspd[zone]),
-				seriesIndexToOrdinalDate(winddir[zone])],
+				index_to_ordinal_date(windspd[zone]),
+				index_to_ordinal_date(winddir[zone])],
 				axis=1).drop_na().sort().to_csv(
 				path_or_buf = output_file,
 				float_format='%.3f',
@@ -920,7 +894,7 @@ def genclimatefiles(whichbay, settings):
 			'''
 			# now interpolating instead of dropping rows with missing data afger calibration
 			# converting index to ordinal date last, as we need a datetime index in order to interpolate
-			dataFrameIndexToOrdinalDate(pd.concat([
+			index_to_ordinal_date(pd.concat([
 				windspd[zone],
 				winddir[zone]],
 				axis=1).sort_index().interpolate(method='time')).to_csv(
@@ -961,7 +935,7 @@ def genclimatefiles(whichbay, settings):
 			THEBAY.bayid,
 			zone,
 			"REL_HUM",
-			seriesIndexToOrdinalDate(rhum[zone]))
+			index_to_ordinal_date(rhum[zone]))
 		THEBAY.addfile(fname=filename)
 
 
@@ -974,7 +948,7 @@ def genclimatefiles(whichbay, settings):
 			THEBAY.bayid,
 			zone,
 			"AIR_TEMP",
-			seriesIndexToOrdinalDate(air_temp[zone]))
+			index_to_ordinal_date(air_temp[zone]))
 		THEBAY.addfile(fname=filename)
 
 
@@ -994,7 +968,7 @@ def genclimatefiles(whichbay, settings):
 		logger.info('Generating Short Wave Radiation File: '+filename)
 		full_swdown_series = pd.concat([observedClimate[zone]['SWDOWN'], forecastClimate[zone]['SWDOWN']])
 		swdown_plot_data[zone] = full_swdown_series
-		swdown_series = seriesIndexToOrdinalDate(full_swdown_series)
+		swdown_series = index_to_ordinal_date(full_swdown_series)
 		
 		# SET 20240326 - Depricated by move of nudge to adjustFEMCLCD
 		# build a dataframe to nudge the data series
