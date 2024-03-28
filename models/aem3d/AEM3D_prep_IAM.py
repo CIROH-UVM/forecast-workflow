@@ -25,6 +25,7 @@ from data import (femc_ob,
 )
 
 from .waterquality import *
+from .AEM3D import *
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -93,29 +94,6 @@ def remove_nas(series):
 	# return new_series
 	return series[~series.isna()]
 
-def datetimeToOrdinal(date):
-
-	dayofyear = date.strftime('%j')
-
-	# Left pad dayofyear to length 3 by zeros
-	yearday = str(date.year) + dayofyear.zfill(3)
-
-	totseconds = date.hour * 3600 + \
-				 date.minute * 60 + \
-				 date.second
-	fracsec = totseconds / dt.timedelta(days=1).total_seconds()  #Fraction of the day's seconds
-
-	ordinaldate = yearday + str(fracsec)[1:6].ljust(5,'0')  # add the percentage seconds since noon
-	return ordinaldate
-
-def seriesIndexToOrdinalDate(series):
-	# Now, using datetimeToOrdinal()
-	ordinaldate = series.index.to_series().apply(datetimeToOrdinal)
-
-	#ordinaldate = pandasDatetimeToOrdinal(series.index)
-	#ordinaldate = pd.Series(wrfdf['ordinaldate'].array, index = wrfdf['wrftime'])
-	return pd.Series(series.array, index = ordinaldate)
-
 def ordinalnudgerow(rowtonudge, columntonudge, nudgeframe):
 	# apply a proportional nudge value that is specific to the day of year in the passed row
 	#   rowtonudge - row from a dataframe with TIME column and a value column
@@ -156,7 +134,7 @@ def writeLongwaveRadiationDownward(climate, THEBAY):
 			THEBAY.bayid,
 			zone,
 			"LW_RAD_IN",
-			seriesIndexToOrdinalDate(climate['AEMLW'][zone]))
+			index_to_ordinal_date(climate['AEMLW'][zone]))
 		THEBAY.addfile(fname=filename)
 
 
@@ -174,7 +152,7 @@ def writeCloudCover(climate, THEBAY):
 			THEBAY.bayid,
 			zone,
 			"CLOUDS",
-			seriesIndexToOrdinalDate(climate['AEMLW'][zone]))
+			index_to_ordinal_date(climate['AEMLW'][zone]))
 		THEBAY.addfile(fname=filename)
 
 
@@ -349,11 +327,11 @@ def adjustCRTemp(air_data):
 
 class ShortwaveNudger:
 
-	nudge_df = None
+	nudge_df = pd.DataFrame()
 
 	@classmethod
 	def initialize(cls,nudgefile):
-		if cls.nudge_df == None:
+		if cls.nudge_df.empty:
 			cls.nudge_df = pd.read_csv(nudgefile,index_col="Day of Year")
 
 	@classmethod
@@ -379,6 +357,9 @@ class ShortwaveNudger:
 def adjustFEMCLCD(whichbay, dataset):
 	# BTV rain adjustment
 	dataset['403']['RAIN'] = remove_nas(dataset['403']['RAIN']) * 0.6096
+	# define a function to set relative humidity values to 100 if greater than 100
+	# seems to be a problem in observations prior to 6/6/2019 in colchesterReefFEMC/Z0080_CR_QAQC.csv
+	cap_rhum_at_100 = lambda x: 100 if x > 100 else x
 	for zone in dataset.keys():
 		# air temp and swr adjustments
 		if zone == '401':
@@ -396,7 +377,10 @@ def adjustFEMCLCD(whichbay, dataset):
 			dataset[zone]['WSPEED'] = remove_nas(dataset[zone]['WSPEED']) * 0.65
 		# Removing NAs for wind direction, relative humidity, and short-wave radiation
 		dataset[zone]['WDIR'] = remove_nas(dataset[zone]['WDIR'])
-		dataset[zone]['RH2'] = remove_nas(dataset[zone]['RH2'])
+		dataset[zone]['RH2'] = remove_nas(dataset[zone]['RH2'].apply(cap_rhum_at_100))
+		# logger.info("REL_HUM ABOIVE 100:")
+		# logger.info(dataset[zone]['RH2'][dataset[zone]['RH2'] > 100])
+		# logger.info("The abover should be an empty series")
 		dataset[zone]['SWDOWN'] = remove_nas(dataset[zone]['SWDOWN'])
 	return dataset
 
@@ -408,6 +392,7 @@ def adjustGFS(dataset):
 		# GFS temperature adjustment
 		dataset[zone]['T2'] = dataset[zone]['T2']-273.15
 		# GFS TCDC adjustment
+		# Divide GFS TCDC by 100 to get true percentage (see new adjustments function)
 		dataset[zone]['TCDC'] = dataset[zone]['TCDC']/100.0
 		# GFS windspeed adjustments
 		dataset[zone]['WSPEED'] = np.sqrt(np.square(dataset[zone]['U10']) + np.square(dataset[zone]['V10']))
@@ -453,7 +438,9 @@ def genclimatefiles(whichbay, settings):
 	if settings['weather_dataset_observed'] == 'NOAA_LCD+FEMC_CR':
 		observedClimateBTV = lcd_ob.get_data(start_date = adjusted_spinup,
 										end_date = settings['forecast_start'],
-										locations = {"401":"72617014742"})
+										locations = {"401":"72617014742"},
+										variables = {'HourlySkyConditions':'TCDC',
+					   								 'HourlyPrecipitation':'RAIN'})
 		
 		observedClimateCR = femc_ob.get_data(start_date = adjusted_spinup,
 										end_date = settings['forecast_start'],
@@ -466,6 +453,20 @@ def genclimatefiles(whichbay, settings):
 			observedClimateBTV[key] = copy.deepcopy(observedClimateBTV['401'])
 			observedClimateCR[key] = copy.deepcopy(observedClimateCR['401'])
 
+		# For MB (zone 401), we actually want cloud cover from Franklin Airport
+		# Franklin airport ID: 00152
+		# common code prefix for vermont stations: 726170
+		observedClimateFSO = lcd_ob.get_data(start_date = adjusted_spinup,
+									  	  end_date = settings['forecast_start'],
+									  	  locations = {"401":"72049400152"},
+										  variables = {'HourlySkyConditions':'TCDC'})
+
+		logger.info("Observed TCDC BTV:")
+		logger.info(observedClimateBTV['401']['TCDC'].info())
+		# now overwrite cloud cover for 401 
+		observedClimateBTV['401']['TCDC'] = observedClimateFSO['401']['TCDC']
+		logger.info("Observed TCDC FSO:")
+		logger.info(observedClimateBTV['401']['TCDC'].info())
 		# cool new way to combine dictionaries (python >= 3.9)for zone, ds in climateObsCR.items():
 		# Both FEMC and LCD data grabbers now need mathing location keys to work since they are being combine
 		for zone in observedClimateCR.keys():
@@ -486,20 +487,37 @@ def genclimatefiles(whichbay, settings):
 
 		forecastClimateBTV = lcd_ob.get_data(start_date = settings['forecast_start'],
 								end_date = adjusted_end_date,
-								locations = {"401":"72617014742"})
+								locations = {"401":"72617014742"},
+								variables = {'HourlySkyConditions':'TCDC',
+					   						 'HourlyPrecipitation':'RAIN'})
 		
 		forecastClimateCR = femc_ob.get_data(start_date = settings['forecast_start'],
 										end_date = adjusted_end_date,
 										locations = {'401':'ColReefQAQC'},
 										data_dir = os.path.join(settings['root_dir'], 'hindcastData/'))
 		
-		# copy data from 401 for 402, 403. Mzke sure it's a deep copy, not memeory reference
-		
+		# copy data from 401 for 402, 403. Make sure it's a deep copy, not memeory reference
 		###### FEMC+LCD DATA ADJUSTMENTS HERE ######
-			# make additional location dictionaries here rather than call for the same location multiple times in get_data()'s
+		# make additional location dictionaries here rather than call for the same location multiple times in get_data()'s
 		for key in ['402', '403']:
 			forecastClimateBTV[key] = copy.deepcopy(forecastClimateBTV['401'])
 			forecastClimateCR[key] = copy.deepcopy(forecastClimateCR['401'])
+
+		# For MB (zone 401), we actually want cloud cover from Franklin Airport
+		# Franklin airport ID: 00152
+		# common code prefix for vermont stations: 726170
+		forecastClimateFSO = lcd_ob.get_data(start_date = settings['forecast_start'],
+									  	  end_date = adjusted_end_date,
+									  	  locations = {"401":"72049400152"},
+										  variables = {'HourlySkyConditions':'TCDC'})
+		
+		logger.info("forecast TCDC BTV:")
+		logger.info(forecastClimateBTV['401']['TCDC'].info())
+		# now overwrite cloud cover for 401 
+		forecastClimateBTV['401']['TCDC'] = forecastClimateFSO['401']['TCDC']
+		logger.info("forecast TCDC FSO:")
+		logger.info(forecastClimateBTV['401']['TCDC'].info())
+
 		# cool new way to combine dictionaries (python >= 3.9)for zone, ds in climateObsCR.items():
 		# Both FEMC and LCD data grabbers now need mathing location keys to work since they are being combine
 		for zone in forecastClimateCR.keys():
@@ -564,16 +582,39 @@ def genclimatefiles(whichbay, settings):
 	
 	logger.info(print_df(air_temp['401']))
 
+	'''
+	# OLD METHOD FOR WATER TEMP - BASED ON ZONE 403 FOR ALL BAYSOURCES
 	# Use air temp at zone 403 (ILS)
 	wtr_temp = air_temp['403'].rolling(window=96,min_periods=1).mean() # moving average over 4 days
 
 	wtr_temp.loc[wtr_temp<0] = 0  # no subfreezing water
 	wtr_temp = wtr_temp + 0.75    # 0.75 correction based on WQS Docs 2021.05.27
+	'''
 
-	# Store temp series in bay object for later use in wq calcs
+	wtr_temp_dict = {
+		'201': '401',
+		'202': '401',
+		'203': '401',
+		'204': '401',
+		'21':  '401',
+		'22':  '401',
+		'17':  '402',
+		'19':  '402'
+	}
+
+	wtr_temp_zones = {'401' : air_temp['401'].resample("15min").interpolate("time").rolling(window=96,min_periods=1).mean(),
+				   	  '402' : air_temp['402'].resample("15min").interpolate("time").rolling(window=96,min_periods=1).mean()}
+	
+	# General water temp nudges
+	for zone, data in wtr_temp_zones.items():
+		wtr_temp_zones[zone].loc[wtr_temp_zones[zone] < 0.0] = 0.0  # no subfreezing water
+		wtr_temp_zones[zone] = wtr_temp_zones[zone] + 0.75          # 0.75 correction based on WQS Docs 2021.05.27
+
+	# Create water temp dictionary for bay object for later use in wq calcs
 	# THEBAY.tempdf = wrfdf[['ordinaldate', 'wtr_temp']].copy()
-	THEBAY.tempdf = pd.DataFrame({'ordinaldate' : wtr_temp.index.to_series().apply(datetimeToOrdinal), 'wtr_temp' : wtr_temp.array})
-
+	THEBAY.wtr_temp_dict = {}
+	for inflow, climZone in wtr_temp_dict.items():
+		THEBAY.wtr_temp_dict[inflow] = wtr_temp_zones[climZone]
 
 	#
 	#       Write the temperature file for each source of the bay
@@ -603,7 +644,7 @@ def genclimatefiles(whichbay, settings):
 			output_file.write('TIME      WTR_TEMP\n')
 
 			# output the ordinal date and temp dataframe columns
-			seriesIndexToOrdinalDate(wtr_temp).to_csv(path_or_buf = output_file, float_format='%.3f',
+			index_to_ordinal_date(wtr_temp_zones[wtr_temp_dict[baysource]]).to_csv(path_or_buf = output_file, float_format='%.3f',
 			sep=' ', index=True, header=False)
 
 	#
@@ -729,8 +770,8 @@ def genclimatefiles(whichbay, settings):
 
 			# output the ordinal date and flow value time dataframe columns
 			pd.concat([
-					seriesIndexToOrdinalDate(bay_rain[zone]),
-					seriesIndexToOrdinalDate(bay_snow[zone])],
+					index_to_ordinal_date(bay_rain[zone]),
+					index_to_ordinal_date(bay_snow[zone])],
 					axis=1).to_csv(
 					path_or_buf = output_file,
 					float_format='%.3f',
@@ -749,11 +790,10 @@ def genclimatefiles(whichbay, settings):
 		filename = f'CLOUDS_{zone}.dat'
 		logger.info('Generating Bay Cloud Cover File: '+filename)
 
-		# Divide GFS TCDC by 100 to get true percentage (see new adjustments function)
-		full_cloud_series = pd.concat([observedClimate['403']['TCDC'],forecastClimate[zone]['TCDC']])
+		full_cloud_series = pd.concat([observedClimate[zone]['TCDC'],forecastClimate[zone]['TCDC']])
 		cloud_plot_data[zone] = full_cloud_series
 
-		cloud_series = seriesIndexToOrdinalDate(full_cloud_series)
+		cloud_series = index_to_ordinal_date(full_cloud_series)
 		logger.info(f'TCDC for zone {zone}') 
 		logger.info(print_df(cloud_series))
 
@@ -788,10 +828,7 @@ def genclimatefiles(whichbay, settings):
 		# 	np.square(forecastClimate[zone]['U10']) +
 		# 	np.square(forecastClimate[zone]['V10'])
 		# )
-		if zone == '403':
-			windspd[zone] = pd.concat([observedClimate[zone]['WSPEED'], forecastClimate[zone]['WSPEED']])
-		else:
-			windspd[zone] = pd.concat([observedClimate[zone]['WSPEED'], forecastClimate[zone]['WSPEED']])
+		windspd[zone] = pd.concat([observedClimate[zone]['WSPEED'], forecastClimate[zone]['WSPEED']])
 
 		# #  a bit of trig to map the wind vector components into a direction
 		# #  𝜙 =180+(180/𝜋)*atan2(𝑢,𝑣)
@@ -827,7 +864,8 @@ def genclimatefiles(whichbay, settings):
 	for zone in windspd.keys():
 		filename = f'WS_WD_{zone}.dat'
 		logger.info('Generating Wind Speed and Direction File: '+filename)
-
+		# logger.info(index_to_ordinal_date(windspd[zone]))
+		# logger.info(index_to_ordinal_date(winddir[zone]))
 		with open(os.path.join(THEBAY.infile_dir, filename), mode='w', newline='') as output_file:
 
 			THEBAY.addfile(fname=filename)        # remember generated bay files
@@ -844,10 +882,22 @@ def genclimatefiles(whichbay, settings):
 			output_file.write('TIME         WIND_SPEED	  WIND_DIR\n')
 
 			# output the ordinal date and flow value time dataframe columns
+			'''
 			pd.concat([
-				seriesIndexToOrdinalDate(windspd[zone]),
-				seriesIndexToOrdinalDate(winddir[zone])],
-				axis=1).to_csv(
+				index_to_ordinal_date(windspd[zone]),
+				index_to_ordinal_date(winddir[zone])],
+				axis=1).drop_na().sort().to_csv(
+				path_or_buf = output_file,
+				float_format='%.3f',
+				sep=' ',
+				index=True, header=False)
+			'''
+			# now interpolating instead of dropping rows with missing data afger calibration
+			# converting index to ordinal date last, as we need a datetime index in order to interpolate
+			index_to_ordinal_date(pd.concat([
+				windspd[zone],
+				winddir[zone]],
+				axis=1).sort_index().interpolate(method='time')).to_csv(
 				path_or_buf = output_file,
 				float_format='%.3f',
 				sep=' ',
@@ -885,7 +935,7 @@ def genclimatefiles(whichbay, settings):
 			THEBAY.bayid,
 			zone,
 			"REL_HUM",
-			seriesIndexToOrdinalDate(rhum[zone]))
+			index_to_ordinal_date(rhum[zone]))
 		THEBAY.addfile(fname=filename)
 
 
@@ -898,7 +948,7 @@ def genclimatefiles(whichbay, settings):
 			THEBAY.bayid,
 			zone,
 			"AIR_TEMP",
-			seriesIndexToOrdinalDate(air_temp[zone]))
+			index_to_ordinal_date(air_temp[zone]))
 		THEBAY.addfile(fname=filename)
 
 
@@ -918,7 +968,7 @@ def genclimatefiles(whichbay, settings):
 		logger.info('Generating Short Wave Radiation File: '+filename)
 		full_swdown_series = pd.concat([observedClimate[zone]['SWDOWN'], forecastClimate[zone]['SWDOWN']])
 		swdown_plot_data[zone] = full_swdown_series
-		swdown_series = seriesIndexToOrdinalDate(full_swdown_series)
+		swdown_series = index_to_ordinal_date(full_swdown_series)
 		
 		# SET 20240326 - Depricated by move of nudge to adjustFEMCLCD
 		# build a dataframe to nudge the data series

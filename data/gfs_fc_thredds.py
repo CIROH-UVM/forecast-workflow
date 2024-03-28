@@ -37,6 +37,7 @@ def append_timestamp(sta_dict, loc_dict, loc_dfs, timestamp):
 def download_gfs_threaded(date,
 				 		  hours,
 				 		  gfs_data_dir,
+						  variables,
 						  num_threads):
 	"""
 	Downloads the grib files for the specified date and hours
@@ -59,22 +60,27 @@ def download_gfs_threaded(date,
 		# if the grib file isn't downloaded already, then download it
 		if not os.path.exists(fpath):
 			ts_date = date.replace(tzinfo=None) + dt.timedelta(days=int(int(h)/24), hours=int(h)%24)
-			# Variable Total_cloud_cover_entire_atmosphere isn't available before 2021, instead, need to use average like Downward_Short-Wave_Radiation_Flux_surface
-			tcdc_variable_string = '&var=Total_cloud_cover_entire_atmosphere'
-			swdown_variable_string = '&var=Downward_Short-Wave_Radiation_Flux_surface'
-			if h == '000':
-				swdown_variable_string = ''
-				if date.year < 2021:
-					tcdc_variable_string = ''
-			elif int(h) % 6 == 3:
-				swdown_variable_string = swdown_variable_string + '_3_Hour_Average'
-				if date.year < 2021:
-					tcdc_variable_string = tcdc_variable_string + '_3_Hour_Average'
-			elif int(h) % 6 == 0:
-				swdown_variable_string = swdown_variable_string + '_6_Hour_Average'
-				if date.year < 2021:
-					tcdc_variable_string = tcdc_variable_string + '_6_Hour_Average'
-			url = f'https://thredds.rda.ucar.edu/thredds/ncss/grid/files/g/ds084.1/{date.year}/{date.strftime("%Y%m%d")}/gfs.0p25.{date.strftime("%Y%m%d")}{fc_cycle}.f{h}.grib2?var=u-component_of_wind_height_above_ground&var=v-component_of_wind_height_above_ground&var=Temperature_height_above_ground&var=Relative_humidity_height_above_ground&var=Per_cent_frozen_precipitation_surface&var=Precipitation_rate_surface{swdown_variable_string}{tcdc_variable_string}&north=47.5&west=280&east=293.25&south=40.25&horizStride=1&time_start={ts_date.isoformat()}Z&time_end={ts_date.isoformat()}Z&&&accept=netcdf4-classic'
+			
+			# Create url string for 'normal' variables
+			reg_variable_string = ''
+			reg_vars_dict = {x:y for x,y in variables.items() if not '_$3OR6' in y}
+			for short_name, gfs_name in reg_vars_dict.items():
+				reg_variable_string = reg_variable_string.join(reg_variable_string, '&var=', gfs_name)
+			if reg_variable_string != '':
+				reg_variable_string = reg_variable_string[1:]
+			# The variables that are 3/6 Hour averages need special handling
+			ave_variable_string = ''
+			ave_vars_dict = {x:y for x,y in variables.items() if '_$3OR6' in y}
+			for short_name, gfs_name in ave_vars_dict.items():
+				if h == '000':
+					pass
+				elif int(h) % 6 == 3:
+					ave_var_string_suffix = '_3_Hour_Average'
+				elif int(h) % 6 == 0:
+					ave_var_string_suffix = '_6_Hour_Average'
+				ave_variable_string = ave_variable_string.join(ave_variable_string, '&var=', gfs_name.split('_$3OR6')[0], ave_var_string_suffix)
+			url = f'https://thredds.rda.ucar.edu/thredds/ncss/grid/files/g/ds084.1/{date.year}/{date.strftime("%Y%m%d")}/gfs.0p25.{date.strftime("%Y%m%d")}{fc_cycle}.f{h}.grib2?{reg_variable_string}{ave_variable_string}&north=47.5&west=280&east=293.25&south=40.25&horizStride=1&time_start={ts_date.isoformat()}Z&time_end={ts_date.isoformat()}Z&&&accept=netcdf4-classic'
+
 			# Ending False is to not use a google bucket -- that's not an option for GFS
 			download_list.append((url, fpath, False))
 		else:
@@ -176,7 +182,8 @@ def get_data(forecast_datetime,
 			 data_dir=tf.gettempdir(),
 			 dnwld_threads=int(os.cpu_count()/2),
 			 load_threads=2,
-			 return_type='dict'):
+			 return_type='dict',
+			 useTCDCInstant = False):
 	"""
 	Download specified GFS forecast data and return nested dictionary of pandas series fore each variable, for each location.
 
@@ -214,6 +221,9 @@ def get_data(forecast_datetime,
 	forecast_datetime = parse_to_datetime(forecast_datetime)
 	end_datetime = parse_to_datetime(end_datetime)
 
+	if useTCDCInstant:
+		variables_dict['TCDC'] = 'Total_cloud_cover_entire_atmosphere'
+
 	# grabbing the cycle (12am, 6am, 12pm, 6pm) from the datetime
 	forecast_cycle = f"{forecast_datetime.hour:02d}"
 
@@ -232,6 +242,7 @@ def get_data(forecast_datetime,
 	download_gfs_threaded(date=forecast_datetime,
 						  hours=forecast_hours,
 						  gfs_data_dir=gfs_date_dir,
+						  variables=variables_dict,
 						  num_threads=dnwld_threads)
 	
 	# Now, load and process the data
