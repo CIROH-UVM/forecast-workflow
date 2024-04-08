@@ -17,4 +17,4 @@ def datetimeToOrdinal(date):
 	return ordinaldate
 
 def index_to_ordinal_date(pandas_data):
-	return pandas_data.rename(index=pandas_data.index.to_series().apply(datetimeToOrdinal))
+	return pandas_data.rename(index=datetimeToOrdinal)
