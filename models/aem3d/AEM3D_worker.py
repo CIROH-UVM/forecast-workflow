@@ -1,9 +1,7 @@
 from .get_args import get_args
-from lib import (
-    cd,
-    logger,
-)
+from lib import cd, logger, StreamToLogger
 from sh import Command, rm
+import sys
 
 
 # def activate_restart_file(aem3d_cntl_file_name):
@@ -107,8 +105,9 @@ from sh import Command, rm
 #         ))
 
 
-
 def main():
+    sys.stdout = StreamToLogger(logger)
+    
     SETTINGS = get_args()
     # scenario = IAMScenario.from_id(settings['scenario'])
 

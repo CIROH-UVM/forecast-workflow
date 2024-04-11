@@ -5,7 +5,7 @@
 #   - the bay of interest (Missisquoi, St. Albans)
 #   - the hydrology model (SWAT, RHESSys)
 
-from lib import cd, logger, IAMBAY
+from lib import cd, logger, IAMBAY, StreamToLogger
 from .AEM3D_prep_IAM import *
 from .get_args import get_args
 from sh import cp
@@ -23,9 +23,10 @@ def is_num(value):
     except:
         return
 
-def main():
-    prep_path = 'aem3d-run'
 
+def main():
+    sys.stdout = StreamToLogger(logger)
+    prep_path = 'aem3d-run'
 
     SETTINGS = get_args()
 

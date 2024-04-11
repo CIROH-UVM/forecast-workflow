@@ -243,7 +243,7 @@ class StreamToLogger(object):
     """
     Fake file-like stream object that redirects writes to a logger instance.
     """
-    def __init__(self, logger, level):
+    def __init__(self, logger, level=logging.INFO):
        self.logger = logger
        self.level = level
        self.linebuf = ''
@@ -463,4 +463,5 @@ IAMLogger.setup_logging()
 # i.e. if "python -m models.aem3d.AEM3D_prep_worker" is called, logger will be named "AEM3D_prep_worker"
 logger = logging.getLogger(get_calling_package())
 # implementing StreamToLogger will forward standard output (such as from print statements) to the logger
-sys.stdout = StreamToLogger(logger, logging.INFO)
+# Commenting out so this doesn't happen EVERY time lib.py is loaded (i.e Jupyter Notebook)
+#sys.stdout = StreamToLogger(logger, logging.INFO)
