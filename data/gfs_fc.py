@@ -1,4 +1,4 @@
-# import cfgrib
+import cfgrib
 import datetime as dt
 from glob import glob
 from lib import (download_data,
