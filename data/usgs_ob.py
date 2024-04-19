@@ -9,13 +9,15 @@ import pandas as pd
 # Streamflow, mean. daily in cubic ft / sec: '00060',
 # Streamflow, instantaneous cubic ft / sec: '00061',
 # Gage Height, feet: '00065'
+# Lake Elevation above NGVD, ft: '62614''
 
-def USGSstreamflow_function(id, parameter, start, end):
+def USGSgetvars_function(id, variables, start, end):
 	"""
 	Form url for USGS station request and return formatted dataframe for the given station
 
 	Args:
 	-- id (str) [req]: station ID to get data for
+	-- variables (dictionary) : ['column name' : 'usgs var code']
 	-- paramter (str) [req]: parameter code of data to get
 	-- start (datetime) [req]: start datetime
 	-- end (datetime) [req]: end datetime
@@ -25,6 +27,8 @@ def USGSstreamflow_function(id, parameter, start, end):
 	"""
 	# put in while loop to ensure the request doesn't fail
 	returnValue = None
+
+	parameter = variables[list(variables)[0]]	# extract first variable code from passed dictionary
 	# for more info on how to format URL requests, see:
 	# https://waterservices.usgs.gov/docs/instantaneous-values/instantaneous-values-details/#url-format
 	while(returnValue is None):
@@ -55,7 +59,7 @@ def USGSstreamflow_function(id, parameter, start, end):
 	#return pd.DataFrame(data={'streamflow': df['value'].values}, index=pd.to_datetime(df['dateTime'], utc=True).dt.tz_convert('Etc/GMT+4').dt.tz_localize(None))
 	# 20231211 - set index as datetime with timezone suffix set to UTC
 	# utc=True converts the dateTime column to UTC, since dateTime is already UTC-localized
-	station_df =  pd.DataFrame(data={'streamflow': df['value'].astype(float).values}, index=pd.to_datetime(df['dateTime'], utc=True))
+	station_df =  pd.DataFrame(data={list(variables)[0]: df['value'].astype(float).values}, index=pd.to_datetime(df['dateTime'], utc=True))
 	station_df.index.name = 'time'
 	# print(station_df)
 	return station_df
@@ -63,7 +67,8 @@ def USGSstreamflow_function(id, parameter, start, end):
 def get_data(start_date,
 			 end_date,
 			 locations,
-			 return_type='dict'):
+			 return_type='dict',
+			 variables={'streamflow':'00060'}):
 	"""
 	A function to download and process USGS observational hydrology data to return nested dictionary of pandas series fore each variable, for each location.
 
@@ -88,17 +93,17 @@ def get_data(start_date,
 	end_date = parse_to_datetime(end_date)
 
 	# 04294000 (MS), 04292810 (J-S), 04292750 (Mill)
-	parameter = '00060'
+
 	# Get 90 Days Prior
 	period = 'P90D'
 	returnVal = {}
 
 	# 20231211 - do not adjust passed dates to a previous day. that is a caller concern if that additional data buffer is needed.
 	for station, id in locations.items():
-		returnVal[station] = USGSstreamflow_function(id,
-												parameter,
+		returnVal[station] = USGSgetvars_function(id,
+												variables,
 												start_date,
-												end_date)
+											end_date)
 	
 		# ensure return_type is a valid value
 		if return_type not in ['dict', 'dataframe']:
