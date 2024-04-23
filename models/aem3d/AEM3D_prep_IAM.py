@@ -454,8 +454,6 @@ def lakeht_est(whichbay, dataset):
 def adjustGFS(whichbay, dataset):
 	# slice GFS data at forecast start date, so that AEM3D uses observed dataset up to forecast start date
 	for zone in get_climate_zone_keys(dataset):
-		print(f"Zone: {zone}\nU10\n{dataset[zone]['U10']}")
-		
 		# GFS rain adjustment
 		dataset[zone]['RAIN'] = dataset[zone]['RAIN'] * 86.4
 		# GFS temperature adjustment

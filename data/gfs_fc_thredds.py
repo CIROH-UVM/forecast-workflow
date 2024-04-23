@@ -145,7 +145,7 @@ def process_gfs_data(date,
 		#loc_ds.to_dataframe().filter(regex='Total_cloud_cover_entire_atmosphere').to_csv(f"{fname}_TCDC.csv")
 		#loc_ds.to_dataframe().filter(regex='Downward_Short-Wave_Radiation_Flux_surface').to_csv(f"{fname}_SWDOWN.csv")
 		if 'bounds_dim' in loc_ds.dims.keys():
-			print('Selecting time_bounds dimension 0')
+			#print('Selecting time_bounds dimension 0')
 			loc_ds = loc_ds.sel({'bounds_dim':0})
 		#print(f"Selecting on {loc_ds['Temperature_height_above_ground'].dims}, {loc_ds['u-component_of_wind_height_above_ground'].dims}")
 		## TODO: do better on finding dims... should be [1], but something above is messing with them
@@ -256,7 +256,7 @@ def get_data(forecast_datetime,
 		raise ValueError(f"'{return_type}' is not a valid return_type. Please use 'dict' or 'dataframe'")
 	elif return_type == 'dict':
 		# created nested dictionary of pd.Series for each variable for each location
-		gfs_data = {location:{name:data.dropna() for name, data in loc_df.T.iterrows()} for location, loc_df in loc_data.items()}
+		gfs_data = {location:{name:data.dropna().astype('float') for name, data in loc_df.T.iterrows()} for location, loc_df in loc_data.items()}
 	elif return_type == 'dataframe':
 		raise Exception("'dataframe' option not implemented yet. Please use return_type = 'dict'")
 	
