@@ -49,6 +49,8 @@ for i in range(0,5):
 		label.set_rotation(45)
 FIG.delaxes(AXES[0,4])
 
+def get_climate_zone_keys(dict):
+	return [zone for zone in dict.keys() if int(int(zone) / 100) == 4]
 
 def add_plot(labelled_data, ylabel, title, fc_start, row, col, axis):
 	ax = axis[row,col]
@@ -120,6 +122,7 @@ def writeFile(filename, bayid, zone, varName, dataSeries):
 
 		dataSeries.to_csv(path_or_buf = output_file, float_format='%.3f', sep=' ', index=True, header=False)
 
+'''
 def writeLongwaveRadiationDownward(climate, THEBAY):
 	###########################################################################################
 	#
@@ -136,8 +139,9 @@ def writeLongwaveRadiationDownward(climate, THEBAY):
 			"LW_RAD_IN",
 			index_to_ordinal_date(climate['AEMLW'][zone]))
 		THEBAY.addfile(fname=filename)
+'''
 
-
+'''
 def writeCloudCover(climate, THEBAY):
 	###########################################################################################
 	#
@@ -154,7 +158,7 @@ def writeCloudCover(climate, THEBAY):
 			"CLOUDS",
 			index_to_ordinal_date(climate['AEMLW'][zone]))
 		THEBAY.addfile(fname=filename)
-
+'''
 
 #########################################################################
 #
@@ -360,29 +364,29 @@ def adjustFEMCLCD(whichbay, dataset):
 	# define a function to set relative humidity values to 100 if greater than 100
 	# seems to be a problem in observations prior to 6/6/2019 in colchesterReefFEMC/Z0080_CR_QAQC.csv
 	cap_rhum_at_100 = lambda x: 100 if x > 100 else x
-	for zone in dataset.keys():
+	for zone in get_climate_zone_keys(dataset):
 		# air temp and swr adjustments
 		if zone == '401':
 			dataset[zone]['T2'] = remove_nas(adjustCRTemp(dataset[zone]['T2']))
 
 			ShortwaveNudger.initialize(os.path.join(whichbay.template_dir, 'SolarRadiationFactor_MB.csv'))
 			dataset[zone]['SWDOWN'] = ShortwaveNudger.nudgeDF(dataset[zone]['SWDOWN'])
-		elif zone != '300' :
+		else :
 			dataset[zone]['T2'] = remove_nas(dataset[zone]['T2'])
 
 		# wind speed adjustments
 		if zone == '403':
 			dataset[zone]['WSPEED'] = remove_nas(dataset[zone]['WSPEED']) * 0.75
-		elif zone != '300' :
+		else :
 			dataset[zone]['WSPEED'] = remove_nas(dataset[zone]['WSPEED']) * 0.65
+		
 		# Removing NAs for wind direction, relative humidity, and short-wave radiation
-		if zone != '300': 
-			dataset[zone]['WDIR'] = remove_nas(dataset[zone]['WDIR'])
-			dataset[zone]['RH2'] = remove_nas(dataset[zone]['RH2'].apply(cap_rhum_at_100))
-			# logger.info("REL_HUM ABOIVE 100:")
-			# logger.info(dataset[zone]['RH2'][dataset[zone]['RH2'] > 100])
-			# logger.info("The abover should be an empty series")
-			dataset[zone]['SWDOWN'] = remove_nas(dataset[zone]['SWDOWN'])
+		dataset[zone]['WDIR'] = remove_nas(dataset[zone]['WDIR'])
+		dataset[zone]['RH2'] = remove_nas(dataset[zone]['RH2'].apply(cap_rhum_at_100))
+		# logger.info("REL_HUM ABOIVE 100:")
+		# logger.info(dataset[zone]['RH2'][dataset[zone]['RH2'] > 100])
+		# logger.info("The abover should be an empty series")
+		dataset[zone]['SWDOWN'] = remove_nas(dataset[zone]['SWDOWN'])
 	return dataset
 
 def lakeht_est(whichbay, dataset):
@@ -449,7 +453,9 @@ def lakeht_est(whichbay, dataset):
 
 def adjustGFS(whichbay, dataset):
 	# slice GFS data at forecast start date, so that AEM3D uses observed dataset up to forecast start date
-	for zone in dataset.keys():
+	for zone in get_climate_zone_keys(dataset):
+		print(f"Zone: {zone}\nU10\n{dataset[zone]['U10']}")
+		
 		# GFS rain adjustment
 		dataset[zone]['RAIN'] = dataset[zone]['RAIN'] * 86.4
 		# GFS temperature adjustment
@@ -613,7 +619,7 @@ def genclimatefiles(whichbay, settings):
 		# adjust height reference to 93 ft and convert to meters
 		forecastlake['RL']['LAKEHT'] = (forecastlake['RL']['LAKEHT']-93) * 0.034478e-05
 		# store observed lake height in bay object for later concat with predicted height
-		forecastClimate['300'] = forecastlak['RL']
+		forecastClimate['300'] = forecastlake['RL']
 
 		forecastClimate = adjustFEMCLCD(THEBAY, forecastClimate)
 
@@ -879,27 +885,26 @@ def genclimatefiles(whichbay, settings):
 
 	# Use Cloud Cover
 	cloud_plot_data = {}
-	for zone in forecastClimate.keys():
+	for zone in get_climate_zone_keys(forecastClimate):
 
-		if zone != '300' :
-			filename = f'CLOUDS_{zone}.dat'
-			logger.info('Generating Bay Cloud Cover File: '+filename)
+		filename = f'CLOUDS_{zone}.dat'
+		logger.info('Generating Bay Cloud Cover File: '+filename)
 
-			full_cloud_series = pd.concat([observedClimate[zone]['TCDC'],forecastClimate[zone]['TCDC']])
-			cloud_plot_data[zone] = full_cloud_series
+		full_cloud_series = pd.concat([observedClimate[zone]['TCDC'],forecastClimate[zone]['TCDC']])
+		cloud_plot_data[zone] = full_cloud_series
 
-			cloud_series = index_to_ordinal_date(full_cloud_series)
-			logger.info(f'TCDC for zone {zone}') 
-			logger.info(print_df(cloud_series))
+		cloud_series = index_to_ordinal_date(full_cloud_series)
+		logger.info(f'TCDC for zone {zone}') 
+		logger.info(print_df(cloud_series))
 
-			writeFile(
-				os.path.join(THEBAY.infile_dir, filename),
-				THEBAY.bayid,
-				zone,
-				"CLOUDS",
-				cloud_series
-			)
-			THEBAY.addfile(fname=filename)
+		writeFile(
+			os.path.join(THEBAY.infile_dir, filename),
+			THEBAY.bayid,
+			zone,
+			"CLOUDS",
+			cloud_series
+		)
+		THEBAY.addfile(fname=filename)
 
 	SUBPLOT_PACKAGES['cloud cover'] = {'labelled_data':cloud_plot_data,
 										'ylabel':'Total Cloud Cover (%)',
@@ -917,28 +922,27 @@ def genclimatefiles(whichbay, settings):
 
 	windspd = dict()
 	winddir = dict()
-	for zone in forecastClimate.keys():
+	for zone in get_climate_zone_keys(forecastClimate):
 
-		if zone != '300':
-			# # a bit of vector math to combine the East(U) and North(V) wind components
-			# windspd[zone] = np.sqrt(
-			# 	np.square(forecastClimate[zone]['U10']) +
-			# 	np.square(forecastClimate[zone]['V10'])
-			# )
-			windspd[zone] = pd.concat([observedClimate[zone]['WSPEED'], forecastClimate[zone]['WSPEED']])
+		# # a bit of vector math to combine the East(U) and North(V) wind components
+		# windspd[zone] = np.sqrt(
+		# 	np.square(forecastClimate[zone]['U10']) +
+		# 	np.square(forecastClimate[zone]['V10'])
+		# )
+		windspd[zone] = pd.concat([observedClimate[zone]['WSPEED'], forecastClimate[zone]['WSPEED']])
 
-			# #  a bit of trig to map the wind vector components into a direction
-			# #  𝜙 =180+(180/𝜋)*atan2(𝑢,𝑣)
-			# winddir[zone] = 180 + np.arctan2(
-			# 		forecastClimate[zone]['U10'],
-			# 		forecastClimate[zone]['V10']
-			# 	) * 180 / np.pi
-			winddir[zone] = pd.concat([observedClimate[zone]['WDIR'], forecastClimate[zone]['WDIR']])
+		# #  a bit of trig to map the wind vector components into a direction
+		# #  𝜙 =180+(180/𝜋)*atan2(𝑢,𝑣)
+		# winddir[zone] = 180 + np.arctan2(
+		# 		forecastClimate[zone]['U10'],
+		# 		forecastClimate[zone]['V10']
+		# 	) * 180 / np.pi
+		winddir[zone] = pd.concat([observedClimate[zone]['WDIR'], forecastClimate[zone]['WDIR']])
 
-			logger.info(f'WINDSP for zone {zone}')
-			logger.info(print_df(windspd[zone]))        
-			logger.info(f'WINDDIR for zone {zone}')
-			logger.info(print_df(winddir[zone]))        
+		logger.info(f'WINDSP for zone {zone}')
+		logger.info(print_df(windspd[zone]))        
+		logger.info(f'WINDDIR for zone {zone}')
+		logger.info(print_df(winddir[zone]))        
 
 	SUBPLOT_PACKAGES['wind speed'] = {'labelled_data':windspd,
 										'ylabel':'Wind Speed at 10m (m/s)',
@@ -1060,42 +1064,41 @@ def genclimatefiles(whichbay, settings):
 	#swradjust.loc[swradjust['Day of Year'] >= dayofyear,'NudgeObs'] = 1.0   # don't adjust forecast data
 
 	swdown_plot_data = {}
-	for zone in forecastClimate.keys():
+	for zone in get_climate_zone_keys(forecastClimate):
 
-		if zone != '300':
-			filename = f'SOLAR_{zone}.dat'
-			logger.info('Generating Short Wave Radiation File: '+filename)
-			full_swdown_series = pd.concat([observedClimate[zone]['SWDOWN'], forecastClimate[zone]['SWDOWN']])
-			swdown_plot_data[zone] = full_swdown_series
-			swdown_series = index_to_ordinal_date(full_swdown_series)
-		
-			# SET 20240326 - Depricated by move of nudge to adjustFEMCLCD
-			# build a dataframe to nudge the data series
-			#swdown_df = pd.concat([swdown_series.index.to_series(),swdown_series], axis = 1)
-			#swdown_df.columns = ['TIME', 'SWDOWN']
-			#swdown_df['SWNUDGED'] = swdown_df.apply(ordinalnudgerow, args = ('SWDOWN', swradjust), axis = 1)
+		filename = f'SOLAR_{zone}.dat'
+		logger.info('Generating Short Wave Radiation File: '+filename)
+		full_swdown_series = pd.concat([observedClimate[zone]['SWDOWN'], forecastClimate[zone]['SWDOWN']])
+		swdown_plot_data[zone] = full_swdown_series
+		swdown_series = index_to_ordinal_date(full_swdown_series)
+	
+		# SET 20240326 - Depricated by move of nudge to adjustFEMCLCD
+		# build a dataframe to nudge the data series
+		#swdown_df = pd.concat([swdown_series.index.to_series(),swdown_series], axis = 1)
+		#swdown_df.columns = ['TIME', 'SWDOWN']
+		#swdown_df['SWNUDGED'] = swdown_df.apply(ordinalnudgerow, args = ('SWDOWN', swradjust), axis = 1)
 
-			logger.info(f'SWDOWN for zone {zone}')
-			logger.info(print_df(swdown_series))
-		
-			# SET 20240326 - Depricated by move of nudge to adjustFEMCLCD
-			#writeFile(
-			#	os.path.join(THEBAY.infile_dir, filename),
-			#	THEBAY.bayid,
-			#	zone,
-			#	"SOLAR_RAD",
-			#	swdown_df['SWNUDGED']
-			#)
+		logger.info(f'SWDOWN for zone {zone}')
+		logger.info(print_df(swdown_series))
+	
+		# SET 20240326 - Depricated by move of nudge to adjustFEMCLCD
+		#writeFile(
+		#	os.path.join(THEBAY.infile_dir, filename),
+		#	THEBAY.bayid,
+		#	zone,
+		#	"SOLAR_RAD",
+		#	swdown_df['SWNUDGED']
+		#)
 
-			writeFile(
-				os.path.join(THEBAY.infile_dir, filename),
-				THEBAY.bayid,
-				zone,
-				"SOLAR_RAD",
-				swdown_series
-			)
+		writeFile(
+			os.path.join(THEBAY.infile_dir, filename),
+			THEBAY.bayid,
+			zone,
+			"SOLAR_RAD",
+			swdown_series
+		)
 
-			THEBAY.addfile(fname=filename)
+		THEBAY.addfile(fname=filename)
 
 	SUBPLOT_PACKAGES['short wave rad'] = {'labelled_data':swdown_plot_data,
 										'ylabel':'Short-wave Downward Radition (W/m^2)',
