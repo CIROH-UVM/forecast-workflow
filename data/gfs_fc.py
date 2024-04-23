@@ -268,7 +268,7 @@ def get_data(forecast_datetime,
 		raise ValueError(f"'{return_type}' is not a valid return_type. Please use 'dict' or 'dataframe'")
 	elif return_type == 'dict':
 		# created nested dictionary of pd.Series for each variable for each location
-		gfs_data = {location:{name:data for name, data in loc_df.T.iterrows()} for location, loc_df in loc_data.items()}
+		gfs_data = {location:{name:data.dropna().astype('float') for name, data in loc_df.T.iterrows()} for location, loc_df in loc_data.items()}
 	elif return_type == 'dataframe':
 		raise Exception("'dataframe' option not implemented yet. Please use return_type = 'dict'")
 	
