@@ -159,23 +159,40 @@ def get_data(start_date,
 
 	# Remove extra Time dimension of size 1 and remove unwated variables
 	ds = ds.squeeze(dim='Time').drop_vars(vars_to_drop)
+	# create x and y coordinates from dimensions
 	ds = ds.assign_coords(x = ds.west_east)
 	ds = ds.assign_coords(y = ds.south_north)
+	# rename valid_time coord to time
 	ds = ds.rename({'valid_time': 'time'})
-
-	# define empty dictionary of data to return
-	nwm_retro_forcings = {}
-	for loc, xy in locations_xy.items():
-		print(f'Isolating data for {loc} : {xy}')
-		loc_ds = ds.sel({'west_east':xy[0], 'south_north':xy[1]})
-		print(f'Extracting {variables.values()}')
-		nwm_retro_forcings[loc] = {name:loc_ds[var].to_series() for name, var in variables.items()}
+	# select the locations we need
+	ds = ds.sel({'south_north':y_indices, 'west_east':x_indices})
+	# convert to dataframe
+	while True:
+		try:
+			print('ATTEMPTING DATA ACQUISITION...')
+			df = ds.to_dataframe()
+			break
+		except ServerDisconnectedError as sde:
+			print("Server disconnected, retrying in 5 seconds...")
+		except Exception as e:
+			raise(e)
 	
-		# ensure return_type is a valid value
+	print("DATA ACQUISITION COMPLETE")
+
+	# set proper index and drop dataset dimension columns
+	indexed_df = df.reset_index().set_index(['time','x','y']).drop(['south_north','west_east'], axis=1)
+	# group by x and y coordinates
+	location_groups = indexed_df.groupby(["x", "y"])
+	# extract the locations of interest and drop x,y coordinates after extraction
+	location_dataframes = {name : location_groups.get_group(xy).droplevel(['x','y']) for name, xy in locations_xy.items()}
+	
+	# ensure return_type is a valid value
 	if return_type not in ['dict', 'dataframe']:
 		raise ValueError(f"'{return_type}' is not a valid return_type. Please use 'dict' or 'dataframe'")
 	elif return_type == 'dict':
-		return nwm_retro_forcings
+		# created nested dictionary of pd.Series for each variable for each location
+		nwm_retro_forcings = {location:{name:data.dropna() for name, data in loc_df.T.iterrows()} for location, loc_df in location_dataframes.items()}
 	elif return_type == 'dataframe':
 		raise Exception("'dataframe' option not implemented yet. Please use return_type = 'dict'")
-
+	
+	return nwm_retro_forcings
