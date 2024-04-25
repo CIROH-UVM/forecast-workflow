@@ -73,12 +73,15 @@ def download_gfs_threaded(date,
 			ave_vars_dict = {x:y for x,y in variables.items() if '_$3OR6' in y}
 			for short_name, gfs_name in ave_vars_dict.items():
 				if h == '000':
-					pass
+					ave_variable_suffix_string = ''
 				elif int(h) % 6 == 3:
-					ave_var_string_suffix = '_3_Hour_Average'
+					ave_variable_suffix_string = '_3_Hour_Average'
 				elif int(h) % 6 == 0:
-					ave_var_string_suffix = '_6_Hour_Average'
-				ave_variable_string = ave_variable_string.join(ave_variable_string, '&var=', gfs_name.split('_$3OR6')[0], ave_var_string_suffix)
+					ave_variable_suffix_string = '_6_Hour_Average'
+				else:
+					ave_variable_suffix_string = ''
+				if ave_variable_suffix_string != '':
+					ave_variable_string = ave_variable_string.join([ave_variable_string, '&var=', gfs_name.split('_$3OR6')[0], ave_variable_suffix_string])
 			url = f'https://thredds.rda.ucar.edu/thredds/ncss/grid/files/g/ds084.1/{date.year}/{date.strftime("%Y%m%d")}/gfs.0p25.{date.strftime("%Y%m%d")}{fc_cycle}.f{h}.grib2?{reg_variable_string}{ave_variable_string}&north=47.5&west=280&east=293.25&south=40.25&horizStride=1&time_start={ts_date.isoformat()}Z&time_end={ts_date.isoformat()}Z&&&accept=netcdf4-classic'
 
 			# Ending False is to not use a google bucket -- that's not an option for GFS
