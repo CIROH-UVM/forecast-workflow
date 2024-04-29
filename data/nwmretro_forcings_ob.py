@@ -38,7 +38,7 @@ def get_data(start_date,
 										Alternative return type is "dataframe", which smashes all data into a single dataframe muliIndex'd by station ID, then timestamp
 		
 		Returns:
-		
+		NWM retrospective forcings timeseries data for the given locations in the format specified by return_type
 	'''
 	start_date = parse_to_datetime(start_date)
 	end_date = parse_to_datetime(end_date)
