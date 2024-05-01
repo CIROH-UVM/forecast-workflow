@@ -62,10 +62,12 @@ def download_gfs_threaded(date,
 			ts_date = date.replace(tzinfo=None) + dt.timedelta(days=int(int(h)/24), hours=int(h)%24)
 			
 			# Create url string for 'normal' variables
+			# Using += to build up URL: https://waymoot.org/home/python_string/
 			reg_variable_string = ''
 			reg_vars_dict = {x:y for x,y in variables.items() if not '_$3OR6' in y}
 			for short_name, gfs_name in reg_vars_dict.items():
-				reg_variable_string = reg_variable_string.join(reg_variable_string, '&var=', gfs_name)
+				reg_variable_string += '&var=' + gfs_name
+			# Take off leading '&'
 			if reg_variable_string != '':
 				reg_variable_string = reg_variable_string[1:]
 			# The variables that are 3/6 Hour averages need special handling
@@ -81,7 +83,7 @@ def download_gfs_threaded(date,
 				else:
 					ave_variable_suffix_string = ''
 				if ave_variable_suffix_string != '':
-					ave_variable_string = ave_variable_string.join([ave_variable_string, '&var=', gfs_name.split('_$3OR6')[0], ave_variable_suffix_string])
+					ave_variable_string += '&var=' + gfs_name.split('_$3OR6')[0] + ave_variable_suffix_string
 			url = f'https://thredds.rda.ucar.edu/thredds/ncss/grid/files/g/ds084.1/{date.year}/{date.strftime("%Y%m%d")}/gfs.0p25.{date.strftime("%Y%m%d")}{fc_cycle}.f{h}.grib2?{reg_variable_string}{ave_variable_string}&north=47.5&west=280&east=293.25&south=40.25&horizStride=1&time_start={ts_date.isoformat()}Z&time_end={ts_date.isoformat()}Z&&&accept=netcdf4-classic'
 
 			# Ending False is to not use a google bucket -- that's not an option for GFS
