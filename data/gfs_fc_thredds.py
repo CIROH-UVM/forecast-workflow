@@ -1,7 +1,7 @@
 import datetime as dt
 from data.gfs_fc import isolate_loc_rows, remap_longs
 from glob import glob
-from lib import (multithreaded_download,
+from utils import (multithreaded_download,
 				 multithreaded_loading,
 				 parse_to_datetime,
 				 get_hour_diff,
