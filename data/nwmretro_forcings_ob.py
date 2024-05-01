@@ -6,7 +6,7 @@ import pandas as pd
 import pyproj
 from s3fs import S3FileSystem
 import xarray as xr
-from lib import get_hour_diff, parse_to_datetime
+from utils import get_hour_diff, parse_to_datetime
 
 # stick with print statements
 # Question: In terms of best practicee, should we use print() or logger.info() statements for log messages
