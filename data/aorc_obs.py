@@ -13,8 +13,7 @@ NOAA NWS AORC archive: (not implemented): https://hydrology.nws.noaa.gov/aorc-hi
 def get_data(start_date,
 			 end_date,
 			 locations,
-			 variables,
-			 return_type='series'):
+			 variables):
 	'''
 	A function to download and process AORC data to return nested dictionary of pandas series for each variable, for each location.
 
@@ -23,18 +22,10 @@ def get_data(start_date,
 		-- end_date (str, date, or datetime) [req]: the end date for which to grab data
 		-- locations (dict) [req]: a dictionary (stationID/name:IDValue/latlong tuple) of locations to get data for.
 		-- variables (dict) [req]: a dictionary of variables to download.
-		-- return_type (string) [opt]: string indicating which format to return data in. Default is "series", which will return data in a nested dict format:
-										{locationID1:{
-											var1_name:pd.Series,
-											var2_name:pd.Series,
-											...},
-										locationID2:{...},
-										...
-										}
-										Alternative return type is "dataframe", which returns a dictionary where the keys are location names, and values are timeseries dataframes
-		
+	
 		Returns:
-		AORC timeseries data for the given locations in the format specified by return_type
+		AORC timeseries data for the given locations in a nested dict format where 1st-level keys are user-provided location names and 2nd-level keys
+		are variables names and values are the respective data in a Pandas Series object.
 	'''
 	# complete lsit of variables available from the AORC bucket
 	# variables = {'Total Precipitation':'APCP_surface',
@@ -84,8 +75,8 @@ def get_data(start_date,
 	# select and concat only the datasets that correspond to the lat/lon pairs that we need
 	filtered_ds = xr.concat([grouped_ds[lat].sel(longitude=lon) for lat, lon in zip(approx_lats, approx_lons)], dim='latitude')
 
-	# convert to a flat dataframe
-	filtered_df = filtered_ds.to_dataframe().reset_index().set_index(['latitude','longitude'])
+	# convert to a flat dataframe and rename variables to user-defined names
+	filtered_df = filtered_ds.to_dataframe().reset_index().set_index(['latitude','longitude']).rename(columns = {ds_name : user_name for user_name, ds_name in variables.items()})
 
 	# now group dataframe by (lat, lon) pairs
 	grouped_df = filtered_df.groupby(["latitude", "longitude"])
@@ -94,28 +85,11 @@ def get_data(start_date,
 	approx_coords = {approx_coords:name for name, approx_coords in zip(locations.keys(), list(zip(approx_lats, approx_lons)))}
 		
 	# now get dataframes for each location
- 	# .drop(['latitude','longitude'], axis=1) add this line to the below group manipulations if you want to get rid of lat/lon columns
+	# .drop(['latitude','longitude'], axis=1) add this line to the below group manipulations if you want to get rid of lat/lon columns
 	location_dataframes = {approx_coords[name]: group.reset_index().set_index('time') for name, group in grouped_df}
 
-	# ensure return_type is a valid value
-	if return_type not in ['series', 'dataframe']:
-		raise ValueError(f"'{return_type}' is not a valid return_type. Please use 'dict' or 'dataframe'")
-	elif return_type == 'series':
-		# created nested dictionary of pd.Series for each variable for each location
-		aorc_data = {location:{name:data.dropna() for name, data in loc_df.drop(['latitude','longitude'], axis=1).T.iterrows()} for location, loc_df in location_dataframes.items()}
-	elif return_type == 'dataframe':
-		aorc_data = location_dataframes
+	# created nested dictionary of pd.Series for each variable for each location
+	aorc_data = {location:{name:data.dropna() for name, data in loc_df.drop(['latitude','longitude'], axis=1).T.iterrows()} for location, loc_df in location_dataframes.items()}
 
 	# return the AORC data
 	return aorc_data
-
-def smash_dataframes(df_dict):
-	'''
-	A quick helper function that smashes the dictionary of dataframes returned by a get_data() into a single df
-
-		Args:
-		-- df_dict (dict) [req]: a dictionary of location names : dataframes to be smashed
-		Returns:
-		A single dataframe containing all of the data for each. Indexed by time, latitude and longitude are columns.
-	'''
-	return pd.concat(df_dict.values())
