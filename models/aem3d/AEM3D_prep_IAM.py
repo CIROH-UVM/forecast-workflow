@@ -425,7 +425,9 @@ def lakeht_est(whichbay, dataset):
 	###   data gaps in either time series
 	# lakeLevel_df = pd.merge(lakeLevel_df, air_temp['403'], on='time', how='inner')
 	#lakeLevel_df = pd.merge(lakeLevel_df, air_temp['403'], on='time', how='outer').interpolate(method="time").dropna()
-	lakeLevel_df = pd.merge(lakeLevel_df, dataset['403']['T2'], on='time', how='outer').interpolate(method="time").dropna()
+	logger.info(f'LakeLevel Dataset')
+	logger.info(f'{dataset}')
+	lakeLevel_df = pd.merge(lakeLevel_df, dataset['403']['T2'].to_frame(), on='time', how='outer').interpolate(method="time").dropna()
 
 	logger.info(f'lakelevel_df after merge')
 	logger.info(print_df(lakeLevel_df))
@@ -1122,6 +1124,10 @@ def genclimatefiles(whichbay, settings):
 	###
 	logger.info('Generating Lake Levels')
 
+	# Calculate misalignment between first predicted and last observered, and adjust entire prediction that amount
+	htoffset = observedClimate['300']['LAKEHT'].iloc[-1] - forecastClimate['300']['LAKEHT'].iloc[0]
+	logger.info('Lake Height Prediction Offset = ' + str(htoffset))
+	forecastClimate['300']['LAKEHT'] = forecastClimate['300']['LAKEHT'] + htoffset 
 	lake_height = pd.concat([observedClimate['300']['LAKEHT'],forecastClimate['300']['LAKEHT']])
 	lake_ht_series = index_to_ordinal_date(lake_height)
 
