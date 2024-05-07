@@ -1,7 +1,7 @@
 import datetime as dt
 import requests
 import pandas as pd
-from utils import parse_to_datetime, logger
+from .utils import parse_to_datetime, logger
 
 def splitsky ( instring ) :
 	thestring = str(instring)
