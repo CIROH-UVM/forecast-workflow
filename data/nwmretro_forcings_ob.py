@@ -6,7 +6,7 @@ import pandas as pd
 import pyproj
 from s3fs import S3FileSystem
 import xarray as xr
-from utils import get_hour_diff, parse_to_datetime
+from .utils import get_hour_diff, parse_to_datetime
 
 # stick with print statements
 # Question: In terms of best practicee, should we use print() or logger.info() statements for log messages
@@ -47,7 +47,7 @@ def get_data(start_date,
 	print(f'VARIABLES TO EXTRACT: {list(variables.values())}')
 
 	# NOTE: there are 24 timesteps for each day, 00-23
- 	# define the amazon web bucket you want to use
+	# define the amazon web bucket you want to use
 	bucket = 's3://ciroh-nwm-zarr-retrospective-data-copy/noaa-nwm-retrospective-2-1-zarr-pds/forcing/'
 	s3 = S3FileSystem(anon=True)
 	
@@ -108,10 +108,10 @@ def get_data(start_date,
 	
 	# add crs to netcdf file
 	ds.rio.write_crs(ds_meta.crs.attrs['spatial_ref'],
-				  	 inplace=True).rio.set_spatial_dims(x_dim="x",
-                                       					y_dim="y",
-                                       					inplace=True,
-                                       					).rio.write_coordinate_system(inplace=True)
+					   inplace=True).rio.set_spatial_dims(x_dim="x",
+														   y_dim="y",
+														   inplace=True,
+														   ).rio.write_coordinate_system(inplace=True)
 	
 	# Create an empty list to store the results for x and y
 	y_indices = []
@@ -181,8 +181,12 @@ def get_data(start_date,
 
 	# set proper index and drop dataset dimension columns
 	indexed_df = df.reset_index().set_index(['time','x','y']).drop(['south_north','west_east'], axis=1)
+
+	# rename columns to user-defined variable names
+	renamed_df = indexed_df.rename(columns = {var_name:user_name for user_name, var_name in variables.items()})
+	
 	# group by x and y coordinates
-	location_groups = indexed_df.groupby(["x", "y"])
+	location_groups = renamed_df.groupby(["x", "y"])
 	# extract the locations of interest and drop x,y coordinates after extraction
 	location_dataframes = {name : location_groups.get_group(xy).droplevel(['x','y']) for name, xy in locations_xy.items()}
 	
