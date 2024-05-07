@@ -1,7 +1,7 @@
 import cfgrib
 import datetime as dt
 from glob import glob
-from utils import (download_data,
+from .utils import (download_data,
 				 multithreaded_download,
 				 multithreaded_loading,
 				 parse_to_datetime,

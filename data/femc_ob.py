@@ -1,4 +1,4 @@
-from utils import parse_to_datetime
+from .utils import parse_to_datetime
 import numpy as np
 import os
 import pandas as pd

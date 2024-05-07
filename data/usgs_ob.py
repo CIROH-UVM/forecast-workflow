@@ -1,5 +1,5 @@
 import datetime as dt
-from utils import parse_to_datetime
+from .utils import parse_to_datetime
 import requests
 import pandas as pd
 
