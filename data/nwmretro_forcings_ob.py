@@ -7,6 +7,7 @@ import pyproj
 from s3fs import S3FileSystem
 import xarray as xr
 from .utils import get_hour_diff, parse_to_datetime
+from aiohttp import ServerDisconnectedError
 
 # stick with print statements
 # Question: In terms of best practicee, should we use print() or logger.info() statements for log messages
