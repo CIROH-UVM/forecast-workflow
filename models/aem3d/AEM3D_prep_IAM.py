@@ -190,6 +190,13 @@ def getflowfiles(whichbay, settings):
 	else:
 		raise ValueError(f"'{settings['hydrology_dataset_observed']}' is not a valid observational hydrology dataset")
 	
+
+	# pull observed Rock and Pike flow data from candadian service site
+	observedca = caflow.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
+								 		 end_date = settings['forecast_start'],
+										 locations = {"Rock":'030424',
+			   										  "Pike":'030425'})
+
 	forecastHydro = None
 	if settings['hydrology_dataset_forecast'] == 'USGS_IV':
 		forecastHydro = usgs_ob.get_data(start_date = settings['forecast_start'],
@@ -200,6 +207,12 @@ def getflowfiles(whichbay, settings):
 		# Convert USGS streamflow from cubic ft / s to cubic m / s
 		for location in forecastHydro.keys():
 			forecastHydro[location]['streamflow'] = forecastHydro[location]['streamflow'] * 0.0283168
+
+		forecastca = caflow.get_data(start_date = settings['forecast_start'],
+								 		end_date = settings['forecast_end'] + dt.timedelta(days=1),
+										locations = {"Rock":'030424',
+			   										 "Pike":'030425'})
+
 	
 	elif(settings['hydrology_dataset_forecast'] == 'NOAA_NWM_PROD'):
 		forecastHydro = nwm_fc.get_data(forecast_datetime = settings['forecast_start'],
@@ -211,6 +224,13 @@ def getflowfiles(whichbay, settings):
 						data_dir = os.path.join(settings['root_dir'], 'hindcastData/'),
 						load_threads = 1,
 						google_buckets = True)
+
+		#############  speculative coding ahead
+		#	approximate Rock and Pike forecast from scaled Missisquoi forecast
+		#forecastca['Rock'] = forecastHydro['MS']['streamflow'] * THEBAY.sourcemap['21']['prop']
+		#forecastca['Pike'] = forecastHydro['MS']['streamflow'] * THEBAY.sourcemap['22']['prop']
+		####  need to tweak bay object sourcemap so that later the Rock and Pike are adjusted from concat'ed flows
+
 	else:
 		raise ValueError(f"'{settings['hydrology_dataset_forecast']}' is not a valid hydrology forecast dataset")
 			
@@ -219,6 +239,8 @@ def getflowfiles(whichbay, settings):
 	flowdf = pd.concat([observedHydro['MS']['streamflow'], forecastHydro['MS']['streamflow']]).rename_axis('time').astype('float').to_frame()
 	mlflow = pd.concat([observedHydro['Mill']['streamflow'], forecastHydro['Mill']['streamflow']]).rename_axis('time').astype('float').to_frame()
 	jsflow = pd.concat([observedHydro['J-S']['streamflow'], forecastHydro['J-S']['streamflow']]).rename_axis('time').astype('float').to_frame()
+	# TODO add the concats for the pike and rock 
+
 
 	# these df's may not be the same length, there may be missing data from USGS gauges
 	logger.info(flowdf)
@@ -265,6 +287,9 @@ def getflowfiles(whichbay, settings):
 	#       sourcemap defines the source name (wshed) and proportion of hydromodel output flow
 	#		the adjust value is defined from InlandSeaModel_Notes Document describing how model calibration was done
 
+
+	# TODO - rework at least the Rock and Pike handling to work off the series built above rather than a proportion of Missisquoi
+	#		better yet, use series for all the sources for consistent coding.   series should all be local as built just above
 	for baysource in THEBAY.sourcelist :
 		logger.info('Generating Bay Source File for Id: '+baysource)
 		bs_prop = THEBAY.sourcemap[baysource]['prop'] * THEBAY.sourcemap[baysource]['adjust']  # proportion of input file for this source
