@@ -14,6 +14,7 @@ import tempfile as tf
 import time
 import pandas as pd
 import subprocess as sp
+import warnings
 import xarray as xr
 
 ############# Functions for Processing GFS grib data ############################
@@ -237,6 +238,9 @@ def get_data(forecast_datetime,
 	Returns:
 	GFS forecast data for the given locations in the format specified by return_type
 	"""
+
+	warnings.warn('gfs_ob.py is depreciated. gfs_fc_thredds.py is the recommended module for acquiring GFS data.', DeprecationWarning)
+
 	forecast_datetime = parse_to_datetime(forecast_datetime)
 	end_datetime = parse_to_datetime(end_datetime)
 
