@@ -18,10 +18,10 @@ def get_data(start_date,
 	A function to download and process AORC data to return nested dictionary of pandas series for each variable, for each location.
 
 		Args:
-		-- start_date (str, date, or datetime) [req]: the start date for which to grab data
-		-- end_date (str, date, or datetime) [req]: the end date for which to grab data
+		-- start_date (str, date, or datetime) [req]: the start date for which to grab data.
+		-- end_date (str, date, or datetime) [req]: the end date for which to grab data.
 		-- locations (dict) [req]: a dictionary (stationID/name:IDValue/latlong tuple) of locations to get data for.
-		-- variables (dict) [req]: a dictionary of variables to download.
+		-- variables (dict) [req]: a dictionary of variables to download. Keys should be user-defined names, values should be dataset-specific var names.
 	
 		Returns:
 		AORC timeseries data for the given locations in a nested dict format where 1st-level keys are user-provided location names and 2nd-level keys

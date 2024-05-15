@@ -187,7 +187,6 @@ def get_data(forecast_datetime,
 			 data_dir=tf.gettempdir(),
 			 dnwld_threads=int(os.cpu_count()/2),
 			 load_threads=2,
-			 return_type='dict',
 			 useTCDCInstant = False):
 	"""
 	Download specified GFS forecast data and return nested dictionary of pandas series fore each variable, for each location.
@@ -199,18 +198,11 @@ def get_data(forecast_datetime,
 	-- data_dir (str) [opt]: directory to store donwloaded data. Defaults to OS's default temp directory.
 	-- dwnld_threads (int) [opt]: number of threads to use for downloads. Default is half of OS's available threads.
 	-- load_threads (int) [opt]: number of threads to use for reading data. Default is 2 for GFS, since file reads are already pretty fast.
-	-- return_type (string) [opt]: string indicating which format to return data in. Default is "dict", which will return data in a nested dict format:
-									{locationID1:{
-										var1_name:pd.Series,
-										var2_name:pd.Series,
-										...},
-									locationID2:{...},
-									...
-									}
-									Alternative return type is "dataframe", which smashes all data into a single dataframe muliIndex'd by station ID, then timestamp
+	-- useTCDCInstant (bool) [opt]: wether to use instantaneous var for cloud cover or rolling average value.
 
 	Returns:
-	GFS forecast data for the given locations in the format specified by return_type
+	GFS forecast data for the given locations in a nested dict format where 1st-level keys are user-provided location names and 2nd-level keys
+	are variables names and values are the respective data in a Pandas Series object.
 	"""
 	variables_dict = {
 		'T2'    :'Temperature_height_above_ground',
@@ -256,14 +248,8 @@ def get_data(forecast_datetime,
 								variables_dict=variables_dict,
 								gfs_data_dir=gfs_date_dir,
 								num_threads=load_threads)
-	# ensure return_type is a valid value
-	if return_type not in ['dict', 'dataframe']:
-		raise ValueError(f"'{return_type}' is not a valid return_type. Please use 'dict' or 'dataframe'")
-	elif return_type == 'dict':
-		# created nested dictionary of pd.Series for each variable for each location
-		gfs_data = {location:{name:data.dropna().astype('float') for name, data in loc_df.T.iterrows()} for location, loc_df in loc_data.items()}
-	elif return_type == 'dataframe':
-		raise Exception("'dataframe' option not implemented yet. Please use return_type = 'dict'")
+	
+	gfs_data = {location:{name:data.dropna().astype('float') for name, data in loc_df.T.iterrows()} for location, loc_df in loc_data.items()}
 	
 	# return the GFS data
 	return gfs_data

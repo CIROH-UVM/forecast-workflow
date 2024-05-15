@@ -26,19 +26,11 @@ def get_data(start_date,
 		-- start_date (str, date, or datetime) [req]: the start date for which to grab data
 		-- end_date (str, date, or datetime) [req]: the end date for which to grab data
 		-- locations (dict) [req]: a dictionary (stationID/name:IDValue/latlong tuple) of locations to get data for.
-		-- variables (dict) [req]: a dictionary of variables to download.
-		-- return_type (string) [opt]: string indicating which format to return data in. Default is "dict", which will return data in a nested dict format:
-										{locationID1:{
-											var1_name:pd.Series,
-											var2_name:pd.Series,
-											...},
-										locationID2:{...},
-										...
-										}
-										Alternative return type is "dataframe", which smashes all data into a single dataframe muliIndex'd by station ID, then timestamp
+		-- variables (dict) [req]: a dictionary of variables to download. Keys should be user-defined var names, value should be dataset-specific var names
 		
 		Returns:
-		NWM retrospective forcings timeseries data for the given locations in the format specified by return_type
+		NWM retrospective forcings timeseries for the given locations in a nested dict format where 1st-level keys are user-provided location names and 2nd-level keys
+		are variables names and values are the respective data in a Pandas Series object.
 	'''
 	start_date = parse_to_datetime(start_date)
 	end_date = parse_to_datetime(end_date)

@@ -18,28 +18,19 @@ from aiohttp import ServerDisconnectedError
 def get_data(start_date,
 			 end_date,
 			 locations,
-			 variables,
-			 return_type='dict'):
+			 variables):
 	'''
 	A function to download and process NWM Retro Forcings data to return nested dictionary of pandas series for each variable, for each location.
 
-		Args:
-		-- start_date (str, date, or datetime) [req]: the start date for which to grab data
-		-- end_date (str, date, or datetime) [req]: the end date for which to grab data
-		-- locations (dict) [req]: a dictionary (stationID/name:IDValue/latlong tuple) of locations to get data for.
-		-- variables (dict) [req]: a dictionary of variables to download.
-		-- return_type (string) [opt]: string indicating which format to return data in. Default is "dict", which will return data in a nested dict format:
-										{locationID1:{
-											var1_name:pd.Series,
-											var2_name:pd.Series,
-											...},
-										locationID2:{...},
-										...
-										}
-										Alternative return type is "dataframe", which smashes all data into a single dataframe muliIndex'd by station ID, then timestamp
-		
-		Returns:
-		NWM retrospective forcings timeseries data for the given locations in the format specified by return_type
+	Args:
+	-- start_date (str, date, or datetime) [req]: the start date for which to grab data
+	-- end_date (str, date, or datetime) [req]: the end date for which to grab data
+	-- locations (dict) [req]: a dictionary (stationID/name:IDValue/latlong tuple) of locations to get data for.
+	-- variables (dict) [req]: a dictionary of variables to download, where keys are user-defined variable names and values are dataset-specific variable names.
+	
+	Returns:
+	NWM retrospective forcings timeseries data for the given locations in a nested dict format where 1st-level keys are user-provided location names and 2nd-level keys
+	are variables names and values are the respective data in a Pandas Series object.
 	'''
 	start_date = parse_to_datetime(start_date)
 	end_date = parse_to_datetime(end_date)
@@ -191,13 +182,7 @@ def get_data(start_date,
 	# extract the locations of interest and drop x,y coordinates after extraction
 	location_dataframes = {name : location_groups.get_group(xy).droplevel(['x','y']) for name, xy in locations_xy.items()}
 	
-	# ensure return_type is a valid value
-	if return_type not in ['dict', 'dataframe']:
-		raise ValueError(f"'{return_type}' is not a valid return_type. Please use 'dict' or 'dataframe'")
-	elif return_type == 'dict':
-		# created nested dictionary of pd.Series for each variable for each location
-		nwm_retro_forcings = {location:{name:data.dropna() for name, data in loc_df.T.iterrows()} for location, loc_df in location_dataframes.items()}
-	elif return_type == 'dataframe':
-		raise Exception("'dataframe' option not implemented yet. Please use return_type = 'dict'")
+	# created nested dictionary of pd.Series for each variable for each location
+	nwm_retro_forcings = {location:{name:data.dropna() for name, data in loc_df.T.iterrows()} for location, loc_df in location_dataframes.items()}
 	
 	return nwm_retro_forcings

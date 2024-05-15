@@ -149,8 +149,7 @@ def get_data(forecast_datetime,
 			 dwnld_threads=int(os.cpu_count()/2),
 			 load_threads=int(os.cpu_count()/2),
 			 google_buckets=False,
-			 archive=False,
-			 return_type='dict'):
+			 archive=False):
 	"""
 	A function to download and process NWM hydrology forecast data to return nested dictionary of pandas series fore each variable, for each location.
 	
@@ -165,17 +164,10 @@ def get_data(forecast_datetime,
 	-- forecast_cycle (str) [req]: The starting time for the forecasts. valid values are 00, 06, 12, 18
 	-- google_buckets (bool) [opt]: Flag determining wether or not to use google buckets for nwm download as opposed to NOMADs site.
 	-- archive (bool) [opt]: Flag determining wether or not data you are grabbing is older than the last two days (relevant for NWM only)
-	-- return_type (string) [opt]: string indicating which format to return data in. Default is "dict", which will return data in a nested dict format:
-									{locationID1:{
-										var1_name:pd.Series,
-										var2_name:pd.Series,
-										...},
-									locationID2:{...},
-									...
-									}
-									Alternative return type is "dataframe", which smashes all data into a single dataframe muliIndex'd by station ID, then timestamp	
+	
 	Returns:
-	NWM data in the format specified by return_type
+	NWM timeseries for the given locations in a nested dict format where 1st-level keys are user-provided location names and 2nd-level keys
+	are variables names and values are the respective data in a Pandas Series object.
 	"""
 	forecast_datetime = parse_to_datetime(forecast_datetime)
 	end_datetime = parse_to_datetime(end_datetime)
@@ -217,14 +209,7 @@ def get_data(forecast_datetime,
 								  num_threads=load_threads,
 								  fname_template=netcdf_template)
 	
-	# ensure return_type is a valid value
-	if return_type not in ['dict', 'dataframe']:
-		raise ValueError(f"'{return_type}' is not a valid return_type. Please use 'dict' or 'dataframe'")
-	elif return_type == 'dict':
-		# created nested dictionary of pd.Series for each variable for each location
-		nwm_data = {reach:{name:data for name, data in reach_df.T.iterrows()} for reach, reach_df in reach_data.items()}
-	elif return_type == 'dataframe':
-		raise Exception("'dataframe' option not implemented yet. Please use return_type = 'dict'")
-	
+	nwm_data = {reach:{name:data for name, data in reach_df.T.iterrows()} for reach, reach_df in reach_data.items()}
+
 	# return the NWM data
 	return nwm_data
