@@ -21,18 +21,11 @@ def get_data(start_date,
 	-- start_date (str, date, or datetime) [req]: the start date for which to grab Canadian Instantaneous data
 	-- end_date (str, date, or datetime) [req]: the end date for which to grab Canadian Instantaneous data
 	-- locations (dict) [req]: a dictionary (stationID/name:IDValue/latlong tuple) of locations to get Canadian Instantaneous data for.
-	-- return_type (string) [opt]: string indicating which format to return data in. Default is "dict", which will return data in a nested dict format:
-									{locationID1:{
-										var1_name:pd.Series,
-										var2_name:pd.Series,
-										...},
-									locationID2:{...},
-									...
-									}
-									Alternative return type is "dataframe", which smashes all data into a single dataframe muliIndex'd by station ID, then timestamp
+	-- variables (dict) [req]: a dictionary of variables to download, where keys are user-defined variable names and values are dataset-specific variable names.
 	
 	Returns:
-	Canadian Instantaneous observed streamflow data for the given stations in the format specified by return_type
+	Canadian Instantaneous observed streamflow data for the given stations in a nested dict format where 1st-level keys are user-provided location names and 2nd-level keys
+	are variables names and values are the respective data in a Pandas Series object.
 	"""
 	start_date = parse_to_datetime(start_date)
 	end_date = parse_to_datetime(end_date)
