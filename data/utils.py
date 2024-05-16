@@ -6,6 +6,22 @@ import sh
 A module containing helper and utility functions for the data acquisiton modules
 '''
 
+def add_units(series_data, var_units):
+	'''
+	In-place function to add units to final series data returned by data modules. Units are stored 
+	as the name attribute for each series in series_data.
+
+	Args:
+	-- series_data (dict) [req]: a nested dictionary of Pandas Series (returned by data modules).
+	-- var_units (dict) [req]: a dictionary where keys are user-defined variable names and values are units
+
+	Returns:
+	None; function directly modifies series_data.
+	'''
+	for series_dict in series_data.values():
+		for user_var_name, series in series_dict.items():
+			series_dict[user_var_name] = series.rename(f'Units: {var_units[user_var_name]}')
+
 def download_data(url, filepath, use_google_bucket=False):
 	"""
 	Downloads, via curl, a file from a url to a specified filepath. Prints download progress.
@@ -39,6 +55,19 @@ def download_data(url, filepath, use_google_bucket=False):
 		# log the last progress bar update (should be 100% ir download was finished, otherwise will show the point at which download ceased)
 		print(progress[-1])
 		print(f"Download Complete: {filepath}\n")
+
+def fahr_to_celsius(fahren):
+	'''
+	Utility function to convert temperature data from Farenheit to Celsius
+
+	Args:
+	-- fahren (int, float, array-like) [req]: interger/float or array-like object to convert to Celcius from Fahrenheit
+	
+	Returns:
+	New object in Celcius
+	'''
+	celsius = (fahren - 32) * 5 / 9
+	return celsius
 		
 def generate_date_strings(start_date, end_date):
 	"""
@@ -173,16 +202,49 @@ def parse_to_datetime(date):
 		except Exception as e:
 			raise e
 
-def smash_dataframes(series_data):
+def smash_to_dataframe(series_data):
 	'''
-	A quick helper function that smashes the nested series dictionary returned by a get_data() into a single df
+	A quick helper function that smashes the nested series dictionary returned by a get_data() into a single df.
+	If timeseries do not align for each series in series_data, NaN's will be introduced during cocatenation to fill missing values.
 
-		Args:
-		-- series_data (dict) [req]: a nested dictionary of Pandas Series to be smashed into a dataframe
-		Returns:
-		A single dataframe containing all of the data for each. Indexed by time, latitude and longitude are columns.
+	Args:
+	-- series_data (dict) [req]: a nested dictionary of Pandas Series to be smashed into a dataframe
+	
+	Returns:
+	A single timeseries dataframe for all of the variables and locations in series_data. Indexed by time (location name is a column).
 	'''
-	df_dict = {locname : pd.concat([s for s in series_dict.values()], axis=1) for locname, series_dict in series_data.items()}
-	df = pd.concat(df_dict.values())
-	df.index = pd.MultiIndex.from_product([df.index.unique(), df_dict.keys()], names = ['time','location'])
-	return df
+	df_dict = {}
+	for locname, series_dict in series_data.items():
+		var_df_list = []
+		for var_name, series in series_dict.items():
+			var_df = pd.DataFrame(data={var_name:series})
+			unit = series.name.split(' ')[-1]
+			var_df[f'{var_name} units'] = unit
+			var_df_list.append(var_df)
+		loc_df = pd.concat(var_df_list, axis=1)
+		loc_df.insert(0, 'location', locname)
+		df_dict[locname] = loc_df
+	return pd.concat(df_dict.values())
+
+def strip_non_numeric_chars(raw_series):
+	'''
+	Processes a Pandas Series to strip any non-numeric character, except a single decimal point and/or negative sign, from a string.
+	
+	Args:
+	-- raw_series (Pandas Series) [req]: the series to parse
+
+	Returns:
+	A copy of the passed series with all non-numeric characters removed
+	'''
+	corrected_series = raw_series.copy()
+	for i, value in enumerate(raw_series.astype(str)):
+		corrected_value = ''
+		# Check if the string is numeric after accounting for one decimal point
+		if not value.replace('.', '', 1).replace('-','',1).isdigit() and value != 'nan':
+			# Remove non-numeric characters and rejoin digits
+			corrected_value = ''.join(filter(str.isdigit, value))
+			if not corrected_value:
+				corrected_value = 'nan'
+			# print(f'Value at index {i} corrected from {value} to {corrected_value}')
+			corrected_series[i] = corrected_value
+	return corrected_series.astype(float)
