@@ -185,6 +185,6 @@ def get_data(start_date,
 			returnDict[user_name] = create_final_df(processed_data[user_name], user_name, 'DATE')
 					
 		# created nested dictionary of pd.Series for each variable for each location
-		lcd_data[station] = {var:df[var].rename(f'Units: {df["Units"][0]}') for var, df in returnDict.items()}
+		lcd_data[station] = {var:df[var].rename(f'{var} ({df["Units"][0]})') for var, df in returnDict.items()}
 
 	return lcd_data

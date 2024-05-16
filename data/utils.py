@@ -20,7 +20,7 @@ def add_units(series_data, var_units):
 	'''
 	for series_dict in series_data.values():
 		for user_var_name, series in series_dict.items():
-			series_dict[user_var_name] = series.rename(f'Units: {var_units[user_var_name]}')
+			series_dict[user_var_name] = series.rename(f'{user_var_name} ({var_units[user_var_name]})')
 
 def download_data(url, filepath, use_google_bucket=False):
 	"""
@@ -215,13 +215,7 @@ def smash_to_dataframe(series_data):
 	'''
 	df_dict = {}
 	for locname, series_dict in series_data.items():
-		var_df_list = []
-		for var_name, series in series_dict.items():
-			var_df = pd.DataFrame(data={var_name:series})
-			unit = series.name.split(' ')[-1]
-			var_df[f'{var_name} units'] = unit
-			var_df_list.append(var_df)
-		loc_df = pd.concat(var_df_list, axis=1)
+		loc_df = pd.concat([pd.DataFrame(series) for series in series_dict.values()], axis=1)
 		loc_df.insert(0, 'location', locname)
 		df_dict[locname] = loc_df
 	return pd.concat(df_dict.values())
