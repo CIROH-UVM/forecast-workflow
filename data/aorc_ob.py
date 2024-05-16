@@ -1,5 +1,5 @@
 import datetime as dt
-from .utils import get_hour_diff, parse_to_datetime
+from .utils import add_units, get_hour_diff, parse_to_datetime
 import pandas as pd
 import s3fs
 import xarray as xr
@@ -66,6 +66,9 @@ def get_data(start_date,
 	# filter the dataset for locations and dates
 	ds = ds_multi_year.sel(latitude=lats, longitude=lons, time=dates, method='nearest').drop_vars(vars_to_drop)
 
+	# making a dictionary of units for each variable
+	var_units = {user_var:ds[ds_var].units for user_var, ds_var in variables.items()}
+
 	# get the dataset-approximated lat and lon values, useful for later grouping
 	approx_lats = ds['latitude'].values
 	approx_lons = ds['longitude'].values
@@ -90,6 +93,9 @@ def get_data(start_date,
 
 	# created nested dictionary of pd.Series for each variable for each location
 	aorc_data = {location:{name:data.dropna() for name, data in loc_df.drop(['latitude','longitude'], axis=1).T.iterrows()} for location, loc_df in location_dataframes.items()}
+
+	# add units to nested series dictionary
+	add_units(aorc_data, var_units)
 
 	# return the AORC data
 	return aorc_data
