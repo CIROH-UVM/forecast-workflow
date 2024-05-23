@@ -53,7 +53,7 @@ for year in years:
 		config['spinup_date'] = dt.datetime(date.year, spinup_month_and_day.month, spinup_month_and_day.day).strftime('%Y%m%d')
 		config['forecast_start'] = date.strftime('%Y%m%d')
 		config['forecast_end'] = (date + dt.timedelta(days=7)).strftime('%Y%m%d')
-		config['root_dir'] = root_dir
+		config['data_dir'] = experiment_launch_params['data_dir']
 		config['weather_dataset_observed'] = experiment_launch_params['weather_dataset_observed']
 		config['weather_dataset_forecast'] = experiment_launch_params['weather_dataset_forecast']
 		config['hydrology_dataset_observed'] = experiment_launch_params['hydrology_dataset_observed']

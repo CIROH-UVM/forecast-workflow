@@ -224,7 +224,7 @@ def getflowfiles(whichbay, settings):
 								     "J-S":"4587092",
 								     "Mill":"4587100"},
 						forecast_type = settings['nwm_forecast_member'],
-						data_dir = os.path.join(settings['root_dir'], 'hindcastData/'),
+						data_dir = settings['data_dir'],
 						load_threads = 1,
 						google_buckets = True)
 
@@ -546,9 +546,7 @@ def genclimatefiles(whichbay, settings):
 		observedClimateCR = femc_ob.get_data(start_date = adjusted_spinup,
 										end_date = settings['forecast_start'],
 										locations = {'401':'ColReefQAQC'},
-										# TODO: create data_dir as a new setting and implement
-										# data_dir = os.path.join(settings['root_dir'], 'hindcastData/'))
-										data_dir = os.path.join('/netfiles/ciroh/7dayHABsHindcast', 'hindcastData/'))
+										data_dir = settings['data_dir'])
 		
 		###### FEMC+LCD DATA ADJUSTMENTS HERE ######
 		# make additional location dictionaries here rather than call for the same location multiple times in get_data()'s
@@ -613,9 +611,7 @@ def genclimatefiles(whichbay, settings):
 		forecastClimateCR = femc_ob.get_data(start_date = settings['forecast_start'],
 										end_date = adjusted_end_date,
 										locations = {'401':'ColReefQAQC'},
-										# TODO: create data_dir as a new setting and implement
-										# data_dir = os.path.join(settings['root_dir'], 'hindcastData/'))
-										data_dir = os.path.join('/netfiles/ciroh/7dayHABsHindcast', 'hindcastData/'))
+										data_dir = settings['data_dir'])
 		
 		
 		# copy data from 401 for 402, 403. Make sure it's a deep copy, not memeory reference
@@ -667,7 +663,7 @@ def genclimatefiles(whichbay, settings):
 			forecastClimate = {}
 			for zone in ['401', '402', '403']:
 				forecastClimate[zone] = pd.read_csv(
-							os.path.join(settings['root_dir'], f'hindcastData/gfs{zone}.csv'),
+							os.path.join(settings['data_dir'], f'gfs{zone}.csv'),
 							index_col='time',
 							parse_dates=True)
 		else:
@@ -687,7 +683,7 @@ def genclimatefiles(whichbay, settings):
 													locations = {'401': (45.00, -73.25),
 																'402': (44.75, -73.25),
 																'403': (44.75, -73.25)},
-													data_dir = os.path.join(settings['root_dir'], 'hindcastData/'),
+													data_dir = settings['data_dir'],
 													load_threads = 1)
 			
 			###### GFS DATA ADJUSTMENTS HERE ######

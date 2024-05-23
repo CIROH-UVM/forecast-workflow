@@ -75,9 +75,9 @@ def check_values(settings_dict, defaults=False):
 	# don't need to check csv flag, as default is false, and if the flag is passed, it will change to true. Trying to pass a
 	#  string or number for --csv will throw an error as an unrecognized bool
 	if not defaults:	
-		# check to see if root dir exists
-		if not os.path.isdir(settings_dict['root_dir']):
-			raise ValueError(f"path '{settings_dict['root_dir']}' does not exist")
+		# check to see if data dir exists
+		if not os.path.isdir(settings_dict['data_dir']):
+			raise ValueError(f"path '{settings_dict['data_dir']}' does not exist")
 		# check to see if aem3d input dir exists
 		if not os.path.isdir(settings_dict['aem3d_input_dir']):
 			raise ValueError(f"path '{settings_dict['aem3d_input_dir']}' does not exist")
@@ -107,7 +107,7 @@ def get_cmdln_args():
 	parser.add_argument('--hdf', type=str, help='forecasted hydrological dataset to use for model run')
 	parser.add_argument('--mem', type=str, help='NWM forecast member to use IFF using a NWM production dataset')
 	parser.add_argument('--csv', action='store_true', help="flag determining whether or not to use GFS/NWM CSV's. Default is False.")
-	parser.add_argument('--root', type=str, help='root dir containing forecastScripts, forecastRuns, forecastData')
+	parser.add_argument('--data', type=str, help='directory containing meteorology & hydrology data for workflow, i.e. forecastData, hindcastData, etc.')
 	parser.add_argument('--aem_in', type=str, help="absolute path to 'AEM3D-inputs/'")
 	parser.add_argument('--aem_ex', type=str, help="absolute path to AEM3D executable, 'aem3d_openmp.exe'")
 	# parser.add_argument('--old_dirs', action='store_false', help="flag determining whether or not to use post-update dir structure. Default is True. IOW, pass this flag to use old dir structure")
