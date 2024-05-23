@@ -21,8 +21,11 @@ from data import (femc_ob,
 				  nwm_fc, 
 				  usgs_ob,
 				  gfs_fc_thredds,
-				  lcd_ob
+				  lcd_ob,
+				  caflow_ob
 )
+
+from data.utils import combine_timeseries
 
 from .waterquality import *
 from .AEM3D import *
@@ -192,7 +195,7 @@ def getflowfiles(whichbay, settings):
 	
 
 	# pull observed Rock and Pike flow data from candadian service site
-	observedca = caflow.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
+	observedca = caflow_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
 								 		 end_date = settings['forecast_start'],
 										 locations = {"Rock":'030424',
 			   										  "Pike":'030425'})
@@ -208,7 +211,7 @@ def getflowfiles(whichbay, settings):
 		for location in forecastHydro.keys():
 			forecastHydro[location]['streamflow'] = forecastHydro[location]['streamflow'] * 0.0283168
 
-		forecastca = caflow.get_data(start_date = settings['forecast_start'],
+		forecastca = caflow_ob.get_data(start_date = settings['forecast_start'],
 								 		end_date = settings['forecast_end'] + dt.timedelta(days=1),
 										locations = {"Rock":'030424',
 			   										 "Pike":'030425'})
@@ -537,13 +540,15 @@ def genclimatefiles(whichbay, settings):
 		observedClimateBTV = lcd_ob.get_data(start_date = adjusted_spinup,
 										end_date = settings['forecast_start'],
 										locations = {"401":"72617014742"},
-										variables = {'HourlySkyConditions':'TCDC',
-					   								 'HourlyPrecipitation':'RAIN'})
+										variables = {'TCDC':'HourlySkyConditions',
+					   								 'RAIN':'HourlyPrecipitation'})
 		
 		observedClimateCR = femc_ob.get_data(start_date = adjusted_spinup,
 										end_date = settings['forecast_start'],
 										locations = {'401':'ColReefQAQC'},
-										data_dir = os.path.join(settings['root_dir'], 'hindcastData/'))
+										# TODO: create data_dir as a new setting and implement
+										# data_dir = os.path.join(settings['root_dir'], 'hindcastData/'))
+										data_dir = os.path.join('/netfiles/ciroh/7dayHABsHindcast', 'hindcastData/'))
 		
 		###### FEMC+LCD DATA ADJUSTMENTS HERE ######
 		# make additional location dictionaries here rather than call for the same location multiple times in get_data()'s
@@ -557,12 +562,14 @@ def genclimatefiles(whichbay, settings):
 		observedClimateFSO = lcd_ob.get_data(start_date = adjusted_spinup,
 									  	  end_date = settings['forecast_start'],
 									  	  locations = {"401":"72049400152"},
-										  variables = {'HourlySkyConditions':'TCDC'})
+										  variables = {'TCDC':'HourlySkyConditions'})
 
 		logger.info("Observed TCDC BTV:")
 		logger.info(observedClimateBTV['401']['TCDC'].info())
-		# now overwrite cloud cover for 401 
-		observedClimateBTV['401']['TCDC'] = observedClimateFSO['401']['TCDC']
+		# now overwrite cloud cover for 401 - combine franklin cloud cover with that from BTV to fill in data gaps
+		observedClimateBTV['401']['TCDC'] = combine_timeseries(primary = observedClimateFSO['401']['TCDC'],
+															   secondary = observedClimateBTV['401']['TCDC'],
+															   interval = '20min')
 		logger.info("Observed TCDC FSO:")
 		logger.info(observedClimateBTV['401']['TCDC'].info())
 		# cool new way to combine dictionaries (python >= 3.9)for zone, ds in climateObsCR.items():
@@ -600,13 +607,16 @@ def genclimatefiles(whichbay, settings):
 		forecastClimateBTV = lcd_ob.get_data(start_date = settings['forecast_start'],
 								end_date = adjusted_end_date,
 								locations = {"401":"72617014742"},
-								variables = {'HourlySkyConditions':'TCDC',
-					   						 'HourlyPrecipitation':'RAIN'})
+								variables = {'TCDC':'HourlySkyConditions',
+					   						 'RAIN':'HourlyPrecipitation'})
 		
 		forecastClimateCR = femc_ob.get_data(start_date = settings['forecast_start'],
 										end_date = adjusted_end_date,
 										locations = {'401':'ColReefQAQC'},
-										data_dir = os.path.join(settings['root_dir'], 'hindcastData/'))
+										# TODO: create data_dir as a new setting and implement
+										# data_dir = os.path.join(settings['root_dir'], 'hindcastData/'))
+										data_dir = os.path.join('/netfiles/ciroh/7dayHABsHindcast', 'hindcastData/'))
+		
 		
 		# copy data from 401 for 402, 403. Make sure it's a deep copy, not memeory reference
 		###### FEMC+LCD DATA ADJUSTMENTS HERE ######
@@ -621,12 +631,14 @@ def genclimatefiles(whichbay, settings):
 		forecastClimateFSO = lcd_ob.get_data(start_date = settings['forecast_start'],
 									  	  end_date = adjusted_end_date,
 									  	  locations = {"401":"72049400152"},
-										  variables = {'HourlySkyConditions':'TCDC'})
+										  variables = {'TCDC':'HourlySkyConditions'})
 		
 		logger.info("forecast TCDC BTV:")
 		logger.info(forecastClimateBTV['401']['TCDC'].info())
-		# now overwrite cloud cover for 401 
-		forecastClimateBTV['401']['TCDC'] = forecastClimateFSO['401']['TCDC']
+		# now overwrite cloud cover for 401 - combine franklin cloud cover with that from BTV to fill in data gaps
+		forecastClimateBTV['401']['TCDC'] = combine_timeseries(primary = forecastClimateFSO['401']['TCDC'],
+															   secondary = forecastClimateBTV['401']['TCDC'],
+															   interval = '20min')
 		logger.info("forecast TCDC FSO:")
 		logger.info(forecastClimateBTV['401']['TCDC'].info())
 
@@ -638,9 +650,9 @@ def genclimatefiles(whichbay, settings):
 		# Richelieu data represents forecast lake height
 		getvars = {'LAKEHT':'62614'}
 		forecastlake = usgs_ob.get_data(start_date = settings['forecast_start'],
-								 		 end_date = adjusted_end_date,
-										 locations = {"RL":'04295000'},
-                                          variables = getvars)
+								 		end_date = adjusted_end_date,
+										locations = {"RL":'04295000'},
+                                        variables = getvars)
 		# adjust height reference to 93 ft and convert to meters
 		forecastlake['RL']['LAKEHT'] = (forecastlake['RL']['LAKEHT']-93) * 0.034478e-05
 		# store observed lake height in bay object for later concat with predicted height
@@ -826,7 +838,7 @@ def genclimatefiles(whichbay, settings):
 		snowcalc_df = pd.merge(bay_rain[zone], snowcoeff, on='time', how='inner')
 		logger.info('snowcalc_df')
 		logger.info(print_df(snowcalc_df))
-		bay_snow[zone] = snowcalc_df['RAIN'] * snowcalc_df['T2']
+		bay_snow[zone] = snowcalc_df['RAIN (inches)'] * snowcalc_df['T2']
 		
 		# remove duplicate indices from bay_snow, bay_rain and TEMP
 		# duplicated timestamps was creating some concat and .loc issues down the line
