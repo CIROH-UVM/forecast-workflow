@@ -56,6 +56,51 @@ def download_data(url, filepath, use_google_bucket=False):
 		print(progress[-1])
 		print(f"Download Complete: {filepath}\n")
 
+def combine_timeseries(primary, secondary, interval):
+    """
+    Combine two time series into one, ensuring all original rows in the primary
+    time series are preserved and adding rows from the secondary time series if 
+    their datetime index does not exist within the primary time series.
+
+    Args:
+    -- primary (pd.Series): The primary time series with a datetime index.
+    -- secondary (pd.Series): The secondary time series with a datetime index.
+    -- interval (str): The rounding interval for the datetime index (e.g., 'T' for minutes).
+
+    Returns:
+    pd.Series: A combined time series with source timesteps, preserving the primary 
+               time series data and adding data from the secondary time series where 
+               necessary.
+    """
+    # Convert the primary and secondary series to dataframes
+    primary_df = primary.to_frame()
+    secondary_df = secondary.to_frame()
+
+    # Add a column for the original timestamps for each dataframe
+    primary_df['timestamps'] = primary_df.index
+    secondary_df['timestamps'] = secondary_df.index
+
+    # Round the index to the specified interval to ensure alignment
+    primary_df.index = primary_df.index.round(interval)
+    secondary_df.index = secondary_df.index.round(interval)
+
+    # Remove duplicate indices, which may be introduced by timestep rounding
+    primary_df = primary_df[~primary_df.index.duplicated(keep='first')]
+    secondary_df = secondary_df[~secondary_df.index.duplicated(keep='first')]
+
+    # Combine the two dataframes, using the primary dataframe as the base
+    combined_df = primary_df.combine_first(secondary_df)
+
+    # Restore the original timestamps as the index
+    combined_df.index = combined_df['timestamps'].rename('time')
+
+    # Drop the temporary 'timestamps' column
+    combined_df = combined_df.drop(columns=['timestamps'])
+
+    # Convert the final dataframe back to a series
+    return combined_df.squeeze()
+
+
 def fahr_to_celsius(fahren):
 	'''
 	Utility function to convert temperature data from Farenheit to Celsius
