@@ -8,15 +8,14 @@
 #SBATCH --time=30:00:00
 #SBATCH --job-name=<YOUR_JOB_NAME>
 #SBATCH --output=%x_%j.out
-#SBATCH --mail-type=FAIL
+#SBATCH --mail-type=ALL
 
 source /users/n/b/nbeckage/miniconda3/etc/profile.d/conda.sh
+# source /users/p/c/pclemins/usr/local/miniforge3/etc/profile.d/conda.sh
 conda activate forecast
 
 # change to whatever directory you want to put your scenario runs in
-# currently VACC speciifc
 cd /netfiles/ciroh/7dayHABsHindcast/<SCENARIO_DIR>/
 
 # note that you must have an experiment-specific configuration file in your scenario directory
 python ../launchExperiment.py experiment_config.json
-
