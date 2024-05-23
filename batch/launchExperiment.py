@@ -10,7 +10,7 @@ import models.aem3d.get_args as get_args
 '''
 Script to Launch Model Runs for a given hindcast scenario
 '''
-# directory in ehcih this .py script is located
+# directory in which this .py script is executed from - should be a scenario dir according to FEE protocol
 orig = os.getcwd()
 
 # read in the experiment-spoecific config file from the command line
@@ -49,7 +49,7 @@ for year in years:
 			continue
 		os.makedirs(scenario_dir_date)
 		os.chdir(scenario_dir_date)
-
+		
 		config['spinup_date'] = dt.datetime(date.year, spinup_month_and_day.month, spinup_month_and_day.day).strftime('%Y%m%d')
 		config['forecast_start'] = date.strftime('%Y%m%d')
 		config['forecast_end'] = (date + dt.timedelta(days=7)).strftime('%Y%m%d')
