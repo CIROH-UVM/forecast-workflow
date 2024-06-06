@@ -50,7 +50,7 @@ FIG.supxlabel('Datetime')
 for i in range(0,5):
 	for label in AXES[1,i].get_xticklabels():
 		label.set_rotation(45)
-FIG.delaxes(AXES[0,4])
+# FIG.delaxes(AXES[0,4])
 
 def get_climate_zone_keys(dict):
 	return [zone for zone in dict.keys() if int(int(zone) / 100) == 4]
@@ -1185,6 +1185,16 @@ def genclimatefiles(whichbay, settings):
 			lake_ht_series
 	)
 	THEBAY.addfile(fname=filename)
+
+	logger.info(f'lake_height:{lake_height}')
+	# adding Lake Level plot package
+	SUBPLOT_PACKAGES['lake level'] = {'labelled_data':{'300':lake_height},
+									'ylabel':'Lake Level (m) above 93ft',
+									'title':'Lake Level',
+									'fc_start':settings['forecast_start'],
+									'row':0,
+									'col':4,
+									'axis':AXES}
 	
 	# pathedfile = os.path.join(THEBAY.infile_dir, filename)
 	# with open(pathedfile, mode='w', newline='') as output_file:
