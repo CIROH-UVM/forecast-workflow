@@ -12,6 +12,7 @@
 
 set -x
 
+# source /users/p/c/pclemins/usr/local/miniforge3/etc/profile.d/conda.sh
 source /users/n/b/nbeckage/miniconda3/etc/profile.d/conda.sh
 conda activate forecast
 # export PYTHONPATH=/users/p/c/pclemins/repos/forecast-workflow
