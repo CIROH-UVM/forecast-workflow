@@ -801,6 +801,8 @@ def genclimatefiles(whichbay, settings):
 		#   and / 1000 to get mm to m, so, in all, * 86.4
 		#   GFS Ref: https://www.nco.ncep.noaa.gov/pmb/products/gfs/gfs.t00z.pgrb2.0p25.f003.shtml
 		bay_rain[zone] = pd.concat([observedClimate[zone]['RAIN'], forecastClimate[zone]['RAIN']])
+		# give series a name... beacuse pandas wants one for the merge below
+		bay_rain[zone] = bay_rain[zone].rename('RAIN')
 
 		print(air_temp[zone])
 		TEMP = air_temp[zone].reindex(bay_rain[zone].index, method='nearest')
@@ -834,7 +836,7 @@ def genclimatefiles(whichbay, settings):
 		snowcalc_df = pd.merge(bay_rain[zone], snowcoeff, on='time', how='inner')
 		logger.info('snowcalc_df')
 		logger.info(print_df(snowcalc_df))
-		bay_snow[zone] = snowcalc_df['RAIN (inches)'] * snowcalc_df['T2']
+		bay_snow[zone] = snowcalc_df['RAIN'] * snowcalc_df['T2']
 		
 		# remove duplicate indices from bay_snow, bay_rain and TEMP
 		# duplicated timestamps was creating some concat and .loc issues down the line
@@ -1159,6 +1161,8 @@ def genclimatefiles(whichbay, settings):
 
 	# Calculate misalignment between first predicted and last observered, and adjust entire prediction that amount
 	htoffset = observedClimate['300']['LAKEHT'].iloc[-1] - forecastClimate['300']['LAKEHT'].iloc[0]
+	logger.info(f"Last observed = {observedClimate['300']['LAKEHT'].index[-1]}, {observedClimate['300']['LAKEHT'].iloc[-1]}")
+	logger.info(f"First estimated = {forecastClimate['300']['LAKEHT'].index[0]}, {forecastClimate['300']['LAKEHT'].iloc[0]}")
 	logger.info('Lake Height Prediction Offset = ' + str(htoffset))
 	forecastClimate['300']['LAKEHT'] = forecastClimate['300']['LAKEHT'] + htoffset 
 	lake_height = pd.concat([observedClimate['300']['LAKEHT'],forecastClimate['300']['LAKEHT']])
@@ -1180,7 +1184,7 @@ def genclimatefiles(whichbay, settings):
 			"HEIGHT",
 			lake_ht_series
 	)
-
+	THEBAY.addfile(fname=filename)
 	
 	# pathedfile = os.path.join(THEBAY.infile_dir, filename)
 	# with open(pathedfile, mode='w', newline='') as output_file:
