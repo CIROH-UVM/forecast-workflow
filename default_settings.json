@@ -16,6 +16,6 @@
 	"nwm_forecast_member" : "medium_range_mem1",
 	"csv" : false,
 	"data_dir" : "/netfiles/ciroh/7dayHABsHindcast/hindcastData/",
-	"aem3d_input_dir" : "/netfiles/ciroh/models/aem3d/current/AEM3D-inputs",
+	"aem3d_input_dir" : "/netfiles/ciroh/models/aem3d/v5-20240518/AEM3D-inputs",
 	"aem3d_command_path" : "/usr/local/aem3d-1.1.2-535/aem3d_openmp.exe"
 }
