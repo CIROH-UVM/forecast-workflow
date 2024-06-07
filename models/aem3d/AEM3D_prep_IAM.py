@@ -626,6 +626,8 @@ def genclimatefiles(whichbay, settings):
 		# common code prefix for vermont stations: 726170
 		# try Franklin data grab - 7-day data grab might return empty json, so in that case, use BTV data
 		
+		# boolean switch - if true, we are using franklin aiport cloud data for the forecast period
+		fso_cloud_forecast = True
 		try:
 			# trying Franklin grab, and if that doesn't work...
 			logger.info("Trying to get Forecast Period cloud data from Franklin airport (72049400152)...")
@@ -638,19 +640,20 @@ def genclimatefiles(whichbay, settings):
 			logger.warning("Franklin airport cloud data grab for Forecast Period Failed.")
 			logger.warning(e)
 			logger.warning("Getting Forecast Period cloud data from Burlington instead...")
-			forecastClimateFSO = lcd_ob.get_data(start_date = settings['forecast_start'],
-								end_date = adjusted_end_date,
-								locations = {"401":"72617014742"},
-								variables = {'TCDC':'HourlySkyConditions'})
+			fso_cloud_forecast = False
 			
 		logger.info("forecast TCDC BTV:")
 		logger.info(forecastClimateBTV['401']['TCDC'].info())
-		# now overwrite cloud cover for 401 - combine franklin cloud cover with that from BTV to fill in data gaps
-		forecastClimateBTV['401']['TCDC'] = combine_timeseries(primary = forecastClimateFSO['401']['TCDC'],
-															   secondary = forecastClimateBTV['401']['TCDC'],
-															   interval = '20min')
-		logger.info("forecast TCDC FSO:")
-		logger.info(forecastClimateBTV['401']['TCDC'].info())
+
+		# only need to combine franklin and burlington cloud data if franklin data grab worked
+		# otherwise, no need to combine, will just use BTV cloud data
+		if fso_cloud_forecast:
+			# now overwrite cloud cover for 401 - combine franklin cloud cover with that from BTV to fill in data gaps
+			forecastClimateBTV['401']['TCDC'] = combine_timeseries(primary = forecastClimateFSO['401']['TCDC'],
+																secondary = forecastClimateBTV['401']['TCDC'],
+																interval = '20min')
+			logger.info("forecast TCDC FSO:")
+			logger.info(forecastClimateBTV['401']['TCDC'].info())
 
 		# cool new way to combine dictionaries (python >= 3.9)for zone, ds in climateObsCR.items():
 		# Both FEMC and LCD data grabbers now need mathing location keys to work since they are being combine
