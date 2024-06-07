@@ -5,7 +5,7 @@ import pandas as pd
 import pyproj
 from s3fs import S3FileSystem, S3Map
 import xarray as xr
-from lib import get_hour_diff, parse_to_datetime
+from .utils import get_hour_diff, parse_to_datetime
 from aiohttp import ServerDisconnectedError
 
 
