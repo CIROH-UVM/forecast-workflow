@@ -624,11 +624,25 @@ def genclimatefiles(whichbay, settings):
 		# For MB (zone 401), we actually want cloud cover from Franklin Airport
 		# Franklin airport ID: 00152
 		# common code prefix for vermont stations: 726170
-		forecastClimateFSO = lcd_ob.get_data(start_date = settings['forecast_start'],
+		# try Franklin data grab - 7-day data grab might return empty json, so in that case, use BTV data
+		
+		try:
+			# trying Franklin grab, and if that doesn't work...
+			logger.info("Trying to get Forecast Period cloud data from Franklin airport (72049400152)...")
+			forecastClimateFSO = lcd_ob.get_data(start_date = settings['forecast_start'],
 									  	  end_date = adjusted_end_date,
 									  	  locations = {"401":"72049400152"},
 										  variables = {'TCDC':'HourlySkyConditions'})
-		
+		except Exception as e:
+			# use Burlington data
+			logger.warning("Franklin airport cloud data grab for Forecast Period Failed.")
+			logger.warning(e)
+			logger.warning("Getting Forecast Period cloud data from Burlington instead...")
+			forecastClimateFSO = lcd_ob.get_data(start_date = settings['forecast_start'],
+								end_date = adjusted_end_date,
+								locations = {"401":"72617014742"},
+								variables = {'TCDC':'HourlySkyConditions'})
+			
 		logger.info("forecast TCDC BTV:")
 		logger.info(forecastClimateBTV['401']['TCDC'].info())
 		# now overwrite cloud cover for 401 - combine franklin cloud cover with that from BTV to fill in data gaps
