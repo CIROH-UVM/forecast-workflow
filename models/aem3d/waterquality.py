@@ -140,7 +140,7 @@ def genwqfiles (theBay):
             - 4.1022e-1  * THEBAY.wtr_temp_dict[baysource] \
             + 7.991e-3   * np.power(THEBAY.wtr_temp_dict[baysource], 2) \
             - 7.77774e-5 * np.power(THEBAY.wtr_temp_dict[baysource], 3)
-
+        
         bs_name = THEBAY.sourcemap[baysource]['name']
         filename = "WQ_" + bs_name + '_DO.dat'
         logger.info('Generating Bay Source DO File: '+filename)
@@ -220,12 +220,21 @@ def genwqfiles (theBay):
                 p_redux = (100 - theyears_p_reductions[[SCENARIO.reduxP]]) / 100
         '''
         #p_redux = (100 - theyears_p_reductions[['40_redux']]) / 100       # Fix This hardcoded redux reference
-        logger.info(f'Scaling Flow by P_Redux: {p_redux}')
+        # logger.info(f'Scaling Flow by P_Redux: {p_redux}')
 
         phosdf = pd.DataFrame()
         phosdf['ordinaldate'] = flowdf['ordinaldate']
-        cqVersion = 'BREE2021Quad'
 
+        # Get Q for use in equations
+        # TODO Include 'adjust' here or not for the CQ equations?!?
+        Q = (flowdf[THEBAY.sourcemap[baysource]['wshed']] *
+             THEBAY.sourcemap[baysource]['prop'] *
+             THEBAY.sourcemap[baysource]['adjust'])
+
+        # Changed default 20240607 by pjc
+        # TODO Make this a setting
+        # cqVersion = 'BREE2021Quad'
+        cqVersion = '202406Calibration'
         # if phosdf.isna().any().any():
         #     print(phosdf[phosdf.isna().any(axis=1)])
         #     raise Exception(f"NA's detected in phos df for bs_name: {bs_name}")
@@ -240,6 +249,26 @@ def genwqfiles (theBay):
             #   Same for ALL ILS inputs!!
             zTP = (flowdf['msflow'] - 159.78) / 132.64
             phosdf['TP'] =  ( 0.011001 * np.power(zTP,2) + 0.073104 * zTP + 0.091528 ) * p_redux
+        elif cqVersion == '202406Calibration':
+            # Make 0 flows very small for log calculations
+            Q = Q.apply(lambda x: 0.01 if x < 0.01 else x)
+            logQ = np.log10(Q)
+
+            if bs_name.startswith('MissisquoiRiver'):
+                zTP = (Q - 159.78) / 132.64
+                phosdf['TP'] = 0.091528 + 0.073104*zTP + 0.011001*(zTP*zTP) * p_redux
+            elif bs_name.startswith('RockRiver'):
+                phosdf['TP'] = 0.065 + 0.0115*Q - 0.000168*(Q*Q) * p_redux
+            elif bs_name.startswith('PikeRiver'):
+                phosdf['TP'] = 0.016 + 0.0016*Q - 0.0000015*(Q*Q) * p_redux
+            # Need Mill and JS Equations from Kareem as well for calibration run
+            # For now, these are the BREE2021Quad Equations
+            elif bs_name.startswith('MillRiver'):
+                phosdf['TP'] = np.power(10, (1.7935 + 0.4052 * logQ + 0.1221 * logQ * logQ)) * p_redux / 1000
+            elif bs_name.startswith('JewettStevens'):
+                phosdf['TP'] = np.power(10, (2.2845 + 0.5185 * logQ + 0.1995 * logQ * logQ)) * p_redux / 1000
+            else:
+                raise Exception(f'CQ Equation for baysource={bs_name} not found for cqVersion={cqVersion}') 
         elif cqVersion == 'BREE2021Quad':
             # Takis' new quadratic CQ equations by stream derived from historical data
             if (
@@ -254,48 +283,70 @@ def genwqfiles (theBay):
                 flowdf['jsflow'] = flowdf['jsflow'].apply(lambda x: 0.01 if x < 0.01 else x)
                 logQ = np.log10(flowdf['jsflow'])
                 phosdf['TP'] = np.power(10, (2.2845 + 0.5185 * logQ + 0.1995 * logQ * logQ)) * p_redux / 1000
-                # will throw an error and log data if NA's are returned - gonna keep this code in case we need to debug similar issues again
-                if phosdf['TP'].isna().any():
-                    logger.info("flowdf['jsflow'] indices that became NA")
-                    logger.info(flowdf[phosdf.isna().any(axis=1)])
-                    logger.info("logQ indices that became NA's:")
-                    logger.info(logQ[phosdf.isna().any(axis=1)])
-                    logger.info("phosdf with NA's:")
-                    logger.info(phosdf[phosdf.isna().any(axis=1)])
-                    e = Exception(f"NA's detected in phosdf['TP'] bs_name: {bs_name}")
-                    logger.exception(e)
-                    raise e
             elif bs_name.startswith('MillRiver'):
                 flowdf['mlflow'] = flowdf['mlflow'].apply(lambda x: 0.01 if x < 0.01 else x)
                 logQ = np.log10(flowdf['mlflow'])
                 phosdf['TP'] = np.power(10, (1.7935 + 0.4052 * logQ + 0.1221 * logQ * logQ)) * p_redux / 1000
             else:
                 raise Exception(f'CQ Equation for baysource={bs_name} not found for cqVersion={cqVersion}')
-            
-            # Remove low Q days because the log will cause their concentrations to 'blow up'
-            phosdf.loc[flowdf['msflow'] < 0.1, 'TP'] = 0.0
-            # phosdf['TP'].loc[flowdf['msflow'].copy() < 0.1] = 0.0
         else:
             raise Exception(f'cqVersion {cqVersion} not defined')
 
+        # Set low Q days to zero because the log in some formulations will cause their concentrations to 'blow up'
+        phosdf.loc[Q < 0.1, 'TP'] = 0.0
+
+        # Check for NAs -- will throw an error and log data if NA's are returned
+        #   Gonna keep this code in case we need to debug similar issues again
+        if phosdf['TP'].isna().any():
+            logger.info("Q indices that became NA")
+            logger.info(Q[phosdf.isna().any(axis=1)])
+            logger.info("logQ indices that became NA's:")
+            logger.info(logQ[phosdf.isna().any(axis=1)])
+            logger.info("phosdf with NA's:")
+            logger.info(phosdf[phosdf.isna().any(axis=1)])
+            e = Exception(f"NA's detected in phosdf['TP'] bs_name: {bs_name}")
+            logger.exception(e)
+            raise e        
+
+
+        if cqVersion == '202406Calibration':
+            if bs_name.startswith('MissisquoiRiver'):
+                phosdf['PO4'] = 0.01401 * np.power(phosdf['TP'],0.319)
+                phosdf['DOPL'] = 0.03268 * np.power(phosdf['TP'],0.319)
+                phosdf['POPL'] = phosdf['TP'] - phosdf['PO4'] - phosdf['DOPL']
+            elif(
+            bs_name.startswith('JewettStevens') or
+            bs_name.startswith('MillRiver')
+            ):
+                phosdf['PO4'] = 0.1050 * phosdf['TP']
+                phosdf['DOPL'] = 0.23275 * phosdf['TP']
+                phosdf['POPL'] = 0.30875 * phosdf['TP']
+            elif(
+                bs_name.startswith('RockRiver') or
+                bs_name.startswith('PikeRiver')
+            ):
+                phosdf['PO4'] = 0.16 * phosdf['TP']
+                phosdf['DOPL'] = 0.36 * phosdf['TP']
+                phosdf['POPL'] = 0.48 * phosdf['TP']
 
         # Same for cqVersion = Clelia or BREE2021
         #   Updated 2021.05.27 per WQS Docs
-        if bs_name.startswith('MissisquoiRiver'):
-            phosdf['PO4'] = 0.01401 * np.power(phosdf['TP'],0.319)
-            phosdf['DOPL'] = 0.03268 * np.power(phosdf['TP'],0.319)
-            phosdf['POPL'] = phosdf['TP'] - phosdf['PO4'] - phosdf['DOPL']
-        elif(
-        bs_name.startswith('RockRiver') or
-        bs_name.startswith('PikeRiver') or
-        bs_name.startswith('JewettStevens') or
-        bs_name.startswith('MillRiver')
-        ):
-            phosdf['PO4'] = 0.1050 * phosdf['TP']
-            phosdf['DOPL'] = 0.23275 * phosdf['TP']
-            phosdf['POPL'] = 0.30875 * phosdf['TP']
         else:
-            raise Exception(f'baysource={bs_name} not found when calculating phosphorus species')
+            if bs_name.startswith('MissisquoiRiver'):
+                phosdf['PO4'] = 0.01401 * np.power(phosdf['TP'],0.319)
+                phosdf['DOPL'] = 0.03268 * np.power(phosdf['TP'],0.319)
+                phosdf['POPL'] = phosdf['TP'] - phosdf['PO4'] - phosdf['DOPL']
+            elif(
+            bs_name.startswith('RockRiver') or
+            bs_name.startswith('PikeRiver') or
+            bs_name.startswith('JewettStevens') or
+            bs_name.startswith('MillRiver')
+            ):
+                phosdf['PO4'] = 0.1050 * phosdf['TP']
+                phosdf['DOPL'] = 0.23275 * phosdf['TP']
+                phosdf['POPL'] = 0.30875 * phosdf['TP']
+            else:
+                raise Exception(f'baysource={bs_name} not found when calculating phosphorus species')
 
         # print('Check of PO4 dataframe')
         # print(phosdf['PO4'])
@@ -303,17 +354,43 @@ def genwqfiles (theBay):
         # Nitrogen Series
         nitdf = pd.DataFrame()
         nitdf['ordinaldate'] = flowdf['ordinaldate']
-        zTN = (flowdf['msflow'] - 166.3734)/138.1476
-        nitdf['TN'] = 0.00407 * np.power(zTN,2)  + 0.12853 * zTN + 0.75675
-        nitdf['NH4'] = 0.1 * nitdf['TN']            # Updated 2021.05.27 per WQS Docs
-        nitdf['NO3'] = 0.3 * nitdf['TN']
-        nitdf['DONL'] = 0.1 * nitdf['TN']
-        nitdf['PONL'] = 0.475 * nitdf['TN']
+        if cqVersion == '202406Calibration':
+            if bs_name.startswith('PikeRiver'):
+                nitdf['TN'] = 0.95 + 0.004*Q + 0.7*np.power(2.72, (-Q/11))
+                nitdf['NH4'] = 0.1 * nitdf['TN']
+                nitdf['NO3'] = 0.3 * nitdf['TN']
+                nitdf['DONL'] = 0.1 * nitdf['TN']
+                nitdf['PONL'] = 0.5 * nitdf['TN']
+            elif bs_name.startswith('RockRiver'):
+                nitdf['TN'] = 2.0 + 0.021*Q + 1.45*np.power(2.72, (-(Q+0.9)/1.6))
+                nitdf['NH4'] = 0.1 * nitdf['TN']
+                nitdf['NO3'] = 0.3 * nitdf['TN']
+                nitdf['DONL'] = 0.1 * nitdf['TN']
+                nitdf['PONL'] = 0.5 * nitdf['TN']
+            elif (
+            bs_name.startswith('MissisquoiRiver') or
+            bs_name.startswith('JewettStevens') or
+            bs_name.startswith('MillRiver')
+            ):
+                # TODO Fix... basing off msflow to get N concentrations
+                zTN = (flowdf['msflow'] - 166.3734) / 138.1476
+                nitdf['TN'] = 0.00407 * np.power(zTN,2)  + 0.12853 * zTN + 0.75675
+                nitdf['NH4'] = 0.1 * nitdf['TN']
+                nitdf['NO3'] = 0.3 * nitdf['TN']
+                nitdf['DONL'] = 0.1 * nitdf['TN']
+                nitdf['PONL'] = 0.475 * nitdf['TN']                
+        else:
+            zTN = (flowdf['msflow'] - 166.3734) / 138.1476
+            nitdf['TN'] = 0.00407 * np.power(zTN,2)  + 0.12853 * zTN + 0.75675
+            nitdf['NH4'] = 0.1 * nitdf['TN']            # Updated 2021.05.27 per WQS Docs
+            nitdf['NO3'] = 0.3 * nitdf['TN']
+            nitdf['DONL'] = 0.1 * nitdf['TN']
+            nitdf['PONL'] = 0.475 * nitdf['TN']
 
         # Suspended Solids Series
         ssdf = pd.DataFrame()
         ssdf['ordinaldate'] = flowdf['ordinaldate']
-        zSS = (flowdf['msflow'] - 170.0903)/142.1835
+        zSS = (flowdf['msflow'] - 170.0903) / 142.1835
         ssdf['SSOL1'] = 17.7558 * np.power(zSS,2)  + 59.5663 * zSS + 48.0127
 
         #
