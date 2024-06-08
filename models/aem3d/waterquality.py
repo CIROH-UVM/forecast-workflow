@@ -226,10 +226,13 @@ def genwqfiles (theBay):
         phosdf['ordinaldate'] = flowdf['ordinaldate']
 
         # Get Q for use in equations
-        # TODO Include 'adjust' here or not for the CQ equations?!?
+        # Don't use 'adjust' factor to calculate nutrient fluxes
+        #   per 2024 06 email discussion with Peter Isles
+        # ! Use Q (streamflow) estimates / observations
+        #   at USGS gage / nutrient monitoring locations
         Q = (flowdf[THEBAY.sourcemap[baysource]['wshed']] *
-             THEBAY.sourcemap[baysource]['prop'] *
-             THEBAY.sourcemap[baysource]['adjust'])
+             THEBAY.sourcemap[baysource]['prop'])
+             # THEBAY.sourcemap[baysource]['adjust'])
 
         # Changed default 20240607 by pjc
         # TODO Make this a setting
