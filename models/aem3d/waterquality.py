@@ -264,8 +264,9 @@ def genwqfiles (theBay):
                 phosdf['TP'] = 0.065 + 0.0115*Q - 0.000168*(Q*Q) * p_redux
             elif bs_name.startswith('PikeRiver'):
                 phosdf['TP'] = 0.016 + 0.0016*Q - 0.0000015*(Q*Q) * p_redux
-            # Need Mill and JS Equations from Kareem as well for calibration run
-            # For now, these are the BREE2021Quad Equations
+            # 2024 Calibration used VT DEC data for Mill and JS
+            #   For now, these are the BREE2021Quad Equations
+            #   But, we should switch to Takis' new 2024 equations ASAP
             elif bs_name.startswith('MillRiver'):
                 phosdf['TP'] = np.power(10, (1.7935 + 0.4052 * logQ + 0.1221 * logQ * logQ)) * p_redux / 1000
             elif bs_name.startswith('JewettStevens'):
@@ -274,6 +275,7 @@ def genwqfiles (theBay):
                 raise Exception(f'CQ Equation for baysource={bs_name} not found for cqVersion={cqVersion}') 
         elif cqVersion == 'BREE2021Quad':
             # Takis' new quadratic CQ equations by stream derived from historical data
+            # TODO Fix these to use Q from above instead of raw flowdf[]
             if (
             bs_name.startswith('MissisquoiRiver') or 
             bs_name.startswith('RockRiver') or
@@ -318,19 +320,16 @@ def genwqfiles (theBay):
                 phosdf['DOPL'] = 0.03268 * np.power(phosdf['TP'],0.319)
                 phosdf['POPL'] = phosdf['TP'] - phosdf['PO4'] - phosdf['DOPL']
             elif(
+            bs_name.startswith('RockRiver') or
+            bs_name.startswith('PikeRiver') or
             bs_name.startswith('JewettStevens') or
             bs_name.startswith('MillRiver')
-            ):
-                phosdf['PO4'] = 0.1050 * phosdf['TP']
-                phosdf['DOPL'] = 0.23275 * phosdf['TP']
-                phosdf['POPL'] = 0.30875 * phosdf['TP']
-            elif(
-                bs_name.startswith('RockRiver') or
-                bs_name.startswith('PikeRiver')
             ):
                 phosdf['PO4'] = 0.16 * phosdf['TP']
                 phosdf['DOPL'] = 0.36 * phosdf['TP']
                 phosdf['POPL'] = 0.48 * phosdf['TP']
+            else:
+                raise Exception(f'baysource={bs_name} not found when calculating phosphorus species for 202406Calibration')
 
         # Same for cqVersion = Clelia or BREE2021
         #   Updated 2021.05.27 per WQS Docs
@@ -349,7 +348,7 @@ def genwqfiles (theBay):
                 phosdf['DOPL'] = 0.23275 * phosdf['TP']
                 phosdf['POPL'] = 0.30875 * phosdf['TP']
             else:
-                raise Exception(f'baysource={bs_name} not found when calculating phosphorus species')
+                raise Exception(f'baysource={bs_name} not found when calculating phosphorus species for {cqVersion}')
 
         # print('Check of PO4 dataframe')
         # print(phosdf['PO4'])
@@ -375,16 +374,15 @@ def genwqfiles (theBay):
             bs_name.startswith('JewettStevens') or
             bs_name.startswith('MillRiver')
             ):
-                # TODO Fix... basing off msflow to get N concentrations
-                zTN = (flowdf['msflow'] - 166.3734) / 138.1476
-                nitdf['TN'] = 0.00407 * np.power(zTN,2)  + 0.12853 * zTN + 0.75675
+                zTN = (Q - 166.3734) / 138.1476
+                nitdf['TN'] = 0.00407 * (zTN*zTN)  + 0.12853 * zTN + 0.75675
                 nitdf['NH4'] = 0.1 * nitdf['TN']
                 nitdf['NO3'] = 0.3 * nitdf['TN']
                 nitdf['DONL'] = 0.1 * nitdf['TN']
-                nitdf['PONL'] = 0.475 * nitdf['TN']                
+                nitdf['PONL'] = 0.5 * nitdf['TN']                
         else:
-            zTN = (flowdf['msflow'] - 166.3734) / 138.1476
-            nitdf['TN'] = 0.00407 * np.power(zTN,2)  + 0.12853 * zTN + 0.75675
+            zTN = (Q - 166.3734) / 138.1476
+            nitdf['TN'] = 0.00407 * (zTN*zTN)  + 0.12853 * zTN + 0.75675
             nitdf['NH4'] = 0.1 * nitdf['TN']            # Updated 2021.05.27 per WQS Docs
             nitdf['NO3'] = 0.3 * nitdf['TN']
             nitdf['DONL'] = 0.1 * nitdf['TN']
@@ -393,7 +391,7 @@ def genwqfiles (theBay):
         # Suspended Solids Series
         ssdf = pd.DataFrame()
         ssdf['ordinaldate'] = flowdf['ordinaldate']
-        zSS = (flowdf['msflow'] - 170.0903) / 142.1835
+        zSS = (Q - 170.0903) / 142.1835
         ssdf['SSOL1'] = 17.7558 * np.power(zSS,2)  + 59.5663 * zSS + 48.0127
 
         #
