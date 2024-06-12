@@ -239,13 +239,15 @@ def parse_to_datetime(date):
 	elif isinstance(date, str):
 		if date == "":
 			return None
-		try:
-			date = dt.datetime.strptime(date, "%Y%m%d").replace(tzinfo=dt.timezone.utc)
-			return date
-		except ValueError as ve:
-			raise ValueError(f'{ve}. Please enter date strings in the format "YYYYMMDD"')
-		except Exception as e:
-			raise e
+		# define acceptable string formats
+		formats = ["%Y%m%d", "%Y%m%d%H"]
+		for date_format in formats:
+			try:
+				date = dt.datetime.strptime(date, date_format).replace(tzinfo=dt.timezone.utc)
+				return date
+			except ValueError:
+				continue
+		raise ValueError(f'Invalid date string: {date}. Please enter date strings in the format "YYYYMMDD" or "YYYYMMDDHH".')
 
 def smash_to_dataframe(series_data):
 	'''
