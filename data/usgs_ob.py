@@ -11,7 +11,7 @@ import pandas as pd
 # Gage Height, feet: '00065'
 # Lake Elevation above NGVD, ft: '62614''
 
-def USGSgetvars_function(id, variables, start, end):
+def USGSgetvars_function(id, variables, start, end, serv='iv'):
 	"""
 	Form url for USGS station request and return formatted dataframe for the given station
 
@@ -21,6 +21,7 @@ def USGSgetvars_function(id, variables, start, end):
 	-- paramter (str) [req]: parameter code of data to get
 	-- start (datetime) [req]: start datetime
 	-- end (datetime) [req]: end datetime
+	-- serv (str) [opt]: what USGS service to get data from. Default is instanteous values service. For more options, see https://waterservices.usgs.gov/docs/
 
 	Returns:
 	A dataframe of USGS streamflow data indexed by timestamp
@@ -28,16 +29,23 @@ def USGSgetvars_function(id, variables, start, end):
 	# put in while loop to ensure the request doesn't fail
 	returnValue = None
 
+	# daily values service does not accept timezones, but instantaneous values service does
+	if serv == 'dv':
+		start_tz = ''
+		end_tz = ''
+	else:
+		start_tz = 'T00:00Z'
+		end_tz = 'T23:59Z'
 	parameter = variables[list(variables)[0]]	# extract first variable code from passed dictionary
 	# for more info on how to format URL requests, see:
 	# https://waterservices.usgs.gov/docs/instantaneous-values/instantaneous-values-details/#url-format
 	while(returnValue is None):
-		gage = requests.get('https://waterservices.usgs.gov/nwis/iv/'
+		gage = requests.get(f'https://waterservices.usgs.gov/nwis/{serv}/'
 							 '?format=json'
 							f'&sites={id}'
-#                   		 f'&period={period}'
-							f'&startDT={start.strftime("%Y-%m-%d")}T00:00Z'
-							f'&endDT={(end-dt.timedelta(days=1)).strftime("%Y-%m-%d")}T23:59Z'                     
+								# f'&period={period}'
+							f'&startDT={start.strftime("%Y-%m-%d")}{start_tz}'
+							f'&endDT={(end-dt.timedelta(days=1)).strftime("%Y-%m-%d")}{end_tz}'                     
 							f'&parameterCd={parameter}'
 							)
 		# print(gage.text)
@@ -67,7 +75,8 @@ def USGSgetvars_function(id, variables, start, end):
 def get_data(start_date,
 			 end_date,
 			 locations,
-			 variables={'streamflow':'00060'}):
+			 variables={'streamflow':'00060'},
+			 service='iv'):
 	"""
 	A function to download and process USGS observational hydrology data to return nested dictionary of pandas series fore each variable, for each location.
 
@@ -76,6 +85,7 @@ def get_data(start_date,
 	-- end_date (str, date, or datetime) [req]: the end date for which to grab USGS data
 	-- locations (dict) [req]: a dictionary (stationID/name:IDValue/latlong tuple) of locations to get USGS data for.
 	-- variables (dict) [req]: a dictionary of variables to download, where keys are user-defined variable names and values are dataset-specific variable names.
+	-- service (str) [opt]: what USGS service to get data from. Default is instanteous values service. For more options, see https://waterservices.usgs.gov/docs/
 	
 	Returns:
 	USGS observed streamflow data for the given stations in a nested dict format where 1st-level keys are user-provided location names and 2nd-level keys
@@ -94,10 +104,10 @@ def get_data(start_date,
 	for station, id in locations.items():
 		returnVal[station] = USGSgetvars_function(id,
 												variables,
-												start_date,
-											end_date)
+												start_date.date(),
+												end_date.date(),
+												service)
 	
 	usgs_data = {station:{name:data for name, data in station_df.T.iterrows()} for station, station_df in returnVal.items()}
 	
 	return usgs_data
-
