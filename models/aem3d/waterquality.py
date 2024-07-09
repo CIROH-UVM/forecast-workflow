@@ -14,7 +14,7 @@ import os
 from string import Template
 import numpy as np
 import pandas as pd
-from .AEM3D import index_to_ordinal_date
+from .AEM3D import *
 
 '''
 List of WQ control Files present in wq_files from AEM3D_prep_file
@@ -128,7 +128,9 @@ def genwqfiles (theBay):
     # print('That is some Quality Water, right there.')
 
     # print('Copy Bay Flow')
-    flowdf = theBay.flowdf.copy()       # get flow dataframe from bay object
+    #flowdf = theBay.flowdf.copy()       # get flow dataframe from bay object
+    
+    flows = theBay.flowdict    # get dictionary of series of flow data
    
     #
     #       Write the water temperature file for each source of the bay
@@ -223,16 +225,20 @@ def genwqfiles (theBay):
         # logger.info(f'Scaling Flow by P_Redux: {p_redux}')
 
         phosdf = pd.DataFrame()
-        phosdf['ordinaldate'] = flowdf['ordinaldate']
+        #phosdf['ordinaldate'] = flowdf['ordinaldate']
+        phosdf['ordinaldate'] = flows[THEBAY.sourcemap[baysource]['wshed']]['streamflow'].index.to_series().apply(datetimeToOrdinal) # ordinal dates index
 
         # Get Q for use in equations
         # Don't use 'adjust' factor to calculate nutrient fluxes
         #   per 2024 06 email discussion with Peter Isles
         # ! Use Q (streamflow) estimates / observations
-        #   at USGS gage / nutrient monitoring locations
-        Q = (flowdf[THEBAY.sourcemap[baysource]['wshed']] *
-             THEBAY.sourcemap[baysource]['prop'])
+        #   at USGS gauge / nutrient monitoring locations
+        Q = flows[THEBAY.sourcemap[baysource]['wshed']]['streamflow'] 
+             # THEBAY.sourcemap[baysource]['prop'])
              # THEBAY.sourcemap[baysource]['adjust'])
+        #Q = Q.apply(lambda x: 0.0 if x < 0.0 else x)    # 0 out any negative flows
+        # Make 0 flows very small for log calculations
+        logQnoz = Q.apply(lambda x: np.log10(0.01) if x < 0.01 else np.log10(x))
 
         # Changed default 20240607 by pjc
         # TODO Make this a setting
@@ -250,12 +256,9 @@ def genwqfiles (theBay):
         if cqVersion == 'Clelia':
             # Clelia TP Concentration - Discharge Relationship
             #   Same for ALL ILS inputs!!
-            zTP = (flowdf['msflow'] - 159.78) / 132.64
+            zTP = (flows['MS']['streamflow'] - 159.78) / 132.64
             phosdf['TP'] =  ( 0.011001 * np.power(zTP,2) + 0.073104 * zTP + 0.091528 ) * p_redux
         elif cqVersion == '202406Calibration':
-            # Make 0 flows very small for log calculations
-            Q = Q.apply(lambda x: 0.01 if x < 0.01 else x)
-            logQ = np.log10(Q)
 
             if bs_name.startswith('MissisquoiRiver'):
                 zTP = (Q - 159.78) / 132.64
@@ -268,9 +271,9 @@ def genwqfiles (theBay):
             #   For now, these are the BREE2021Quad Equations
             #   But, we should switch to Takis' new 2024 equations ASAP
             elif bs_name.startswith('MillRiver'):
-                phosdf['TP'] = np.power(10, (1.7935 + 0.4052 * logQ + 0.1221 * logQ * logQ)) * p_redux / 1000
+                phosdf['TP'] = np.power(10, (1.7935 + 0.4052 * logQnoz + 0.1221 * logQnoz * logQnoz)) * p_redux / 1000
             elif bs_name.startswith('JewettStevens'):
-                phosdf['TP'] = np.power(10, (2.2845 + 0.5185 * logQ + 0.1995 * logQ * logQ)) * p_redux / 1000
+                phosdf['TP'] = np.power(10, (2.2845 + 0.5185 * logQnoz + 0.1995 * logQnoz * logQnoz)) * p_redux / 1000
             else:
                 raise Exception(f'CQ Equation for baysource={bs_name} not found for cqVersion={cqVersion}') 
         elif cqVersion == 'BREE2021Quad':
@@ -281,23 +284,26 @@ def genwqfiles (theBay):
             bs_name.startswith('RockRiver') or
             bs_name.startswith('PikeRiver')
             ):
-                flowdf['msflow'] = flowdf['msflow'].apply(lambda x: 0.01 if x < 0.01 else x)
-                logQ = np.log10(flowdf['msflow'])
-                phosdf['TP'] = np.power(10, (1.6884 - 0.7758 * logQ + 0.3952 * logQ * logQ)) * p_redux / 1000
+                #flowdf['msflow'] = flowdf['msflow'].apply(lambda x: 0.01 if x < 0.01 else x)
+                #Q = Q.apply(lambda x: 0.01 if x < 0.01 else x) 
+                #logQ = np.log10(Q)
+                phosdf['TP'] = np.power(10, (1.6884 - 0.7758 * logQnoz + 0.3952 * logQnoz * logQnoz)) * p_redux / 1000
             elif bs_name.startswith('JewettStevens'):
-                flowdf['jsflow'] = flowdf['jsflow'].apply(lambda x: 0.01 if x < 0.01 else x)
-                logQ = np.log10(flowdf['jsflow'])
-                phosdf['TP'] = np.power(10, (2.2845 + 0.5185 * logQ + 0.1995 * logQ * logQ)) * p_redux / 1000
+                #flowdf['jsflow'] = flowdf['jsflow'].apply(lambda x: 0.01 if x < 0.01 else x)
+                #Q = Q.apply(lambda x: 0.01 if x < 0.01 else x)
+                #logQ = np.log10(Q)
+                phosdf['TP'] = np.power(10, (2.2845 + 0.5185 * logQnoz + 0.1995 * logQnoz * logQnoz)) * p_redux / 1000
             elif bs_name.startswith('MillRiver'):
-                flowdf['mlflow'] = flowdf['mlflow'].apply(lambda x: 0.01 if x < 0.01 else x)
-                logQ = np.log10(flowdf['mlflow'])
-                phosdf['TP'] = np.power(10, (1.7935 + 0.4052 * logQ + 0.1221 * logQ * logQ)) * p_redux / 1000
+                #flowdf['mlflow'] = flowdf['mlflow'].apply(lambda x: 0.01 if x < 0.01 else x)
+                #Q = Q.apply(lambda x: 0.01 if x < 0.01 else x)
+                #logQ = np.log10(Q)
+                phosdf['TP'] = np.power(10, (1.7935 + 0.4052 * logQnoz + 0.1221 * logQnoz * logQnoz)) * p_redux / 1000
             else:
                 raise Exception(f'CQ Equation for baysource={bs_name} not found for cqVersion={cqVersion}')
         else:
             raise Exception(f'cqVersion {cqVersion} not defined')
 
-        # Set low Q days to zero because the log in some formulations will cause their concentrations to 'blow up'
+        # Set TP for low Q days to zero because the log in some formulations will cause their concentrations to 'blow up'
         phosdf.loc[Q < 0.1, 'TP'] = 0.0
 
         # Check for NAs -- will throw an error and log data if NA's are returned
@@ -355,7 +361,9 @@ def genwqfiles (theBay):
 
         # Nitrogen Series
         nitdf = pd.DataFrame()
-        nitdf['ordinaldate'] = flowdf['ordinaldate']
+        #nitdf['ordinaldate'] = flowdf['ordinaldate']
+        nitdf['ordinaldate'] = flows[THEBAY.sourcemap[baysource]['wshed']]['streamflow'].index.to_series().apply(datetimeToOrdinal) # ordinal dates index
+
         if cqVersion == '202406Calibration':
             if bs_name.startswith('PikeRiver'):
                 nitdf['TN'] = 0.95 + 0.004*Q + 0.7*np.power(2.72, (-Q/11))
@@ -390,7 +398,9 @@ def genwqfiles (theBay):
 
         # Suspended Solids Series
         ssdf = pd.DataFrame()
-        ssdf['ordinaldate'] = flowdf['ordinaldate']
+        #ssdf['ordinaldate'] = flowdf['ordinaldate']
+        ssdf['ordinaldate'] = flows[THEBAY.sourcemap[baysource]['wshed']]['streamflow'].index.to_series().apply(datetimeToOrdinal) # ordinal dates index
+
         zSS = (Q - 170.0903) / 142.1835
         ssdf['SSOL1'] = 17.7558 * np.power(zSS,2)  + 59.5663 * zSS + 48.0127
 
