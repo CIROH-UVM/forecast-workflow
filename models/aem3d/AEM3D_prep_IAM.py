@@ -184,8 +184,8 @@ def getflowfiles(whichbay, settings):
 		observedHydro = usgs_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
 								 		 end_date = settings['forecast_start'],
 										 locations = {"MS":'04294000',
-			   									 	  "J-S":'04292810',
-			   										  "Mill":'04292750'})
+			   									 	  "JS":'04292810',
+			   										  "ML":'04292750'})
 		# Convert USGS streamflow from cubic ft / s to cubic m / s
 		for location in observedHydro.keys():
 			observedHydro[location]['streamflow'] = observedHydro[location]['streamflow'] * 0.0283168
@@ -197,67 +197,65 @@ def getflowfiles(whichbay, settings):
 	# pull observed Rock and Pike flow data from candadian service site
 	observedca = caflow_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
 								 		 end_date = settings['forecast_start'],
-										 locations = {"Rock":'030424',
-			   										  "Pike":'030425'})
+										 locations = {"RK":'030424',
+			   										  "PK":'030425'})
 
 	forecastHydro = None
 	if settings['hydrology_dataset_forecast'] == 'USGS_IV':
 		forecastHydro = usgs_ob.get_data(start_date = settings['forecast_start'],
 								 		 end_date = settings['forecast_end'] + dt.timedelta(days=1),
 										 locations = {"MS":'04294000',
-			   									 	  "J-S":'04292810',
-			   										  "Mill":'04292750'})
+			   									 	  "JS":'04292810',
+			   										  "ML":'04292750'})
 		# Convert USGS streamflow from cubic ft / s to cubic m / s
 		for location in forecastHydro.keys():
 			forecastHydro[location]['streamflow'] = forecastHydro[location]['streamflow'] * 0.0283168
 
 		forecastca = caflow_ob.get_data(start_date = settings['forecast_start'],
 								 		end_date = settings['forecast_end'] + dt.timedelta(days=1),
-										locations = {"Rock":'030424',
-			   										 "Pike":'030425'})
+										locations = {"RK":'030424',
+			   										 "PK":'030425'})
 
 	
 	elif(settings['hydrology_dataset_forecast'] == 'NOAA_NWM_PROD'):
 		forecastHydro = nwm_fc.get_data(forecast_datetime = settings['forecast_start'],
 						end_datetime = settings['forecast_end'] + dt.timedelta(days=1),
 						locations = {"MS":"166176984",
-								     "J-S":"4587092",
-								     "Mill":"4587100"},
+								     "JS":"4587092",
+								     "ML":"4587100"},
 						forecast_type = settings['nwm_forecast_member'],
 						data_dir = settings['data_dir'],
 						load_threads = 1,
 						google_buckets = True)
 
-		#############  speculative coding ahead
 		#	approximate Rock and Pike forecast from scaled Missisquoi forecast
-		#forecastca['Rock'] = forecastHydro['MS']['streamflow'] * THEBAY.sourcemap['21']['prop']
-		#forecastca['Pike'] = forecastHydro['MS']['streamflow'] * THEBAY.sourcemap['22']['prop']
-		####  need to tweak bay object sourcemap so that later the Rock and Pike are adjusted from concat'ed flows
+		# TODO: Devise a better plan to reference the scaling factors than hardcoding them here
+		forecastca = {'RK':{},'PK':{}}
+		forecastca['RK']['streamflow'] = forecastHydro['MS']['streamflow'] * 0.038  # scale Missisquoi to Rock
+		forecastca['PK']['streamflow'] = forecastHydro['MS']['streamflow'] * 0.228  # scale Missisquoi to Pike
 
 	else:
 		raise ValueError(f"'{settings['hydrology_dataset_forecast']}' is not a valid hydrology forecast dataset")
 			
+	# Build Dictionary of Series with to adjusted column names
+	flows = {'MS':{},'ML':{},'JS':{},'PK':{},'RK':{}}	# initialize empty dictionary
+	flows['MS']['streamflow'] = pd.concat([observedHydro['MS']['streamflow'], forecastHydro['MS']['streamflow']]).rename_axis('time').astype('float')
+	flows['ML']['streamflow'] = pd.concat([observedHydro['ML']['streamflow'], forecastHydro['ML']['streamflow']]).rename_axis('time').astype('float')
+	flows['JS']['streamflow'] = pd.concat([observedHydro['JS']['streamflow'], forecastHydro['JS']['streamflow']]).rename_axis('time').astype('float')
+	flows['PK']['streamflow'] = pd.concat([observedca['PK']['streamflow'], forecastca['PK']['streamflow'] ]).rename_axis('time').astype('float')
+	flows['RK']['streamflow'] = pd.concat([observedca['RK']['streamflow'], forecastca['RK']['streamflow'] ]).rename_axis('time').astype('float')
 	
-	# Need to adjust for column names
-	flowdf = pd.concat([observedHydro['MS']['streamflow'], forecastHydro['MS']['streamflow']]).rename_axis('time').astype('float').to_frame()
-	mlflow = pd.concat([observedHydro['Mill']['streamflow'], forecastHydro['Mill']['streamflow']]).rename_axis('time').astype('float').to_frame()
-	jsflow = pd.concat([observedHydro['J-S']['streamflow'], forecastHydro['J-S']['streamflow']]).rename_axis('time').astype('float').to_frame()
-	# TODO add the concats for the pike and rock 
+	print('Structure of flows dictionary')
+	print(flows)
 
+	logger.info(flows)
 
-	# these df's may not be the same length, there may be missing data from USGS gauges
-	logger.info(flowdf)
-	logger.info(mlflow)
-	logger.info(jsflow)
-
-	# sometimes there are negative sensor readings, let's get rid of those if they're there
-	flowdf =  flowdf[flowdf['streamflow'] >= 0].reindex(flowdf.index, method='nearest')
-	mlflow =  mlflow[mlflow['streamflow'] >= 0].reindex(mlflow.index, method='nearest')
-	jsflow =  jsflow[jsflow['streamflow'] >= 0].reindex(jsflow.index, method='nearest')
-
-	flow_data = {'Missisquoi':flowdf['streamflow'],
-				 'Mill':mlflow['streamflow'],
-				 'Jewett-Stevens':jsflow['streamflow']}
+	
+	flow_data = {'Missisquoi':flows['MS']['streamflow'],
+				 'Mill':flows['ML']['streamflow'],
+				 'Jewett-Stevens':flows['JS']['streamflow'],
+				 'Pike':flows['PK']['streamflow'],
+				 'Rock':flows['RK']['streamflow']}
 
 	global SUBPLOT_PACKAGES
 	global AXES
@@ -270,34 +268,24 @@ def getflowfiles(whichbay, settings):
 									  'axis':AXES}
 
 
-	flowdf.columns = ['msflow']
-	## Have to merge the other two because USGS sometimes doesn't return all dates for all gauges
-	jsflow.columns = ['jsflow']
-	flowdf = pd.merge(flowdf, jsflow, on='time', how='inner')
-	mlflow.columns = ['mlflow']
-	flowdf = pd.merge(flowdf, mlflow, on='time', how='inner')
-
-	flowdf['ordinaldate'] = flowdf.index.to_series().apply(datetimeToOrdinal)
-
-	logger.info(flowdf)
-
 	# Store flow series in bay object for later
-	THEBAY.flowdf = flowdf[['ordinaldate', 'msflow', 'mlflow', 'jsflow']].copy()
+	#THEBAY.flowdf = flowdf[['ordinaldate', 'msflow', 'mlflow', 'jsflow']].copy()
+	THEBAY.flowdict = flows			# save the flow data in bay for later use in wqcalcs
 
 	logger.info('Daily Flow Data Scaled')
 	# Scale Additional Inflows from Predicted Inflow
 	#       sourcelist has list of water source IDs
-	#       sourcemap defines the source name (wshed) and proportion of hydromodel output flow
+	#       sourcemap defines the source name (wshed) and proportion and adjust of hydromodel output flow
 	#		the adjust value is defined from InlandSeaModel_Notes Document describing how model calibration was done
 
-
-	# TODO - rework at least the Rock and Pike handling to work off the series built above rather than a proportion of Missisquoi
-	#		better yet, use series for all the sources for consistent coding.   series should all be local as built just above
 	for baysource in THEBAY.sourcelist :
 		logger.info('Generating Bay Source File for Id: '+baysource)
-		bs_prop = THEBAY.sourcemap[baysource]['prop'] * THEBAY.sourcemap[baysource]['adjust']  # proportion of input file for this source
 		wshed = THEBAY.sourcemap[baysource]['wshed']            # get column name of watershed flow source for this stream
-		flowdf[baysource] = flowdf[wshed] * bs_prop             # scale source from hydromodel flow (some are split)
+		theflow = pd.Series()
+		theflow['streamflow'] = flows[wshed]['streamflow'] * THEBAY.sourcemap[baysource]['adjust']  # adjust gauge to loc
+		theflow['streamflow'] =  theflow['streamflow'][theflow['streamflow'] >= 0]	# scrub out any negative values
+		theflow['streamflow'].index = theflow['streamflow'].index.to_series().apply(datetimeToOrdinal) # ordinal dates index
+
 		bs_name = THEBAY.sourcemap[baysource]['name']
 		filename = bs_name + '_Flow.dat'
 		logger.info('Bay Source File to Generate: '+filename)
@@ -316,9 +304,10 @@ def getflowfiles(whichbay, settings):
 			output_file.write('0 seconds between data\n')
 			output_file.write('0    ' + baysource + '\n')
 			output_file.write('TIME      INFLOW\n')
-			# output the ordinal date and flow value time dataframe columns
-			flowdf.to_csv(path_or_buf = output_file, columns= ['ordinaldate', baysource], float_format='%.3f',
-			sep=' ', index=False, header=False)
+			# output the ordinal date and adjusted flow value series
+			theflow['streamflow'].to_csv(path_or_buf = output_file, float_format='%.3f',
+				sep=' ', index=True, header=False)
+
 
 ##
 #       End of Flow Data Import
@@ -429,13 +418,21 @@ def lakeht_est(whichbay, dataset):
 	# flowdf['flowmean_60'] = streamflow_unadj_cms.rolling(window=60,min_periods=1).mean() # moving average over 60 days
 
 	######################################### Now...
-	lakeLevel_df = pd.DataFrame({'ordinaldate': THEBAY.flowdf['ordinaldate'],
-								 'msflow': THEBAY.flowdf['msflow'],
-								 'flowmean_07': THEBAY.flowdf['msflow'].rolling(window=7,min_periods=1).mean(),
-								 'flowmean_30': THEBAY.flowdf['msflow'].rolling(window=30,min_periods=1).mean(),
-								 'flowmean_60': THEBAY.flowdf['msflow'].rolling(window=60,min_periods=1).mean()},
-								 index=pd.DatetimeIndex(THEBAY.flowdf.index, name='time')
+	#lakeLevel_df = pd.DataFrame({'ordinaldate': THEBAY.flowdf['ordinaldate'],
+	#							 'msflow': THEBAY.flowdf['msflow'],
+	#							 'flowmean_07': THEBAY.flowdf['msflow'].rolling(window=7,min_periods=1).mean(),
+	#							 'flowmean_30': THEBAY.flowdf['msflow'].rolling(window=30,min_periods=1).mean(),
+	#							 'flowmean_60': THEBAY.flowdf['msflow'].rolling(window=60,min_periods=1).mean()},
+	#							 index=pd.DatetimeIndex(THEBAY.flowdf.index, name='time')
+	#							 )
+	lakeLevel_df = pd.DataFrame({'ordinaldate': THEBAY.flowdict['MS']['streamflow'].index.to_series().apply(datetimeToOrdinal),
+								 'msflow': THEBAY.flowdict['MS']['streamflow'],
+								 'flowmean_07': THEBAY.flowdict['MS']['streamflow'].rolling(window=7,min_periods=1).mean(),
+								 'flowmean_30': THEBAY.flowdict['MS']['streamflow'].rolling(window=30,min_periods=1).mean(),
+								 'flowmean_60': THEBAY.flowdict['MS']['streamflow'].rolling(window=60,min_periods=1).mean()},
+								 index=pd.DatetimeIndex(THEBAY.flowdict['MS']['streamflow'].index, name='time')
 								 )
+
 	logger.info(f'lakelevel_df pre merge')
 	logger.info(print_df(lakeLevel_df))
 	
