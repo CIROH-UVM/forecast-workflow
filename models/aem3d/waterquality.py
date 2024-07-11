@@ -228,25 +228,28 @@ def genwqfiles (theBay):
         #phosdf['ordinaldate'] = flowdf['ordinaldate']
         phosdf['ordinaldate'] = flows[THEBAY.sourcemap[baysource]['wshed']]['streamflow'].index.to_series().apply(datetimeToOrdinal) # ordinal dates index
 
-        # Get Q for use in equations
-        # Don't use 'adjust' factor to calculate nutrient fluxes
-        #   per 2024 06 email discussion with Peter Isles
-        # ! Use Q (streamflow) estimates / observations
-        #   at USGS gauge / nutrient monitoring locations
-        Q = flows[THEBAY.sourcemap[baysource]['wshed']]['streamflow'] 
-             # THEBAY.sourcemap[baysource]['prop'])
-             # THEBAY.sourcemap[baysource]['adjust'])
-        #Q = Q.apply(lambda x: 0.0 if x < 0.0 else x)    # 0 out any negative flows
-        # Make 0 flows very small for log calculations
-        logQnoz = Q.apply(lambda x: np.log10(0.01) if x < 0.01 else np.log10(x))
+		# Get Q for use in equations
+		# Don't use 'adjust' factor to calculate nutrient fluxes
+		#   per 2024 06 email discussion with Peter Isles
+		# ! Use Q (streamflow) estimates / observations
+		#   at USGS gauge / nutrient monitoring locations
+		Q = flows[THEBAY.sourcemap[baysource]['wshed']]['streamflow'] 
+		# Clip low flows to a minimum for log calculations
+		# TODO -  consider using a Bay resource variable to clamp min flows (as suggested below)
+		#logQnoz = Q.apply(lambda x: np.log10(THEBAY.sourcemap[baysource]['minCQflow']) if x < THEBAY.sourcemap[baysource]['minCQflow'] else np.log10(x))
+		if bs_name.startswith('MissisquoiRiver'):
+			logQ = Q.apply(lambda x: np.log10(10.0) if x < 10.0 else np.log10(x))
+		else:
+			logQ = Q.apply(lambda x: np.log10(0.1) if x < 0.1 else np.log10(x))
+
 
         # Changed default 20240607 by pjc
         # TODO Make this a setting
         # cqVersion = 'BREE2021Quad'
         cqVersion = '202406Calibration'
-        # if phosdf.isna().any().any():
-        #     print(phosdf[phosdf.isna().any(axis=1)])
-        #     raise Exception(f"NA's detected in phos df for bs_name: {bs_name}")
+		# if phosdf.isna().any().any():
+		# 	print(phosdf[phosdf.isna().any(axis=1)])
+		# 	raise Exception(f"NA's detected in phos df for bs_name: {bs_name}")
 
         #TODO: Implement BREE2021Seg
         #TODO: Move all this junk to THEBAY, choose cqVersion at THEBAY creation
@@ -271,9 +274,9 @@ def genwqfiles (theBay):
             #   For now, these are the BREE2021Quad Equations
             #   But, we should switch to Takis' new 2024 equations ASAP
             elif bs_name.startswith('MillRiver'):
-                phosdf['TP'] = np.power(10, (1.7935 + 0.4052 * logQnoz + 0.1221 * logQnoz * logQnoz)) * p_redux / 1000
+                phosdf['TP'] = np.power(10, (1.7935 + 0.4052 * logQ + 0.1221 * logQ * logQ)) * p_redux / 1000
             elif bs_name.startswith('JewettStevens'):
-                phosdf['TP'] = np.power(10, (2.2845 + 0.5185 * logQnoz + 0.1995 * logQnoz * logQnoz)) * p_redux / 1000
+                phosdf['TP'] = np.power(10, (2.2845 + 0.5185 * logQ + 0.1995 * logQ * logQ)) * p_redux / 1000
             else:
                 raise Exception(f'CQ Equation for baysource={bs_name} not found for cqVersion={cqVersion}') 
         elif cqVersion == 'BREE2021Quad':
@@ -284,29 +287,16 @@ def genwqfiles (theBay):
             bs_name.startswith('RockRiver') or
             bs_name.startswith('PikeRiver')
             ):
-                #flowdf['msflow'] = flowdf['msflow'].apply(lambda x: 0.01 if x < 0.01 else x)
-                #Q = Q.apply(lambda x: 0.01 if x < 0.01 else x) 
-                #logQ = np.log10(Q)
-                phosdf['TP'] = np.power(10, (1.6884 - 0.7758 * logQnoz + 0.3952 * logQnoz * logQnoz)) * p_redux / 1000
+                phosdf['TP'] = np.power(10, (1.6884 - 0.7758 * logQ + 0.3952 * logQ * logQ)) * p_redux / 1000
             elif bs_name.startswith('JewettStevens'):
-                #flowdf['jsflow'] = flowdf['jsflow'].apply(lambda x: 0.01 if x < 0.01 else x)
-                #Q = Q.apply(lambda x: 0.01 if x < 0.01 else x)
-                #logQ = np.log10(Q)
-                phosdf['TP'] = np.power(10, (2.2845 + 0.5185 * logQnoz + 0.1995 * logQnoz * logQnoz)) * p_redux / 1000
+                phosdf['TP'] = np.power(10, (2.2845 + 0.5185 * logQ + 0.1995 * logQ * logQ)) * p_redux / 1000
             elif bs_name.startswith('MillRiver'):
-                #flowdf['mlflow'] = flowdf['mlflow'].apply(lambda x: 0.01 if x < 0.01 else x)
-                #Q = Q.apply(lambda x: 0.01 if x < 0.01 else x)
-                #logQ = np.log10(Q)
-                phosdf['TP'] = np.power(10, (1.7935 + 0.4052 * logQnoz + 0.1221 * logQnoz * logQnoz)) * p_redux / 1000
+                phosdf['TP'] = np.power(10, (1.7935 + 0.4052 * logQ + 0.1221 * logQ * logQ)) * p_redux / 1000
             else:
                 raise Exception(f'CQ Equation for baysource={bs_name} not found for cqVersion={cqVersion}')
         else:
             raise Exception(f'cqVersion {cqVersion} not defined')
 
-        # Set TP for low Q days to zero because the log in some formulations will cause their concentrations to 'blow up'
-        phosdf.loc[Q < 0.1, 'TP'] = 0.0
-
-        # Check for NAs -- will throw an error and log data if NA's are returned
         #   Gonna keep this code in case we need to debug similar issues again
         if phosdf['TP'].isna().any():
             logger.info("Q indices that became NA")
