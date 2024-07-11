@@ -11,7 +11,7 @@ import pandas as pd
 # Gage Height, feet: '00065'
 # Lake Elevation above NGVD, ft: '62614''
 
-def USGSgetvars_function(id, variables, start, end, serv='iv'):
+def USGSgetvars_function(id, variables, start, end, service='iv'):
 	"""
 	Form url for USGS station request and return formatted dataframe for the given station
 
@@ -21,7 +21,7 @@ def USGSgetvars_function(id, variables, start, end, serv='iv'):
 	-- paramter (str) [req]: parameter code of data to get
 	-- start (datetime) [req]: start datetime
 	-- end (datetime) [req]: end datetime
-	-- serv (str) [opt]: what USGS service to get data from. Default is instanteous values service. For more options, see https://waterservices.usgs.gov/docs/
+	-- service (str) [opt]: what USGS service to get data from. Default is instanteous values service. For more options, see https://waterservices.usgs.gov/docs/
 
 	Returns:
 	A dataframe of USGS streamflow data indexed by timestamp
@@ -30,7 +30,7 @@ def USGSgetvars_function(id, variables, start, end, serv='iv'):
 	returnValue = None
 
 	# daily values service does not accept timezones, but instantaneous values service does
-	if serv == 'dv':
+	if service == 'dv':
 		start_tz = ''
 		end_tz = ''
 	else:
@@ -40,7 +40,7 @@ def USGSgetvars_function(id, variables, start, end, serv='iv'):
 	# for more info on how to format URL requests, see:
 	# https://waterservices.usgs.gov/docs/instantaneous-values/instantaneous-values-details/#url-format
 	while(returnValue is None):
-		gage = requests.get(f'https://waterservices.usgs.gov/nwis/{serv}/'
+		gage = requests.get(f'https://waterservices.usgs.gov/nwis/{service}/'
 							 '?format=json'
 							f'&sites={id}'
 								# f'&period={period}'
