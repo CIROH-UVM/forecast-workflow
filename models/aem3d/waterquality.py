@@ -235,14 +235,14 @@ def genwqfiles (theBay):
         #   per 2024 06 email discussion with Peter Isles
         # ! Use Q (streamflow) estimates / observations
         #   at USGS gauge / nutrient monitoring locations
-        Q = flows[THEBAY.sourcemap[baysource]['wshed']]['streamflow'] 
+		Q = flows[THEBAY.sourcemap[baysource]['wshed']]['streamflow'] 
         # Clip low flows to a minimum for log calculations
         # TODO -  consider using a Bay resource variable to clamp min flows (as suggested below)
         #logQnoz = Q.apply(lambda x: np.log10(THEBAY.sourcemap[baysource]['minCQflow']) if x < THEBAY.sourcemap[baysource]['minCQflow'] else np.log10(x))
-        if bs_name.startswith('MissisquoiRiver'):
-            logQ = Q.apply(lambda x: np.log10(10.0) if x < 10.0 else np.log10(x))
-        else:
-            logQ = Q.apply(lambda x: np.log10(0.1) if x < 0.1 else np.log10(x))
+		if bs_name.startswith('MissisquoiRiver'):
+			logQ = Q.apply(lambda x: np.log10(10.0) if x < 10.0 else np.log10(x))
+		else:
+			logQ = Q.apply(lambda x: np.log10(0.1) if x < 0.1 else np.log10(x))
 
 
 		# Changed default 20240607 by pjc
@@ -329,16 +329,16 @@ def genwqfiles (theBay):
 			raise Exception(f'cqVersion {cqVersion} not defined')
 
         #   Gonna keep this code in case we need to debug similar issues again
-        if phosdf['TP'].isna().any():
-            logger.info("Q indices that became NA")
-            logger.info(Q[phosdf.isna().any(axis=1)])
-            logger.info("logQ indices that became NA's:")
-            logger.info(logQ[phosdf.isna().any(axis=1)])
-            logger.info("phosdf with NA's:")
-            logger.info(phosdf[phosdf.isna().any(axis=1)])
-            e = Exception(f"NA's detected in phosdf['TP'] bs_name: {bs_name}")
-            logger.exception(e)
-            raise e        
+		if phosdf['TP'].isna().any():
+			logger.info("Q indices that became NA")
+			logger.info(Q[phosdf.isna().any(axis=1)])
+			logger.info("logQ indices that became NA's:")
+			logger.info(logQ[phosdf.isna().any(axis=1)])
+			logger.info("phosdf with NA's:")
+			logger.info(phosdf[phosdf.isna().any(axis=1)])
+			e = Exception(f"NA's detected in phosdf['TP'] bs_name: {bs_name}")
+			logger.exception(e)
+			raise e        
 
 		# for other phosphorus concentrations, islesRF should use the same formulas as 202406Calibration
 		if cqVersion == '202406Calibration' or cqVersion == 'islesRF':
