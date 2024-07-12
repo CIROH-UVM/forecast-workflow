@@ -197,8 +197,8 @@ def getflowfiles(whichbay, settings):
 	# pull observed Rock and Pike flow data from candadian service site
 	observedca = caflow_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
 								 		 end_date = settings['forecast_start'],
-										 locations = {"RK":'030424',
-			   										  "PK":'030425'})
+										 locations = {"PK":'030424',
+			   										  "RK":'030425'})
 
 	forecastHydro = None
 	if settings['hydrology_dataset_forecast'] == 'USGS_IV':
@@ -213,8 +213,8 @@ def getflowfiles(whichbay, settings):
 
 		forecastca = caflow_ob.get_data(start_date = settings['forecast_start'],
 								 		end_date = settings['forecast_end'] + dt.timedelta(days=1),
-										locations = {"RK":'030424',
-			   										 "PK":'030425'})
+										locations = {"PK":'030424',
+			   										 "RK":'030425'})
 
 	
 	elif(settings['hydrology_dataset_forecast'] == 'NOAA_NWM_PROD'):
