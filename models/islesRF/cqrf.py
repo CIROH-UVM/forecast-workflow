@@ -2,6 +2,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, r2_score
 import data.usgs_ob as usgs
+import data.caflow_ob as caflow
 import datetime as dt
 import joblib
 import pandas as pd
@@ -373,21 +374,28 @@ def main():
 	end_dt = dt.datetime(2023, 8, 31, tzinfo=dt.timezone.utc)
 
 	# USGS gauges we want discharge for
-	gauges = {'missisquoi':'04294000',
+	usgs_gauges = {'missisquoi':'04294000',
 			'mill':'04292750',
-			'jewett':'04292810',
-			'rock':'04294140',
-			'pike':'04294300'}
-	streamflow = {'discharge':'00060'}
+			'jewett':'04292810'}
+			# 'rock':'04294140',
+			# 'pike':'04294300'}
+
+	# Use Canadian data for rock and pike
+	ca_guages = {'pike':'030424',
+			  	 'rock':'030425'}
 
 	# adding a day to end_dt because get_data()s are end date exclusive
-	daily_discharge = usgs.get_data(start_dt, end_dt+dt.timedelta(days=1), gauges, streamflow, service='dv')
+	usgs_discharge = usgs.get_data(start_dt, end_dt+dt.timedelta(days=1), locations=usgs_gauges, variables={'discharge':'00060'}, service='dv')
+	ca_discharge = caflow.get_data(start_dt, end_dt+dt.timedelta(days=1), locations=ca_guages, variables={'discharge':'Débit (m³/s)'}, service='dv')
 
-	# convert streamflow to metric
-	metric_q_dfs = to_metricQ(daily_discharge, streamflow_colname='discharge')
+	# convert USGS streamflow to metric
+	metric_q_dfs = to_metricQ(usgs_discharge, streamflow_colname='discharge')
+
+	# now combine canadian and usgs data into one dictionary
+	all_discharge = ca_discharge | metric_q_dfs
 
 	# add features to each df
-	features_dfs = {location:add_features(discharge_df, streamflow_colname='discharge').dropna() for location, discharge_df in metric_q_dfs.items()}
+	features_dfs = {location:add_features(discharge, streamflow_colname='discharge').dropna() for location, discharge in all_discharge.items()}
 
 	# define directories where nutrient data are stored
 	tp_dir = "/users/n/b/nbeckage/ciroh/workspaces/notebooks/FEE/randForest/nutrient_data/TP"
@@ -403,14 +411,16 @@ def main():
 	full_tn = combine_data(tn_processed, features_dfs)
 
 	# build and save models for nitrogren and phosphorus
-	tp_models = build_nutrient_models(full_tp, 'TP_mg/L', model_dir='/users/n/b/nbeckage/ciroh/workspaces/notebooks/FEE/randForest/models/')
-	tn_models = build_nutrient_models(full_tn, 'TN_mg/L', model_dir='/users/n/b/nbeckage/ciroh/workspaces/notebooks/FEE/randForest/models/')
-
-	# create and save figure
-	plt.clf()
-	fig = make_figure(tp_models, tn_models, n_row=5, n_col=2)
-	# will probably want to change where this figure is being saved
-	fig.savefig('/users/n/b/nbeckage/ciroh/workspaces/notebooks/FEE/randForest/scatter_plots_with_metrics.png')
+	tp_models = build_nutrient_models(full_tp,
+									  nutrient='TP_mg/L',
+									  model_dir='/users/n/b/nbeckage/ciroh/workspaces/notebooks/FEE/randForest/models/',
+									  test_data_size=None,
+									  save=True)
+	tn_models = build_nutrient_models(full_tn,
+									  nutrient='TN_mg/L',
+									  model_dir='/users/n/b/nbeckage/ciroh/workspaces/notebooks/FEE/randForest/models/',
+									  test_data_size=None,
+									  save=True)
 
 if __name__ == "__main__":
 	main()
