@@ -1,5 +1,5 @@
 import datetime as dt
-from .utils import parse_to_datetime
+from .utils import parse_to_datetime, add_units
 import requests
 import pandas as pd
 
@@ -99,5 +99,9 @@ def get_data(start_date,
 	
 	usgs_data = {station:{name:data for name, data in station_df.T.iterrows()} for station, station_df in returnVal.items()}
 	
+	# add unit info
+	# assumes variables dict will have one entry, for streamflow, discharge - whatever a ueser wants to call it
+	add_units(usgs_data, {list(variables.keys())[0]:'ft³/s'})
+
 	return usgs_data
 
