@@ -21,17 +21,15 @@ with open(experiment_conf_file) as experiment_config:
 	experiment_launch_params = json.load(experiment_config)
 
 # load in the default run config file
-# with open("/gpfs1/home/n/b/nbeckage/ciroh/forecast-workflow/default_settings.json") as default_json_file:
-	# config = json.load(default_json_file)
-# I think we can do this instead
 config = get_args.load_defaults()
 
 # load in the default job script template
 with open('/netfiles/ciroh/7dayHABsHindcast/submitTEMPLATE.sh') as f:
 	src = Template(f.read())
 
-root_dir = '/netfiles/ciroh/7dayHABsHindcast/'
-scenario_dir = os.path.join(root_dir, f"{experiment_launch_params['scenario']}/")
+### 6/11/24 - I think this is outdated - orig will be the scenario dir (same dir as experiemnt_config)
+# root_dir = '/netfiles/ciroh/7dayHABsHindcast/'
+# scenario_dir = os.path.join(root_dir, f"{experiment_launch_params['scenario']}/")
 
 years = list(reversed([str(y) for y in range(int(experiment_launch_params['end_year']), int(experiment_launch_params['start_year'])+1)]))
 
@@ -39,7 +37,7 @@ for year in years:
 	start_dt = dt.datetime.strptime(year+experiment_launch_params['start_date'], '%Y%m%d')
 	end_dt = dt.datetime.strptime(year+experiment_launch_params['end_date'], '%Y%m%d')
 	delta = end_dt - start_dt
-	scenario_dir_year = os.path.join(scenario_dir, f'{year}/')
+	scenario_dir_year = os.path.join(orig, f'{year}/')
 	dates = [start_dt + dt.timedelta(days=d) for d in range(delta.days+1)]
 	spinup_month_and_day = dt.datetime.strptime(experiment_launch_params['spinup_date'], "%m%d")
 	for date in dates:
@@ -60,6 +58,7 @@ for year in years:
 		config['hydrology_dataset_forecast'] = experiment_launch_params['hydrology_dataset_forecast']
 		config['nwm_forecast_member'] = experiment_launch_params['nwm_forecast_member']
 		config['aem3d_command_path'] = experiment_launch_params['aem3d_command_path']
+		config['cqVersion'] = experiment_launch_params['cqVersion']
 
 		# wrtie the run-specific config file
 		with open('configuration.json', 'w') as config_file:

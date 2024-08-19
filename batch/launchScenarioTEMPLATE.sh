@@ -15,7 +15,7 @@ source /users/n/b/nbeckage/miniconda3/etc/profile.d/conda.sh
 conda activate forecast
 
 # change to whatever directory you want to put your scenario runs in
-cd /netfiles/ciroh/7dayHABsHindcast/<SCENARIO_DIR>/
+cd /netfiles/ciroh/7dayHABsHindcast/<FEE_VERSION>/<CQ_PARADIGM>/<SCENARIO_DIR>/
 
 # note that you must have an experiment-specific configuration file in your scenario directory
-python ../launchExperiment.py experiment_config.json
+python ../../launchExperiment.py experiment_config.json

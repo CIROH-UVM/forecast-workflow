@@ -1,5 +1,4 @@
 {
-	"scenario":"<experiment_scenario>",
 	"job_name_prefix": "<scenario_job_prefix>",
 	"start_year":"<start_year>",
 	"end_year":"<end_year>",
@@ -12,5 +11,6 @@
 	"hydrology_dataset_forecast" : "NOAA_NWM_PROD",
 	"nwm_forecast_member" : "<nwm_forecast_member>",
 	"data_dir" : "/netfiles/ciroh/7dayHABsHindcast/hindcastData/",
-	"aem3d_command_path" : "<path_to_aem3d>"
+	"aem3d_command_path" : "<path_to_aem3d>",
+	"cqVersion" : "<cqVersion>"
 }
