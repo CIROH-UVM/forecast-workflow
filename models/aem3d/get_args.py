@@ -21,7 +21,8 @@ python -m models.aem3d.AEM3D_prep_IAM --conf config.json
 
 To add new arguments:
 	1. add arg and default value to default_settings.json
-	2. 
+	2. add code to validate user arguments in check_values()
+	3. add command-line arg to get_cmdln_args()
 
 **NOTE: blending variable and dataset values are currently not being validated in check_values(). Establish a list of 
 valid dataset/blending var strings in order to do this.
@@ -85,6 +86,12 @@ def check_values(settings_dict, defaults=False):
 		if not os.path.isfile(settings_dict['aem3d_command_path']):
 			raise ValueError(f"file '{settings_dict['aem3d_command_path']}' not found")
 	
+	# Define valid CQ versions:
+	valid_cqVersions = ['BREE2021Quad', '202406Calibration', 'Clelia', 'islesRF']
+	# validate
+	if settings_dict['cqVersion'] not in valid_cqVersions:
+		raise ValueError(f"'{settings_dict['cqVersion']}' is not a valid CQ version. Valid versions are: {valid_cqVersions}")
+	
 # setting up command-line argument parser
 def get_cmdln_args():
 	parser = argparse.ArgumentParser(description="command-line arguments for running the AEM3D-based HABs Forecast",
@@ -110,6 +117,7 @@ def get_cmdln_args():
 	parser.add_argument('--data', type=str, help='directory containing meteorology & hydrology data for workflow, i.e. forecastData, hindcastData, etc.')
 	parser.add_argument('--aem_in', type=str, help="absolute path to 'AEM3D-inputs/'")
 	parser.add_argument('--aem_ex', type=str, help="absolute path to AEM3D executable, 'aem3d_openmp.exe'")
+	parser.add_argument('--cq', type=str, help="define CQ version to use for model run")
 	# parser.add_argument('--old_dirs', action='store_false', help="flag determining whether or not to use post-update dir structure. Default is True. IOW, pass this flag to use old dir structure")
 
 	args = parser.parse_args()
