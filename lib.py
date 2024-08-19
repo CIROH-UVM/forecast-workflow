@@ -32,6 +32,7 @@ class IAMBAY:
 		self.flowdf =  None       # eventually to contain bay input flow time series dataframe
 		self.tempdf = None        # will contain wtr_temp time series dataframe
 		self.flowdict = None	# will contain the dictionary of bay sources with associated flow series
+		self.cqVersion = None	# determines what CQ paradigm to use. Default is determined by default_settings.json and can be changed with a config file along with other settings
 
 
 
