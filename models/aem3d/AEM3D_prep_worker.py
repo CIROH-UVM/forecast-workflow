@@ -44,6 +44,9 @@ def main():
     THEBAY.infile_dir = os.path.join(prep_path, 'infiles')
     THEBAY.template_dir = os.path.join(prep_path, 'TEMPLATES')
     THEBAY.run_dir = prep_path
+    
+	# define CQ paradigm as determined by settings
+    THEBAY.cqVersion = SETTINGS['cqVersion']
 
     # Copy current aem3d run template
     cp('-R', SETTINGS["aem3d_input_dir"], prep_path)

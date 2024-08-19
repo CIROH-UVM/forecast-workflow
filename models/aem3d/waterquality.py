@@ -246,15 +246,16 @@ def genwqfiles (theBay):
 
 
 		# Changed default 20240607 by pjc
-		# TODO Make this a setting
-		# cqVersion = 'BREE2021Quad'
-		cqVersion = '202406Calibration'
+
 		# if phosdf.isna().any().any():
 		#     print(phosdf[phosdf.isna().any(axis=1)])
 		#     raise Exception(f"NA's detected in phos df for bs_name: {bs_name}")
 
 		#TODO: Implement BREE2021Seg
 		#TODO: Move all this junk to THEBAY, choose cqVersion at THEBAY creation
+		# 8/19/2024 - cqVersion is now a attribute of THEBAY object and is determined by SETTINGS
+		cqVersion = THEBAY.cqVersion
+
 		# I think it's appropriate to have this be hard-coded, as it shouldn't change... unless someone runs our workflow outside of the VACC
 		rf_models_dir = '/netfiles/ciroh/models/cq_randomforest_peterisles/current/'
 		# make wQ a settings, have peter's stuff be an option
