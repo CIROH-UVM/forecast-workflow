@@ -1,13 +1,15 @@
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, r2_score
-import data.utils as utils
 import data.usgs_ob as usgs
 import datetime as dt
 import joblib
 import pandas as pd
+import plotly.graph_objects as go
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from matplotlib.ticker import FuncFormatter
 import os
 
 """
@@ -48,25 +50,25 @@ def to_metricQ(streamflow_dict, streamflow_colname='streamflow'):
 		metric_q_dfs[location] = pd.DataFrame(metric_q)
 	return metric_q_dfs
 
-def add_features(df, streamflow_colname='streamflow'):
+def add_features(data, streamflow_colname='streamflow'):
 	'''
 	Function to add features to a daily discharge dataframe for a USGS gauge. Features added are the same as those used by Isles, 2023 (https://doi.org/10.1016/j.watres.2023.120876)
 	Exact specifications for how features were engineered can be found in the code contained in the supplmentary material of said paper.
 
 	Args:
-	-- df (pd.DataFrame) [req]: daily discharge dataframe for a given USGS gauge. Should have datetime index and single streamflow column
+	-- data (pd.DataFrame or pd.Series) [req]: daily discharge dataframe/series for a given USGS gauge. Should have datetime index and single streamflow column
 	-- streamflow_colname (str) [opt]: name of the streamflow column
 
 	Returns:
 	features_df: a new dataframe containing the features needed for RF training
 	'''
-	df_features = df.copy()
-	# log10 of Q
-	df_features['log10_q'] = np.log10(df_features[streamflow_colname])
+	df_features = pd.DataFrame(data).copy()
+	# Natural log of Q
+	df_features['ln_q'] = np.log(df_features[streamflow_colname])
 	# Mean Q over days t-7 through t-1; calculated with logQ
-	df_features['q_7d_rolling_ave'] = df_features['log10_q'].rolling(window=dt.timedelta(days=7), min_periods=7).mean().shift(1)
+	df_features['ln_q_7d_rolling_ave'] = df_features['ln_q'].rolling(window=dt.timedelta(days=7), min_periods=7).mean().shift(1)
 	# Mean Q over days t-30 through t-1; calculated with logQ
-	df_features['q_30d_rolling_ave'] = df_features['log10_q'].rolling(window=dt.timedelta(days=30), min_periods=30).mean().shift(1)
+	df_features['ln_q_30d_rolling_ave'] = df_features['ln_q'].rolling(window=dt.timedelta(days=30), min_periods=30).mean().shift(1)
 	# ∆Q1day; calculated with Q
 	df_features['q_1d_diff'] = df_features[streamflow_colname].diff()
 	# day of year
@@ -77,13 +79,14 @@ def add_features(df, streamflow_colname='streamflow'):
 	df_features.index = df_features.index.tz_localize(None)
 	return df_features.drop(columns=streamflow_colname)
 
-def preprocess_nutrients(df):
+def preprocess_nutrients(df, standardize_units=True):
 	'''
 	Preprocessing for nutrient data (TP and TN), gathered from thee Lake Champlain Tributary Long-term Monitoring Project
 	https://dec.vermont.gov/watershed/lakes-ponds/monitor/lake-champlain-long-term-monitoring-project
 
 	Args:
 	-- df (pd.DataFrame) [req]: the raw nutrient dataframe, directly read in from csv
+	-- standardize_units (bool) [opt]: whether or not to convert units to AEM3D standards
 
 	Returns:
 	df_processed (pd.DataFrame): a new dataframe containing a datetime index and a single column of nutrient data
@@ -91,20 +94,31 @@ def preprocess_nutrients(df):
 	df_processed = df.copy()
 	df_processed = df_processed.set_index(pd.to_datetime(df_processed['VisitDate']))
 	df_processed.index.name = 'date'
-	if df_processed['Test'].iloc[0] == 'Total Phosphorus':
-		nutrient = 'TP_mg/L'
-		# convert from ug/L to mg/L
-		df_processed[nutrient] = df_processed['Result'] / 1000
-	elif df_processed['Test'].iloc[0] == 'Total Nitrogen':
-		nutrient = 'TN_mg/L'
-		# TN already in mg/L
-		df_processed[nutrient] = df_processed['Result']
-	df_processed = df_processed.drop(columns=[c for c in df_processed.columns if c != nutrient])
+	nutrient =  df_processed['Test'].iloc[0]
+	match nutrient:
+		case 'Total Phosphorus' | 'Dissolved Phosphorus':
+			if nutrient == 'Total Phosphorus': nut='TP'
+			elif nutrient == 'Dissolved Phosphorus': nut='DP'
+			if standardize_units:
+				nut_col = f'{nut}_mg/L'
+				# convert from ug/L to mg/L
+				df_processed[nut_col] = df_processed['Result'] / 1000
+			else:
+				nut_col = f'{nut}_ug/L'
+				df_processed[nut_col] = df_processed['Result']
+		case 'Total Nitrogen':
+			nut_col = 'TN_mg/L'
+			# TN already in mg/L
+			df_processed[nut_col] = df_processed['Result']
+		case _: raise ValueError(f"Unknown nutrient detected: {df_processed['Test'].iloc[0]}")
+	df_processed = df_processed.drop(columns=[c for c in df_processed.columns if c != nut_col])
 	
 	# some dataframes have duplicate dates (multiple samples on the same day)
 	# to handle duplicates, let's calculate the mean for a duplicated day and use that value
-	grouped = df_processed.groupby(df_processed.index).agg({nutrient: 'mean'})
+	grouped = df_processed.groupby(df_processed.index).agg({nut_col: 'mean'})
 	# Remove duplicate rows based on the index, keeping the first occurrence
+	print(f"Averaging the following duplicated rows...")
+	print(df_processed[df_processed.index.duplicated(keep='first')])
 	df_processed = df_processed[~df_processed.index.duplicated(keep='first')]
 	# Update the column values with the calculated mean for duplicated timestamps
 	df_processed.update(grouped)
@@ -162,7 +176,7 @@ def train_rf(data, nutrient_col, test_data_size=None, n_trees=500):
 
 	return rf, x_test, y_test
 
-def build_nutrient_models(model_data, nutrient, model_dir, test_data_size=None):
+def build_nutrient_models(model_data, nutrient, model_dir, test_data_size=None, save=False):
 	'''
 	Build and save a suite of random forest models for a given CQ relationship at multiple tributaries.
 
@@ -171,6 +185,7 @@ def build_nutrient_models(model_data, nutrient, model_dir, test_data_size=None):
 	-- nutrient (str) [req]: The name of the nutrient column in the dataframes to be used as the target variable. Ex. 'TN_mg/L'
 	-- model_dir (str) [req]: The directory where the trained models should be saved.
 	-- test_data_size (float or None) [opt]: size of test data for split as a proportion between 0-1. Defaults to None (no train-test split).
+	-- save (bool) [opt]: whether or not to save models.
 
 	Returns:
 	-- models (dict): A dictionary where keys are location names and values are dictionaries containing the trained model and the test data (`x_test`, `y_test`).
@@ -184,14 +199,16 @@ def build_nutrient_models(model_data, nutrient, model_dir, test_data_size=None):
 		model_path = os.path.join(model_dir, nutrient_name)
 		model_fname = f'{loc}_{nutrient_name}.joblib'
 		# make model save path if it doesn't exist
-		if not os.path.exists(model_path):
-			os.makedirs(model_path)
-			print(f'Model path created: {model_path}')
-		# save the model
-		joblib.dump(model, os.path.join(model_path, model_fname))
-		print(f'Model saved to: {os.path.join(model_path, model_fname)}')
+		if save:
+			if not os.path.exists(model_path):
+				os.makedirs(model_path)
+				print(f'Model path created: {model_path}')
+			# save the model
+			joblib.dump(model, os.path.join(model_path, model_fname))
+			print(f'Model saved to: {os.path.join(model_path, model_fname)}')
 		models[loc] = {'model':model, 'x_test':x_test, 'y_test':y_test}
 	return models
+
 
 def feature_importances(model_dict):
 	'''
@@ -249,6 +266,103 @@ def make_figure(tp_models, tn_models, n_row, n_col):
 	plt.subplots_adjust(hspace=0.5, wspace=0.3)  # Adjust these values as needed
 
 	return fig
+
+def plot_ts(complete_q_ts, complete_samples, reach, nutrient, save=False, plot_dir = "/users/n/b/nbeckage/ciroh/workspaces/notebooks/FEE/randForest/plots/"):
+	match nutrient:
+		case 'TP_mg/L':
+			element = 'phosphorus'
+		case 'TN_mg/L':
+			element = 'nitrogen'
+
+	fig = plt.figure(figsize=(12,6))
+	ax = fig.add_subplot(1,1,1)
+
+	ax.plot(complete_q_ts.index, complete_q_ts['preds'], color='orange', label='RandomForest', zorder=1)
+	ax.scatter(complete_samples.index, complete_samples[nutrient], color='red', label="Samples")
+
+	ax.grid(visible=True, which='both')
+
+	ax.xaxis.set_major_locator(mdates.YearLocator())
+	ax.xaxis.sbet_major_formatter(FuncFormatter(lambda x, pos: f'{mdates.num2date(x).year}' if mdates.num2date(x).year % 2 == 0 else ''))
+
+	ax.set_xlabel('Date')
+	ax.set_ylabel(f'Total {element.capitalize()} (mg/L)')
+	ax.set_title(f'Total {element} RF predictions vs observationss for {reach.capitalize()}')
+	ax.legend()
+	if save:
+		fig.savefig(os.path.join(plot_dir, f"{reach}_{element}_plot.png"))
+	return fig
+
+def plot_ts_interactive(complete_q_ts, complete_samples, reach, nutrient, save=False, plot_dir="/users/n/b/nbeckage/ciroh/workspaces/notebooks/FEE/randForest/plots/"):
+	# TP, DP, or TN
+	nut_abrv = nutrient.split("_")[0]
+	
+	match nut_abrv:
+		case 'TP':
+			full_nutrient = 'total phosphorus'
+		case 'DP':
+			full_nutrient = 'dissolved phosphorus'
+		case 'TN':
+			full_nutrient = 'total nitrogen'
+		
+	fig = go.Figure()
+
+	fig.add_trace(go.Scatter(
+		x=complete_q_ts.index,
+		y=complete_q_ts['preds'],
+		mode='lines',
+		name='RandomForest',
+		line=dict(color='orange'),
+	))
+
+	fig.add_trace(go.Scatter(
+		x=complete_samples.index,
+		y=complete_samples[nutrient],
+		mode='markers',
+		name='Samples',
+		line=dict(color='red'),
+	))
+
+	# Customize the layout
+	fig.update_layout(
+		title=f'{full_nutrient.capitalize()} RF predictions vs observations for {reach.capitalize()}',
+		xaxis_title='Date',
+		yaxis_title=f'{full_nutrient} (mg/L)',
+		xaxis=dict(
+			tickmode='array',
+			tickvals=pd.date_range(start=complete_samples.index.min(), end=complete_samples.index.max(), freq='YS'),  # Year start frequency for ticks
+			ticktext=[str(year) if year % 2 == 0 else '' for year in range(complete_samples.index.min().year, complete_samples.index.max().year + 1)]  # Label every other year
+		),
+		showlegend=True
+	)
+
+	# Add gridlines
+	fig.update_xaxes(showgrid=True)
+	fig.update_yaxes(showgrid=True)
+
+	# Show the plot
+	fig.show()
+
+	# Save the interactive figure as an HTML file
+	if save:
+		fig.write_html(os.path.join(plot_dir, f"{reach}_{nut_abrv}_interactive.html"))
+
+def save_data(data_dict, save_dir, suffix):
+	"""
+	Dumps a dictionary of Pandas DataFrames or Series into a directory of CSV's.
+
+	Args:
+	-- data_dict (dict) [req]: Dictionary where keys are the names of the data (i.e. location, reach name, etc), and the values are the data, as Pandas DataFrames or Series.
+	-- save_dir (str) [req]: Directory in which data will be saved.
+	-- sufficx (str) [req]: File name suffic for CSV's, such as 'streamflow', 'nitro', etc.
+
+	Returns:
+	None
+	"""
+	for name, df in data_dict.items():
+		save_path = os.path.join(save_dir, f"{name}_{suffix}.csv")
+		print(f'Data saved at: {save_path}')
+		df.to_csv(save_path)
 
 
 ##### MAIN SCRIPT #####

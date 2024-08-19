@@ -9,7 +9,7 @@
 #  Control File
 
 from lib import *
-from models.islesRF import add_features
+from models.islesRF.cqrf import add_features
 import joblib
 import glob
 import os
@@ -254,8 +254,8 @@ def genwqfiles (theBay):
 
 		#TODO: Implement BREE2021Seg
 		#TODO: Move all this junk to THEBAY, choose cqVersion at THEBAY creation
-		#TODO: make models_dir a setting?
-		models_dir = '/netfiles/ciroh/models/cq_randomforest_peterisles/current/'
+		# I think it's appropriate to have this be hard-coded, as it shouldn't change... unless someone runs our workflow outside of the VACC
+		rf_models_dir = '/netfiles/ciroh/models/cq_randomforest_peterisles/current/'
 		# make wQ a settings, have peter's stuff be an option
 		if cqVersion == 'Clelia':
 			# Clelia TP Concentration - Discharge Relationship
@@ -264,7 +264,7 @@ def genwqfiles (theBay):
 			phosdf['TP'] =  ( 0.011001 * np.power(zTP,2) + 0.073104 * zTP + 0.091528 ) * p_redux
 			
 		elif cqVersion == 'islesRF':
-			rf_tp_dir = os.path.join(models_dir, "TP")
+			rf_tp_dir = os.path.join(rf_models_dir, "TP")
 			Q_features = add_features(pd.DataFrame(Q))
 			if bs_name.startswith('MissisquoiRiver'):
 				rf_tp = joblib.load(os.path.join(rf_tp_dir, 'missisquoi_TP.joblib'))
@@ -390,7 +390,7 @@ def genwqfiles (theBay):
 				nitdf['TN'] = 0.00407 * (zTN*zTN)  + 0.12853 * zTN + 0.75675            
 		
 		elif cqVersion == 'islesRF':
-			rf_tn_dir = os.path.join(models_dir, "TN")
+			rf_tn_dir = os.path.join(rf_models_dir, "TN")
 			if bs_name.startswith('MissisquoiRiver'):
 				rf_tn = joblib.load(os.path.join(rf_tn_dir, 'missisquoi_TN.joblib'))
 				nitdf['TN'] = rf_tn.predict(Q_features)
