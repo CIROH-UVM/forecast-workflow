@@ -88,7 +88,7 @@ def get_data(start_date,
 		#print(df)
 
 		# created nested dictionary of pd.Series for each variable for each location
-		caflow_data[station] = {var:df[var] for var in df.columns}
+		caflow_data[station] = {var:df[var].astype('float64') for var in df.columns}
 
 		# add unit info
 		# assumes variables dict will have one entry, for streamflow, discharge - whatever a ueser wants to call it
