@@ -33,9 +33,12 @@ def USGSgetvars_function(id, variables, start, end, service='iv'):
 	if service == 'dv':
 		start_tz = ''
 		end_tz = ''
-	else:
+		utc = False
+	elif service == 'iv':
 		start_tz = 'T00:00Z'
 		end_tz = 'T23:59Z'
+		utc = True
+	else: raise ValueError(f'Invalid service requested: "{service}"')
 	parameter = variables[list(variables)[0]]	# extract first variable code from passed dictionary
 	# for more info on how to format URL requests, see:
 	# https://waterservices.usgs.gov/docs/instantaneous-values/instantaneous-values-details/#url-format
@@ -56,18 +59,9 @@ def USGSgetvars_function(id, variables, start, end, service='iv'):
 			print("USGS Observational Hydrology Data Request Failed... Will retry")
 			print(gage.text)
 	df = pd.DataFrame(values)
-	# notice timezone is localized to UTC
-	# print(df['dateTime'])
-	# df = df.set_index('dateTime')
-	# df = df.set_index(pd.to_datetime(df['dateTime']))
-	# df = df.drop(['dateTime','qualifiers'],axis =1)
-	# df.columns = ['streamflow']
-	# df.to_csv(id+"_flow.csv", sep=',')
-	# 'US/Eastern' is the other option, but what about fall daylight savings "fall back"
-	#return pd.DataFrame(data={'streamflow': df['value'].values}, index=pd.to_datetime(df['dateTime'], utc=True).dt.tz_convert('Etc/GMT+4').dt.tz_localize(None))
-	# 20231211 - set index as datetime with timezone suffix set to UTC
-	# utc=True converts the dateTime column to UTC, since dateTime is already UTC-localized
-	station_df =  pd.DataFrame(data={list(variables)[0]: df['value'].astype(float).values}, index=pd.to_datetime(df['dateTime'], utc=True))
+
+	# localize timestamps to utc time zone IFF they instantaneous data was collected
+	station_df =  pd.DataFrame(data={list(variables)[0]: df['value'].astype(float).values}, index=pd.to_datetime(df['dateTime'], utc=utc))
 	station_df.index.name = 'time'
 	# print(station_df)
 	return station_df
