@@ -48,7 +48,9 @@ def to_metricQ(streamflow_dict, streamflow_colname='streamflow'):
 	for location, q in streamflow_dict.items():
 		# make a copy of the data and convert to cubic m / s
 		metric_q = q[streamflow_colname].copy() * 0.0283168
-		metric_q_dfs[location] = pd.DataFrame(metric_q)
+		metric_q_df = pd.DataFrame(metric_q)
+		metric_q_df.columns = [f'{streamflow_colname} (m³/s)']
+		metric_q_dfs[location] = metric_q_df
 	return metric_q_dfs
 
 def add_features(data, streamflow_colname='streamflow'):
@@ -391,11 +393,14 @@ def main():
 	# convert USGS streamflow to metric
 	metric_q_dfs = to_metricQ(usgs_discharge, streamflow_colname='discharge')
 
+	# create a flattened single-layer dictionary of streamflow (necessary for combining dictionaries)
+	ca_discharge_flat = {loc:loc_dict['discharge'] for loc, loc_dict in ca_discharge.items()}
+
 	# now combine canadian and usgs data into one dictionary
-	all_discharge = ca_discharge | metric_q_dfs
+	all_discharge = ca_discharge_flat | metric_q_dfs
 
 	# add features to each df
-	features_dfs = {location:add_features(discharge, streamflow_colname='discharge').dropna() for location, discharge in all_discharge.items()}
+	features_dfs = {location:add_features(discharge, streamflow_colname='discharge (m³/s)').dropna() for location, discharge in all_discharge.items()}
 
 	# define directories where nutrient data are stored
 	tp_dir = "/users/n/b/nbeckage/ciroh/workspaces/notebooks/FEE/randForest/nutrient_data/TP"
