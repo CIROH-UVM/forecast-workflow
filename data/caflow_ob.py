@@ -83,7 +83,7 @@ def get_data(start_date,
 
 		# Subset to the columns of interest
 		df = df[['Débit (m³/s)']]
-		df.columns = ['streamflow']
+		df.columns = [list(variables.keys())[0]]
 		df.index.name = 'time'
 		#print(df)
 
