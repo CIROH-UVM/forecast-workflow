@@ -36,6 +36,7 @@ import numpy as np
 import glob
 import os
 import datetime as dt
+import pytz
 
 AEM3D_DEL_T = 300
 
@@ -98,6 +99,46 @@ def remove_nas(series):
 	# logger.info(len(new_series))    
 	# return new_series
 	return series[~series.isna()]
+
+def backfillCaFlowsSpinup(ca_data, settings):
+	'''
+	Very specific function to fill in missing dates at the beginning of Canadian instantaneous data spinup series.
+	Fills missing dates with daily means taken from Canadian daily values service.
+	Only fills in dates that are completely missing from the instantaneous timerseries.
+	'''
+	ca_gauges = {"PK":'030424',"RK":'030425'}
+	spinup_date = settings['spinup_date']
+	for loc, iv_dict in ca_data.items():
+		first_date = iv_dict['streamflow'].index[0]
+		# only fill in missing dates if the data gap is at the BEGGINNING of the timeseries
+		# AEM3D can interpolate over middle gaps
+		if first_date > spinup_date.replace(tzinfo=dt.UTC):
+			print(f"First instantaneous value for {loc} is after spinup: {first_date}")
+			print(f"Backfilling {loc} IV streamflow with daily values...")
+			# getting daily data, for spinup period, for specific gauge
+			dv_data = caflow_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
+								 		 end_date = settings['forecast_start'],
+										 locations = {loc:ca_gauges[loc]},
+										 service = 'dv')
+			dv = dv_data[loc]['streamflow']
+			iv = iv_dict['streamflow']
+			# iv_day_index - the days that ARE present in the instantaneous data
+			iv_day_index = iv.index.normalize().drop_duplicates()
+			# give daily data UTC tz so that we can compare indices to instantaneous data, which is set to UTC
+			dv.index = dv.index.tz_localize(dt.UTC)
+			# missing days will be difference in the two indices, assuming dv is missing no dates
+			missing_days = dv.index.difference(iv_day_index)
+			# subset the daily data to be only the days that are missing form instantaneous data
+			dv_days = dv.loc[missing_days]
+			# No inherent time zone info to daily values
+			# so, reset tz to ET, set hour to Noon, convert tz to UTC
+			dv_days.index = dv_days.index.map(lambda t: t.replace(hour=12, tzinfo=pytz.timezone('America/New_York')).tz_convert(dt.UTC))
+			# now combine iv and dv data
+			combined = pd.concat([iv, dv_days]).sort_index()
+			# set the streamflow dict of ca_data to be the new combined series
+			iv_dict['streamflow'] = combined
+		# if no gap is detected, do nothing
+		else: print(f"No leading gap detected for {loc}")
 
 def ordinalnudgerow(rowtonudge, columntonudge, nudgeframe):
 	# apply a proportional nudge value that is specific to the day of year in the passed row
@@ -169,7 +210,6 @@ def writeCloudCover(climate, THEBAY):
 #
 ##########################################################################
 
-
 def getflowfiles(whichbay, settings):
 	'''
 	getflowfiles : Get hydrology model flow for Bay Inflow
@@ -188,17 +228,18 @@ def getflowfiles(whichbay, settings):
 			   										  "ML":'04292750'})
 		# Convert USGS streamflow from cubic ft / s to cubic m / s
 		for location in observedHydro.keys():
-			observedHydro[location]['streamflow'] = observedHydro[location]['streamflow'] * 0.0283168
+			observedHydro[location]['streamflow'] = observedHydro[location]['streamflow'].rename('streamflow (m³/s)') * 0.0283168
 
-	else:
-		raise ValueError(f"'{settings['hydrology_dataset_observed']}' is not a valid observational hydrology dataset")
-	
+		# pull observed Rock and Pike flow data from candadian service site
+		observedca = caflow_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
+								 		end_date = settings['forecast_start'],
+										locations = {"PK":'030424',
+			   										 "RK":'030425'})
+		# backfill missing IV data with DV data - Right now we are just doing this for th spinup periop only
+		backfillCaFlowsSpinup(observedca, settings)
 
-	# pull observed Rock and Pike flow data from candadian service site
-	observedca = caflow_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
-								 		 end_date = settings['forecast_start'],
-										 locations = {"PK":'030424',
-			   										  "RK":'030425'})
+	else: raise ValueError(f"'{settings['hydrology_dataset_observed']}' is not a valid observational hydrology dataset")
+
 
 	forecastHydro = None
 	if settings['hydrology_dataset_forecast'] == 'USGS_IV':
@@ -209,7 +250,7 @@ def getflowfiles(whichbay, settings):
 			   										  "ML":'04292750'})
 		# Convert USGS streamflow from cubic ft / s to cubic m / s
 		for location in forecastHydro.keys():
-			forecastHydro[location]['streamflow'] = forecastHydro[location]['streamflow'] * 0.0283168
+			forecastHydro[location]['streamflow'] = forecastHydro[location]['streamflow'].rename('streamflow (m³/s)') * 0.0283168
 
 		forecastca = caflow_ob.get_data(start_date = settings['forecast_start'],
 								 		end_date = settings['forecast_end'] + dt.timedelta(days=1),
@@ -221,8 +262,8 @@ def getflowfiles(whichbay, settings):
 		forecastHydro = nwm_fc.get_data(forecast_datetime = settings['forecast_start'],
 						end_datetime = settings['forecast_end'] + dt.timedelta(days=1),
 						locations = {"MS":"166176984",
-								     "JS":"4587092",
-								     "ML":"4587100"},
+									 "JS":"4587092",
+									 "ML":"4587100"},
 						forecast_type = settings['nwm_forecast_member'],
 						data_dir = settings['data_dir'],
 						load_threads = 1,
@@ -234,28 +275,27 @@ def getflowfiles(whichbay, settings):
 		forecastca['RK']['streamflow'] = forecastHydro['MS']['streamflow'] * 0.038  # scale Missisquoi to Rock
 		forecastca['PK']['streamflow'] = forecastHydro['MS']['streamflow'] * 0.228  # scale Missisquoi to Pike
 
-	else:
-		raise ValueError(f"'{settings['hydrology_dataset_forecast']}' is not a valid hydrology forecast dataset")
+	else: raise ValueError(f"'{settings['hydrology_dataset_forecast']}' is not a valid hydrology forecast dataset")
 			
 	# Build Dictionary of Series with to adjusted column names
-	flows = {'MS':{},'ML':{},'JS':{},'PK':{},'RK':{}}	# initialize empty dictionary
-	flows['MS']['streamflow'] = pd.concat([observedHydro['MS']['streamflow'], forecastHydro['MS']['streamflow']]).rename_axis('time').astype('float')
-	flows['ML']['streamflow'] = pd.concat([observedHydro['ML']['streamflow'], forecastHydro['ML']['streamflow']]).rename_axis('time').astype('float')
-	flows['JS']['streamflow'] = pd.concat([observedHydro['JS']['streamflow'], forecastHydro['JS']['streamflow']]).rename_axis('time').astype('float')
-	flows['PK']['streamflow'] = pd.concat([observedca['PK']['streamflow'], forecastca['PK']['streamflow'] ]).rename_axis('time').astype('float')
-	flows['RK']['streamflow'] = pd.concat([observedca['RK']['streamflow'], forecastca['RK']['streamflow'] ]).rename_axis('time').astype('float')
+	iv_flows = {'MS':{},'ML':{},'JS':{},'PK':{},'RK':{}}	# initialize empty dictionary
+	iv_flows['MS']['streamflow'] = pd.concat([observedHydro['MS']['streamflow'], forecastHydro['MS']['streamflow']]).rename_axis('time').astype('float')
+	iv_flows['ML']['streamflow'] = pd.concat([observedHydro['ML']['streamflow'], forecastHydro['ML']['streamflow']]).rename_axis('time').astype('float')
+	iv_flows['JS']['streamflow'] = pd.concat([observedHydro['JS']['streamflow'], forecastHydro['JS']['streamflow']]).rename_axis('time').astype('float')
+	iv_flows['PK']['streamflow'] = pd.concat([observedca['PK']['streamflow'], forecastca['PK']['streamflow'] ]).rename_axis('time').astype('float')
+	iv_flows['RK']['streamflow'] = pd.concat([observedca['RK']['streamflow'], forecastca['RK']['streamflow'] ]).rename_axis('time').astype('float')
 	
-	print('Structure of flows dictionary')
-	print(flows)
+	print('Structure of instantaneous flows dictionary')
+	# print(iv_flows)
 
-	logger.info(flows)
+	logger.info(iv_flows)
 
 	
-	flow_data = {'Missisquoi':flows['MS']['streamflow'],
-				 'Mill':flows['ML']['streamflow'],
-				 'Jewett-Stevens':flows['JS']['streamflow'],
-				 'Pike':flows['PK']['streamflow'],
-				 'Rock':flows['RK']['streamflow']}
+	flow_data = {'Missisquoi':iv_flows['MS']['streamflow'],
+				 'Mill':iv_flows['ML']['streamflow'],
+				 'Jewett-Stevens':iv_flows['JS']['streamflow'],
+				 'Pike':iv_flows['PK']['streamflow'],
+				 'Rock':iv_flows['RK']['streamflow']}
 
 	global SUBPLOT_PACKAGES
 	global AXES
@@ -266,13 +306,11 @@ def getflowfiles(whichbay, settings):
 									  'row':0,
 									  'col':0,
 									  'axis':AXES}
+	
+	# save the daily values flow data in bay for later use in wqcalcs
+	# THEBAY.flowdict = dv_flows			
 
-
-	# Store flow series in bay object for later
-	#THEBAY.flowdf = flowdf[['ordinaldate', 'msflow', 'mlflow', 'jsflow']].copy()
-	THEBAY.flowdict = flows			# save the flow data in bay for later use in wqcalcs
-
-	logger.info('Daily Flow Data Scaled')
+	logger.info('Instantaneous Flow Data Scaled')
 	# Scale Additional Inflows from Predicted Inflow
 	#       sourcelist has list of water source IDs
 	#       sourcemap defines the source name (wshed) and proportion and adjust of hydromodel output flow
@@ -282,7 +320,7 @@ def getflowfiles(whichbay, settings):
 		logger.info('Generating Bay Source File for Id: '+baysource)
 		wshed = THEBAY.sourcemap[baysource]['wshed']            # get column name of watershed flow source for this stream
 		theflow = pd.Series()
-		theflow['streamflow'] = flows[wshed]['streamflow'] * THEBAY.sourcemap[baysource]['adjust']  # adjust gauge to loc
+		theflow['streamflow'] = iv_flows[wshed]['streamflow'] * THEBAY.sourcemap[baysource]['adjust']  # adjust gauge to loc
 		theflow['streamflow'] =  theflow['streamflow'][theflow['streamflow'] >= 0]	# scrub out any negative values
 		theflow['streamflow'].index = theflow['streamflow'].index.to_series().apply(datetimeToOrdinal) # ordinal dates index
 
@@ -316,6 +354,153 @@ def getflowfiles(whichbay, settings):
 
 #########################################################################
 #
+#   Import Hydrology Daily Flow - Generate Daily Values Streamflow Timeseries
+#
+##########################################################################
+
+def getdailyflows(whichbay, settings):
+	'''
+		getdailyflows: Get daily flows for water quality calculations.
+			dv_flows is stored in whichbay.flowdict
+	'''
+
+	logger.info("Loading Daily Streamflow")
+
+	THEBAY = whichbay
+
+	# define empty daily flows object - this should be final timeseries to be assigned to whichbay.flowdict
+	dv_flows = {}
+
+	# Assign US and canadian gauges
+	us_gauges = {"MS":'04294000',
+				 "JS":'04292810',
+				 "ML":'04292750'}
+	ca_gauges = {"PK":'030424',
+				 "RK":'030425'}
+	all_gauges = us_gauges | ca_gauges
+
+	logger.info("Getting daily streamflow for spinup period...")
+	logger.info(f"Dataset: {settings['hydrology_dataset_observed']}")
+
+	# getting spinup period daily streamflows
+	spinupDailyFlows = None
+	if settings['hydrology_dataset_observed'] == 'USGS_IV':
+		# get spinup daily values from USGS
+		usgs_spinup_dv = usgs_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
+										end_date = settings['forecast_start'],
+										locations = us_gauges,
+										service = 'dv')
+		
+		# Convert USGS streamflow from cubic ft / s to cubic m / s
+		for location in usgs_spinup_dv.keys():
+			usgs_spinup_dv[location]['streamflow'] = usgs_spinup_dv[location]['streamflow'].rename('streamflow (m³/s)') * 0.0283168
+
+		# get spinup daily values from canada
+		caflow_spinup_dv = caflow_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
+											end_date = settings['forecast_start'],
+											locations = ca_gauges,
+											service = 'dv')
+		
+		# combine spinup daily values into one nested dict
+		spinupDailyFlows = usgs_spinup_dv | caflow_spinup_dv
+
+		# set timestamps to noon ET, then convert to UTC
+		for loc, q_dict in spinupDailyFlows.items():
+			q = q_dict['streamflow']
+			q.index = q.index.map(lambda t: t.replace(hour=12, tzinfo=None).tz_localize('America/New_York').tz_convert('UTC'))
+			q_dict['streamflow'] = q
+
+	# currently there should be only one valid option for 'hydrology_dataset_observed' : 'USGS_IV'
+	else: raise ValueError(f"'{settings['hydrology_dataset_observed']}' is not a valid observational hydrology dataset")
+
+	logger.info("Spinup Period Daily Streamflow:")
+	logger.info(spinupDailyFlows)
+
+	logger.info("Getting daily streamflow for forecast period...")
+	logger.info(f"Dataset: {settings['hydrology_dataset_forecast']}")
+	# getting forecast period daily streamflows
+	forecastDailyFlows = None
+	if settings['hydrology_dataset_forecast'] == 'USGS_IV':
+		# get forecast daily values from USGS
+		usgs_forecast_dv = usgs_ob.get_data(start_date = settings['forecast_start'],
+											end_date = settings['forecast_end'] + dt.timedelta(days=1),
+											locations = us_gauges,
+											service = 'dv')
+		
+		# Convert USGS streamflow from cubic ft / s to cubic m / s
+		for location in usgs_forecast_dv.keys():
+			usgs_forecast_dv[location]['streamflow'] = usgs_forecast_dv[location]['streamflow'].rename('streamflow (m³/s)') * 0.0283168
+		
+		# get forecast daily values from canada
+		caflow_forecast_dv = caflow_ob.get_data(start_date = settings['forecast_start'],
+												end_date = settings['forecast_end'] + dt.timedelta(days=1),
+												locations = ca_gauges,
+												service = 'dv')
+		
+		# combine forecast daily values into one nested dict
+		forecastDailyFlows = usgs_forecast_dv | caflow_forecast_dv
+
+		# set timestamps to noon ET, then convert to UTC
+		for loc, q_dict in forecastDailyFlows.items():
+			q = q_dict['streamflow']
+			q.index = q.index.map(lambda t: t.replace(hour=12, tzinfo=None).tz_localize('America/New_York').tz_convert('UTC'))
+			q_dict['streamflow'] = q
+		
+	elif(settings['hydrology_dataset_forecast'] == 'NOAA_NWM_PROD'):
+		# get forecast streamflow from NWM
+		nwm_forecast = nwm_fc.get_data(forecast_datetime = settings['forecast_start'],
+										end_datetime = settings['forecast_end'] + dt.timedelta(days=1),
+										locations = {"MS":"166176984",
+													"JS":"4587092",
+													"ML":"4587100"},
+										forecast_type = settings['nwm_forecast_member'],
+										data_dir = settings['data_dir'],
+										load_threads = 1,
+										google_buckets = True)
+		
+		#	approximate Rock and Pike forecast from scaled Missisquoi forecast
+		# TODO: Devise a better plan to reference the scaling factors than hardcoding them here
+		nwm_forecast_ca = {'RK':{},'PK':{}}
+		nwm_forecast_ca['RK']['streamflow'] = nwm_forecast['MS']['streamflow'] * 0.038  # scale Missisquoi to Rock
+		nwm_forecast_ca['PK']['streamflow'] = nwm_forecast['MS']['streamflow'] * 0.228  # scale Missisquoi to Pike
+
+		# combine forecast daily values into one nested dict
+		forecastDailyFlows = nwm_forecast | nwm_forecast_ca
+
+		# creating daily averages for NWM streamflow
+		for loc, q_dict in forecastDailyFlows.items():
+			q = q_dict['streamflow']
+			# converting NWM timestamps from UTC to Eastern time zone
+			q.index = q.index.tz_convert('America/New_York')
+			# daily streamflow averages (calulated with Eastern time adjusted data)
+			q_daily_ave = q.resample('D').mean().rename('streamflow (m³/s)')
+			# set hour to noon (eastern time) and then convert to UTC time once again
+			q_daily_ave.index = q_daily_ave.index.map(lambda t: t.replace(hour=12).tz_convert(dt.UTC))
+			# Now drop the row for the date prior to forecast_start, which was created when converting UTC timestamps to ET
+			# adding timezone info to forecast_start in order to compare with timestamps
+			q_dict['streamflow'] = q_daily_ave.loc[settings['forecast_start'].replace(tzinfo=dt.UTC):]
+
+	else: raise ValueError(f"'{settings['hydrology_dataset_forecast']}' is not a valid hydrology forecast dataset")
+
+	logger.info("Forecast Period Daily Streamflow:")
+	logger.info(spinupDailyFlows)
+
+	# now combine spinup and forecast period flows
+	# this will combine spinup and forecast period series and fix timestamps
+	for loc in all_gauges.keys():
+		# Build Dictionary of Series with adjusted column names
+		dv_combined = pd.concat([spinupDailyFlows['MS']['streamflow'], forecastDailyFlows['MS']['streamflow']]).rename_axis('time').astype('float')
+		dv_dict = {'streamflow':dv_combined}
+		dv_flows[loc] = dv_dict
+	
+	logger.info("Final Daily Streamflow Timeseries")
+	logger.info(dv_flows)
+
+	# set flowdict to be the daily flows dictionary
+	THEBAY.flowdict = dv_flows
+
+#########################################################################
+#
 #   All Things Meteorology Related Handled Herein
 #
 ##########################################################################
@@ -324,18 +509,18 @@ def adjustCRTemp(air_data):
 	# S.E.T. - 20240206 - Adjust Colchester Reef Observed temp by month for the Missisquoi Bay Zone (401)
 	# the adjustment, by month, to apply to CR data for use in MissBay
 	tempadjust = {
-    	1 : -2.6,
-    	2 : -2.4,
-    	3 : -0.7,
-    	4 : 0.8,
-    	5 : 1.3,
-    	6 : 0.8,
-    	7 : -0.4,
-    	8 : -0.8,
-    	9 : -1.0,
-    	10 : -1.2,
-    	11 : -1.6,
-    	12 : -2.4 }
+		1 : -2.6,
+		2 : -2.4,
+		3 : -0.7,
+		4 : 0.8,
+		5 : 1.3,
+		6 : 0.8,
+		7 : -0.4,
+		8 : -0.8,
+		9 : -1.0,
+		10 : -1.2,
+		11 : -1.6,
+		12 : -2.4 }
 
 	adjustedCRtemp = pd.Series()
 	for row in range(air_data.shape[0]):
@@ -578,7 +763,7 @@ def genclimatefiles(whichbay, settings):
 		observedlake = usgs_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
 								 		 end_date = settings['forecast_start'],
 										 locations = {"RL":'04295000'},
-                                          variables = getvars)
+										  variables = getvars)
 		# adjust height reference to 93 ft and convert to meters
 		observedlake['RL']['LAKEHT'] = (observedlake['RL']['LAKEHT']-93) * 0.3048
 		# store observed lake height in bay object for later concat with predicted height
@@ -662,7 +847,7 @@ def genclimatefiles(whichbay, settings):
 		forecastlake = usgs_ob.get_data(start_date = settings['forecast_start'],
 								 		end_date = adjusted_end_date,
 										locations = {"RL":'04295000'},
-                                        variables = getvars)
+										variables = getvars)
 		# adjust height reference to 93 ft and convert to meters
 		forecastlake['RL']['LAKEHT'] = (forecastlake['RL']['LAKEHT']-93) * 0.034478e-05
 		# store observed lake height in bay object for later concat with predicted height
@@ -1411,7 +1596,8 @@ def gendatablockfile(theBay, settings):
 	# Calculate 1 hour in iterations
 	hourIter = int(86400 / AEM3D_DEL_T / 24)
 	# Calculate iteration for forecast start: Time between forecast date and spinup start
-	forecastStartIter = int((settings['forecast_start'] - (settings['spinup_date'] + dt.timedelta(days=1))).total_seconds() / AEM3D_DEL_T) + 1
+	# forecastStartIter = int((settings['forecast_start'] - (settings['spinup_date'] + dt.timedelta(days=1))).total_seconds() / AEM3D_DEL_T) + 1
+	forecastStartIter = int((settings['forecast_start'] - settings['spinup_date']).total_seconds() / AEM3D_DEL_T) + 1
 
 	logger.info(f'Configuring datablock.xml file')
 	generate_file_from_template('datablock.xml.template',
@@ -1432,6 +1618,9 @@ def AEM3D_prep_IAM(theBay, settings):
 
 	# get flow files from hydrology model data, including observed lake level
 	getflowfiles(theBay, settings)
+
+	# get daily flows for later water quality calculations
+	getdailyflows(theBay, settings)
 
 	# generate climate files including lake levels
 	genclimatefiles(theBay, settings)
