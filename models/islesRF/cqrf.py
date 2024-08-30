@@ -53,7 +53,7 @@ def to_metricQ(streamflow_dict, streamflow_colname='streamflow'):
 		metric_q_dfs[location] = metric_q_df
 	return metric_q_dfs
 
-def add_features(data, streamflow_colname='streamflow'):
+def add_features(data, streamflow_colname='streamflow (m³/s)'):
 	'''
 	Function to add features to a daily discharge dataframe for a USGS gauge. Features added are the same as those used by Isles, 2023 (https://doi.org/10.1016/j.watres.2023.120876)
 	Exact specifications for how features were engineered can be found in the code contained in the supplmentary material of said paper.
