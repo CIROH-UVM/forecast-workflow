@@ -169,7 +169,6 @@ def writeCloudCover(climate, THEBAY):
 #
 ##########################################################################
 
-
 def getflowfiles(whichbay, settings):
 	'''
 	getflowfiles : Get hydrology model flow for Bay Inflow
@@ -324,18 +323,18 @@ def adjustCRTemp(air_data):
 	# S.E.T. - 20240206 - Adjust Colchester Reef Observed temp by month for the Missisquoi Bay Zone (401)
 	# the adjustment, by month, to apply to CR data for use in MissBay
 	tempadjust = {
-    	1 : -2.6,
-    	2 : -2.4,
-    	3 : -0.7,
-    	4 : 0.8,
-    	5 : 1.3,
-    	6 : 0.8,
-    	7 : -0.4,
-    	8 : -0.8,
-    	9 : -1.0,
-    	10 : -1.2,
-    	11 : -1.6,
-    	12 : -2.4 }
+		1 : -2.6,
+		2 : -2.4,
+		3 : -0.7,
+		4 : 0.8,
+		5 : 1.3,
+		6 : 0.8,
+		7 : -0.4,
+		8 : -0.8,
+		9 : -1.0,
+		10 : -1.2,
+		11 : -1.6,
+		12 : -2.4 }
 
 	adjustedCRtemp = pd.Series()
 	for row in range(air_data.shape[0]):
@@ -578,7 +577,7 @@ def genclimatefiles(whichbay, settings):
 		observedlake = usgs_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
 								 		 end_date = settings['forecast_start'],
 										 locations = {"RL":'04295000'},
-                                          variables = getvars)
+										  variables = getvars)
 		# adjust height reference to 93 ft and convert to meters
 		observedlake['RL']['LAKEHT'] = (observedlake['RL']['LAKEHT']-93) * 0.3048
 		# store observed lake height in bay object for later concat with predicted height
@@ -662,7 +661,7 @@ def genclimatefiles(whichbay, settings):
 		forecastlake = usgs_ob.get_data(start_date = settings['forecast_start'],
 								 		end_date = adjusted_end_date,
 										locations = {"RL":'04295000'},
-                                        variables = getvars)
+										variables = getvars)
 		# adjust height reference to 93 ft and convert to meters
 		forecastlake['RL']['LAKEHT'] = (forecastlake['RL']['LAKEHT']-93) * 0.034478e-05
 		# store observed lake height in bay object for later concat with predicted height
