@@ -257,13 +257,16 @@ def genwqfiles (theBay):
 
 		# I think it's appropriate to have this be hard-coded, as it shouldn't change... unless someone runs our workflow outside of the VACC
 		rf_models_dir = '/netfiles/ciroh/models/cq_randomforest_peterisles/current/'
+		# rf_models_dir = '/netfiles/ciroh/nbeckage/rfcq/'
+
+		print(f"Q DATAFRAME:")
+		print(Q)
 		# make wQ a settings, have peter's stuff be an option
 		if cqVersion == 'Clelia':
 			# Clelia TP Concentration - Discharge Relationship
 			#   Same for ALL ILS inputs!!
 			zTP = (flows['MS']['streamflow'] - 159.78) / 132.64
 			phosdf['TP'] =  ( 0.011001 * np.power(zTP,2) + 0.073104 * zTP + 0.091528 ) * p_redux
-			
 		elif cqVersion == 'islesRF':
 			rf_tp_dir = os.path.join(rf_models_dir, "TP")
 			Q_features = add_features(pd.DataFrame(Q))
