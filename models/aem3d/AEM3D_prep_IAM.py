@@ -1411,7 +1411,8 @@ def gendatablockfile(theBay, settings):
 	# Calculate 1 hour in iterations
 	hourIter = int(86400 / AEM3D_DEL_T / 24)
 	# Calculate iteration for forecast start: Time between forecast date and spinup start
-	forecastStartIter = int((settings['forecast_start'] - (settings['spinup_date'] + dt.timedelta(days=1))).total_seconds() / AEM3D_DEL_T) + 1
+	# forecastStartIter = int((settings['forecast_start'] - (settings['spinup_date'] + dt.timedelta(days=1))).total_seconds() / AEM3D_DEL_T) + 1
+	forecastStartIter = int((settings['forecast_start'] - settings['spinup_date']).total_seconds() / AEM3D_DEL_T) + 1
 
 	logger.info(f'Configuring datablock.xml file')
 	generate_file_from_template('datablock.xml.template',
