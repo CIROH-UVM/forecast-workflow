@@ -102,17 +102,23 @@ def remove_nas(series):
 
 def backfillCaFlowsSpinup(ca_data, settings):
 	'''
-	Very specific function to fill in missing dates at the beginning of Canadian instantaneous data spinup series.
-	Fills missing dates with daily means taken from Canadian daily values service.
-	Only fills in dates that are completely missing from the instantaneous timerseries.
+	Fill in missing dates in the Canadian instantaneous data spinup series with daily values.
+	Only fills in dates that are completely missing from the instantaneous timerseries with daily means from Canadian daily values (dv) service.
+	Note that the nested ditionary ca_data is modified inplace.
+
+	Args:
+	-- ca_data (nested dict) [req]: instantaneous canadian streamflow timeseries in standard get_data() format
+	-- settings (dict) [req]: dictionary of run settings
+
+	Returns:
+	None; modifies ca_data inplace 
 	'''
 	ca_gauges = {"PK":'030424',"RK":'030425'}
-	spinup_date = settings['spinup_date']
 	for loc, iv_dict in ca_data.items():
 		first_date = iv_dict['streamflow'].index[0]
 		# only fill in missing dates if the data gap is at the BEGGINNING of the timeseries
 		# AEM3D can interpolate over middle gaps
-		if first_date > spinup_date.replace(tzinfo=dt.UTC):
+		if first_date > settings['spinup_date'].replace(tzinfo=dt.UTC):
 			print(f"First instantaneous value for {loc} is after spinup: {first_date}")
 			print(f"Backfilling {loc} IV streamflow with daily values...")
 			# getting daily data, for spinup period, for specific gauge
