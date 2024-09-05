@@ -115,36 +115,29 @@ def backfillCaFlowsSpinup(ca_data, settings):
 	'''
 	ca_gauges = {"PK":'030424',"RK":'030425'}
 	for loc, iv_dict in ca_data.items():
-		first_date = iv_dict['streamflow'].index[0]
-		# only fill in missing dates if the data gap is at the BEGGINNING of the timeseries
-		# AEM3D can interpolate over middle gaps
-		if first_date > settings['spinup_date'].replace(tzinfo=dt.UTC):
-			print(f"First instantaneous value for {loc} is after spinup: {first_date}")
-			print(f"Backfilling {loc} IV streamflow with daily values...")
-			# getting daily data, for spinup period, for specific gauge
-			dv_data = caflow_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
-								 		 end_date = settings['forecast_start'],
-										 locations = {loc:ca_gauges[loc]},
-										 service = 'dv')
-			dv = dv_data[loc]['streamflow']
-			iv = iv_dict['streamflow']
-			# iv_day_index - the days that ARE present in the instantaneous data
-			iv_day_index = iv.index.normalize().drop_duplicates()
-			# give daily data UTC tz so that we can compare indices to instantaneous data, which is set to UTC
-			dv.index = dv.index.tz_localize(dt.UTC)
-			# missing days will be difference in the two indices, assuming dv is missing no dates
-			missing_days = dv.index.difference(iv_day_index)
-			# subset the daily data to be only the days that are missing form instantaneous data
-			dv_days = dv.loc[missing_days]
-			# No inherent time zone info to daily values
-			# so, reset tz to ET, set hour to Noon, convert tz to UTC
-			dv_days.index = dv_days.index.map(lambda t: t.replace(hour=12, tzinfo=pytz.timezone('America/New_York')).tz_convert(dt.UTC))
-			# now combine iv and dv data
-			combined = pd.concat([iv, dv_days]).sort_index()
-			# set the streamflow dict of ca_data to be the new combined series
-			iv_dict['streamflow'] = combined
-		# if no gap is detected, do nothing
-		else: print(f"No leading gap detected for {loc}")
+		print(f"Backfilling {loc} IV streamflow with daily values...")
+		# getting daily data, for spinup period, for specific gauge
+		dv_data = caflow_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
+									 end_date = settings['forecast_start'],
+									 locations = {loc:ca_gauges[loc]},
+									 service = 'dv')
+		dv = dv_data[loc]['streamflow']
+		iv = iv_dict['streamflow']
+		# iv_day_index - the days that ARE present in the instantaneous data
+		iv_day_index = iv.index.normalize().drop_duplicates()
+		# give daily data UTC tz so that we can compare indices to instantaneous data, which is set to UTC
+		dv.index = dv.index.tz_localize(dt.UTC)
+		# missing days will be difference in the two indices, assuming dv is missing no dates
+		missing_days = dv.index.difference(iv_day_index)
+		# subset the daily data to be only the days that are missing form instantaneous data
+		dv_days = dv.loc[missing_days]
+		# No inherent time zone info to daily values
+		# so, reset tz to ET, set hour to Noon, convert tz to UTC
+		dv_days.index = dv_days.index.map(lambda t: t.replace(hour=12, tzinfo=pytz.timezone('America/New_York')).tz_convert(dt.UTC))
+		# now combine iv and dv data
+		combined = pd.concat([iv, dv_days]).sort_index()
+		# set the streamflow dict of ca_data to be the new combined series
+		iv_dict['streamflow'] = combined
 
 def ordinalnudgerow(rowtonudge, columntonudge, nudgeframe):
 	# apply a proportional nudge value that is specific to the day of year in the passed row
