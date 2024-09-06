@@ -136,6 +136,19 @@ def backfillCaFlowsSpinup(ca_data, settings):
 		missing_days = dv.index.difference(iv_dates)
 		# subset the daily data to be only the days that are missing form instantaneous data
 		dv_days = dv.loc[missing_days]
+		
+		# some logging messages to check my math... realized the index comparison was wrong before
+		print(f"\nSpinup period is {(forecast_start - spinup).days} days long")
+		print(f"There are {len(iv_dates)} dates with at least one instantaneous value in ca_data")
+		print(f"Therefore there should be {(forecast_start - spinup).days - len(iv_dates)} daily value dates injected")
+		print(f"In fact there were {len(dv_days)} dates injected")
+		if len(missing_days) + len(iv_dates) != (forecast_start - spinup).days:
+			warnings.warn("Faulty index comparison; number of missing dates plus exisiting dates does not add up to total timespan. Daily values could potentially have missing dates.", UserWarning)
+		print()
+
+		# option logger messages for debugging purposes 
+		# print("Daily values to be injected into instantaneous timeseries:")
+		# print(dv_days)
 		# No inherent time zone info to daily values
 		# so, reset tz to ET, set hour to Noon, convert tz to UTC
 		dv_days.index = dv_days.index.map(lambda t: t.replace(hour=12, tzinfo=pytz.timezone('America/New_York')).tz_convert(dt.UTC))
