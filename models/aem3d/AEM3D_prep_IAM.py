@@ -117,18 +117,23 @@ def backfillCaFlowsSpinup(ca_data, settings):
 	for loc, iv_dict in ca_data.items():
 		print(f"Backfilling {loc} IV streamflow with daily values...")
 		# getting daily data, for spinup period, for specific gauge
-		dv_data = caflow_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
-									 end_date = settings['forecast_start'],
-									 locations = {loc:ca_gauges[loc]},
-									 service = 'dv')
+		spinup = settings['spinup_date'] - dt.timedelta(days=1)
+		forecast_start = settings['forecast_start']
+		dv_data = caflow_ob.get_data(start_date = spinup,
+									end_date = forecast_start,
+									locations = {loc:ca_gauges[loc]},
+									service = 'dv')
+		# note that daily values dates are reported in ET time
 		dv = dv_data[loc]['streamflow']
+		# note that the index of iv will be in UTC time
 		iv = iv_dict['streamflow']
-		# iv_day_index - the days that ARE present in the instantaneous data
-		iv_day_index = iv.index.normalize().drop_duplicates()
-		# give daily data UTC tz so that we can compare indices to instantaneous data, which is set to UTC
-		dv.index = dv.index.tz_localize(dt.UTC)
+		# convert iv timestamps from UTC to ET before getting dates
+		# then get rid of time info (normalize), then drop subsequent date duplicates
+		iv_daily_et_index = iv.index.map(lambda t: t.tz_convert(pytz.timezone('America/New_York'))).normalize().drop_duplicates()
+		# Now get an index of just the iv dates so we can compare to the dv.index, which is also just dates
+		iv_dates = iv_daily_et_index.map(lambda t: t.date())
 		# missing days will be difference in the two indices, assuming dv is missing no dates
-		missing_days = dv.index.difference(iv_day_index)
+		missing_days = dv.index.difference(iv_dates)
 		# subset the daily data to be only the days that are missing form instantaneous data
 		dv_days = dv.loc[missing_days]
 		# No inherent time zone info to daily values
