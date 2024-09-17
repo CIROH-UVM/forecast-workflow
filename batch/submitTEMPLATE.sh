@@ -10,11 +10,22 @@
 #SBATCH --output=%x_%j.out
 #SBATCH --mail-type=FAIL
 
-set -x
+set -xe
+
+# Function to print error message on failure
+failed_run() {
+    echo "ERROR: RUN FAILED"
+}
+
+# Trap the ERR signal to call the error handler when a command fails
+trap failed_run ERR
 
 # source /users/p/c/pclemins/usr/local/miniforge3/etc/profile.d/conda.sh
 source /users/n/b/nbeckage/miniconda3/etc/profile.d/conda.sh
+
+# activate forecast environment
 conda activate forecast
+
 # export PYTHONPATH=/users/p/c/pclemins/repos/forecast-workflow
 export PYTHONPATH=/users/n/b/nbeckage/ciroh/forecast-workflow
 
