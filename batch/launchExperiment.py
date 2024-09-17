@@ -24,7 +24,7 @@ with open(experiment_conf_file) as experiment_config:
 config = get_args.load_defaults()
 
 # load in the default job script template
-with open('/netfiles/ciroh/7dayHABsHindcast/submitTEMPLATE.sh') as f:
+with open('/users/n/b/nbeckage/ciroh/forecast-workflow/batch/submitTEMPLATE.sh') as f:
 	src = Template(f.read())
 
 ### 6/11/24 - I think this is outdated - orig will be the scenario dir (same dir as experiemnt_config)
@@ -74,9 +74,12 @@ for year in years:
 		with open('submit.sh', 'w') as submit_script:
 			submit_script.write(job_script)
 
-		print(scenario_dir_date)
+		print(f"Launching run in: {scenario_dir_date}")
+		sys.stdout.flush()
 		# Uncomment to submit
 		subprocess.run(['sbatch ' 'submit.sh'], shell=True)
 		# wait so as to not overwhelm the VACC with GFS / NWM file reads for AEM3D_prep_IAM
 		time.sleep(30)
 os.chdir(orig)
+
+print("Experiment Launch Complete.")
