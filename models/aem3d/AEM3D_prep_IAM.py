@@ -871,7 +871,7 @@ def genclimatefiles(whichbay, settings):
 										locations = {"RL":'04295000'},
 										variables = getvars)
 		# adjust height reference to 93 ft and convert to meters
-		forecastlake['RL']['LAKEHT'] = (forecastlake['RL']['LAKEHT']-93) * 0.034478e-05
+		forecastlake['RL']['LAKEHT'] = (forecastlake['RL']['LAKEHT']-93) * 0.3048
 		# store observed lake height in bay object for later concat with predicted height
 		forecastClimate['300'] = forecastlake['RL']
 
@@ -1556,7 +1556,8 @@ def gencntlfile(theBay, settings):
 	
 
 	# Calculate iterations: Time between forecast end and start of sim
-	iterations = int((settings['forecast_end'] - simstart).total_seconds() / AEM3D_DEL_T)
+	### NOTE: adding 12 to iterations so that the last forecast timestamp is 6/8 00:00 instead of 6/7 23:00 (given forecast start is 6/1 00:00). Not sure why 12 works...
+	iterations = int((settings['forecast_end'] - simstart).total_seconds() / AEM3D_DEL_T) + 12
 	logger.info(f'Configuring AEM3D to run {iterations} iterations')
 
 
