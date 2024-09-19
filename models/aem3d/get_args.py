@@ -52,7 +52,7 @@ def check_values(settings_dict, defaults=False):
 	if not 0 <= settings_dict['blending_ratio'] <= 1.0:
 		raise ValueError(f"'{settings_dict['blending_ratio']}' is not a valid blending ratio; must be between 0 and 1.")
 	
-	print("Settings to be checked ", settings_dict)
+	# print("Settings to be checked ", settings_dict)
 
 	valid_datasets = {'wdo':["NOAA_LCD+FEMC_CR"],
 				   	  'wdf':["NOAA_LCD+FEMC_CR", "NOAA_GFS"],

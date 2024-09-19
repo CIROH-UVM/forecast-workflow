@@ -1556,7 +1556,8 @@ def gencntlfile(theBay, settings):
 	
 
 	# Calculate iterations: Time between forecast end and start of sim
-	### NOTE: adding 12 to iterations so that the last forecast timestamp is 6/8 00:00 instead of 6/7 23:00 (given forecast start is 6/1 00:00). Not sure why 12 works...
+	### NOTE: adding 12 to iterations so that the last forecast timestamp is 6/8 00:00 instead of 6/7 23:00 (given forecast start is 6/1 00:00)\
+	### each AEM3D iteration is 5 minutes, so 12 iterations is an hour, which is how long we want to extend the forecast to get to a full 7 days
 	iterations = int((settings['forecast_end'] - simstart).total_seconds() / AEM3D_DEL_T) + 12
 	logger.info(f'Configuring AEM3D to run {iterations} iterations')
 
