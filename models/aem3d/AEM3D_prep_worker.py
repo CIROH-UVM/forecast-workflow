@@ -36,7 +36,8 @@ def main():
 
     # These two settings return datetime objs set to midnight already
     THEBAY.FirstDate = datetimeToOrdinal(SETTINGS['spinup_date'])
-    THEBAY.LastDate = datetimeToOrdinal(SETTINGS['forecast_end'])
+    # adding a two hour nudge to the last date b/c we want the AEM3D to create data for the forecast end date at midnight
+    THEBAY.LastDate = datetimeToOrdinal(SETTINGS['forecast_end'] + dt.timedelta(hours=2))
 
 
     ## Need dataframes for hydrology from Missisquoi, Mill, JewittStevens
