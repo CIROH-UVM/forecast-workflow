@@ -57,12 +57,12 @@ def USGSgetvars_function(id, variables, start, end, service='iv'):
 			try:
 				returnValue = gage.json()
 				values = gage.json()['value']['timeSeries'][0]['values'][0]['value']
+				# get the units for the var from the API
+				unit = gage.json()['value']['timeSeries'][0]['variable']['unit']['unitCode']
 			except:
 				if returnValue is None:
 					print("USGS Observational Hydrology Data Request Failed... Will retry")
 				else: raise ValueError(f"Bad request... ensure the data you are requesting is available from station: {id}")
-			# get the units for the var from the API
-			unit = gage.json()['value']['timeSeries'][0]['variable']['unit']['unitCode']
 		var_name = f'{var} ({unit})'
 
 		df = pd.DataFrame(values)
