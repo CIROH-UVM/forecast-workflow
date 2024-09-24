@@ -112,27 +112,30 @@ def report_df(failure_dict):
 
     Returns:
     -- df (pandas.DataFrame): A pandas DataFrame indexed by 'cq_paradigm', 'scenario', 'year', and 'date' with
-       the fields 'error', 'err_type', 'file', 'last_date_ord', and 'last_date_dt' as columns.
+       the fields 'error', 'err_type', 'file', 'last_date_ord', and 'last_date_dt' as columns. None if failure_dict contains no data
     '''
 	# Use pandas json_normalize to flatten the dictionary
 	df = pd.json_normalize(failure_dict, sep='.')
 	# Transpose the DataFrame so that the keys form the columns
 	df = df.T.reset_index()
-	# Split the flattened keys into individual components
-	df[['cq_paradigm', 'scenario', 'year', 'date', 'field']] = df['index'].str.split('.', expand=True)
-	# Drop the old 'index' column
-	df = df.drop(columns=['index'])
-	# Rearrange the DataFrame for better readability
-	df = df[['cq_paradigm', 'scenario', 'year', 'date', 'field', 0]]
-	# Rename the last column to 'value'
-	df.columns = ['cq_paradigm', 'scenario', 'year', 'date', 'Field', 'Value']
-	# Pivot the DataFrame to have one row per 'Year' and 'Date', and fields as columns
-	df = df.pivot_table(index=['cq_paradigm', 'scenario','year', 'date'], columns='Field', values='Value', aggfunc='first').reset_index()
-	df.columns.name = None
-	# set the new multi-index
-	df = df.set_index(['cq_paradigm', 'scenario', 'year', 'date'])
-	order = ['error', 'err_type', 'file', 'last_date_ord', 'last_date_dt']
-	df = df[order]
+	# if the df is not empty, continue
+	if not df.empty:
+		# Split the flattened keys into individual components
+		df[['cq_paradigm', 'scenario', 'year', 'date', 'field']] = df['index'].str.split('.', expand=True)
+		# Drop the old 'index' column
+		df = df.drop(columns=['index'])
+		# Rearrange the DataFrame for better readability
+		df = df[['cq_paradigm', 'scenario', 'year', 'date', 'field', 0]]
+		# Rename the last column to 'value'
+		df.columns = ['cq_paradigm', 'scenario', 'year', 'date', 'Field', 'Value']
+		# Pivot the DataFrame to have one row per 'Year' and 'Date', and fields as columns
+		df = df.pivot_table(index=['cq_paradigm', 'scenario','year', 'date'], columns='Field', values='Value', aggfunc='first').reset_index()
+		df.columns.name = None
+		# set the new multi-index
+		df = df.set_index(['cq_paradigm', 'scenario', 'year', 'date'])
+		order = ['error', 'err_type', 'file', 'last_date_ord', 'last_date_dt']
+		df = df[order]
+	else: df = None
 
 	return df
 
@@ -228,7 +231,10 @@ def main():
 
 	# generate the concise report table
 	report = report_df(fail_dict)
-	report.to_csv(f'{log_name}.csv')
+	
+	# don't try to write df if it is None (no data to report)
+	if report is not None:
+		report.to_csv(f'{log_name}.csv')
 
 	print("DEBUG SCRIPT COMPLETE")
 
