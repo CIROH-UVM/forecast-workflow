@@ -35,7 +35,8 @@ def get_data(start_date,
 			cached_df = pd.DataFrame(cached_data)
 
 			# Also get the URL for the most recent Colchester Reef data in the CSV. Concat the two frames.
-			url="https://uvm.edu/femc/MetData/ColReefQAQC/CR_QAQC_latest.csv"
+			url="https://uvm.edu/femc/MetData/ColReefQAQC/CR_V2_QAQC_latest.csv"
+			print(url)
 			loaded_df = pd.DataFrame(pd.read_csv(url, delimiter=",", header=0, index_col=0, parse_dates=True))
 
 			#df = pd.concat([cached_df, loaded_df], axis=0, ignore_index=True)   # ignore dupe time indexes (overlap)
