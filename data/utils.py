@@ -100,6 +100,46 @@ def combine_timeseries(primary, secondary, interval):
     # Convert the final dataframe back to a series
     return combined_df.squeeze()
 
+def complete_dt_index(tsindx, start_t=None, end_t=None, gap_dur=None, **kwargs):
+	'''
+    Create a complete `pandas.DatetimeIndex` with no temporal gaps based on an uncertain or incomplete time series.
+	Reports any gaps found in the passed index.
+
+    This function generates a new DatetimeIndex that fills in temporal gaps from an existing DatetimeIndex. If the user
+    does not provide a specific start time, end time, or gap duration, the function infers these from the input index. 
+    The result is a continuous time series from `start_t` to `end_t` with a constant interval, `gap_dur`.
+
+	Args:
+	-- tsindx (pd.DatetimeIndex) [req]: The original datetime index that may contain temporal gaps. The function will infer the appropriate interval between timestamps if `gap_dur` is not provided.
+    -- start_t (pd.timestamp, dt.datetime, None) [opt]: Expected start time of the timeseries. If None, uses the first timestamp in `tsindx`
+    -- end_t (pd.timestamp, dt.datetime, None) [opt]: Expected end time of timeseries. If None, uses the last timestamp in `tsindx`. 
+    -- gap_dur (pd.Timedelta or None) [opt]: The longest acceptable time interval between timestamps in the series. If None, eses the most common time interval found in tsindx
+    -- **kwargs: Additional keyword arguments passed to `pd.date_range()`
+
+	Returns:
+    -- complete_index (pd.DatetimeIndex): 
+            A complete datetime index from `start_t` to `end_t` with a constant interval of `gap_dur`. The new index 
+            will have no temporal gaps, and the interval between consecutive timestamps will be uniform.
+	'''
+	if start_t is None:
+		start_t = tsindx[0]
+	if end_t is None:
+		end_t = tsindx[-1]
+	if gap_dur is None:
+		# timedelta representing the smallest (temporally shortest) mode interval between timestamps in the index. 
+		gap_dur = tsindx.to_series().diff().dropna().mode().min()
+		print(f"Interval inferred from index: {gap_dur}")
+	for i, ts in enumerate(tsindx):
+		if i == 0: continue
+		delta = ts - tsindx[i-1]
+		if delta > gap_dur:
+			print(f"Temporal gap in DatetimeIndex found: {delta}")
+			print(f"\t{tsindx[i-1]} jumps to {ts}")
+	# convert the timedelta into a DateOffset (which can be passed to 'freq' param in pd.date_range())
+	toffset = pd.DateOffset(seconds=gap_dur.total_seconds())
+	complete_index = pd.date_range(start_t, end_t, freq=toffset, **kwargs)
+	return complete_index
+
 
 def fahr_to_celsius(fahren):
 	'''
@@ -113,6 +153,18 @@ def fahr_to_celsius(fahren):
 	'''
 	celsius = (fahren - 32) * 5 / 9
 	return celsius
+
+def dfprint(df):
+	'''
+	Helper function to pretty-print an entire pandas dataframe in a Jupyter notebook
+	Taken from: https://stackoverflow.com/questions/19124601/pretty-print-an-entire-pandas-series-dataframe
+
+	Args:
+	-- df (pd.DataFrame) [req]: the dataframe to print
+	'''
+	with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
+		print(df)
+
 		
 def generate_date_strings(start_date, end_date):
 	"""
@@ -248,6 +300,56 @@ def parse_to_datetime(date):
 			except ValueError:
 				continue
 		raise ValueError(f'Invalid date string: {date}. Please enter date strings in the format "YYYYMMDD" or "YYYYMMDDHH".')
+
+def report_gaps(series):
+	"""
+	This function identifies gaps (NaN values) within a pandas Series with a DatetimeIndex.
+	Prints the start, end, and duration of each gap.
+	
+	Args:
+	-- series (pd.Series) [req]: A pandas Series with a DatetimeIndex.
+	
+	Returns:
+	None
+	"""
+	# Ensure the index is a DatetimeIndex
+	if not isinstance(series.index, pd.DatetimeIndex):
+		raise ValueError("The input series must have a DatetimeIndex.")
+	
+	# Find indices where values are NaN
+	is_nan = series.isna()
+
+	# Identify where the gaps (blocks of consecutive NaNs) are
+	gap_start = None
+
+	# were any gaps found at all? by default no
+	gap_found = False
+	for i in range(len(is_nan)):
+		if is_nan.iloc[i] and gap_start is None:
+			# Start of a new gap
+			gap_found = True
+			gap_start = series.index[i]
+		elif not is_nan.iloc[i] and gap_start is not None:
+			# End of the current gap
+			gap_end = series.index[i - 1]
+			duration = gap_end - gap_start
+			# if the timedelta between the start and end of the gap is zero, then it reprewsents a single missing data point
+			if duration.to_pytimedelta().total_seconds() == 0:
+				print(f"Missing data at {gap_start}: {series.loc[gap_start]}")
+			else:
+				print(f"Data Gap Found: {duration}")
+				print(f"\tFirst missing timestamp: {gap_start}")
+				print(f"\tLast missing timestamp:  {gap_end}")
+			gap_start = None
+
+	# If the series ends with a gap
+	if gap_start is not None:
+		gap_end = series.index[-1]
+		duration = gap_end - gap_start
+		print(f"Gap from {gap_start} to {gap_end}, Duration: {duration}")
+	
+	if not gap_found:
+		print("No gaps found in the timeseries")
 
 def smash_to_dataframe(series_data):
 	'''
