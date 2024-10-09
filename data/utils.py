@@ -341,13 +341,13 @@ def report_gaps(series):
 				print(f"\tFirst missing timestamp: {gap_start}")
 				print(f"\tLast missing timestamp:  {gap_end}")
 			gap_start = None
-
 	# If the series ends with a gap
 	if gap_start is not None:
 		gap_end = series.index[-1]
 		duration = gap_end - gap_start
-		print(f"Gap from {gap_start} to {gap_end}, Duration: {duration}")
-	
+		print(f"Data Gap Found: {duration}")
+		print(f"\tFirst missing timestamp: {gap_start}")
+		print(f"\tLast missing timestamp:  {gap_end}")
 	if not gap_found:
 		print("No gaps found in the timeseries")
 
