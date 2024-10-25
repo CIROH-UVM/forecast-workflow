@@ -591,17 +591,17 @@ def adjustFEMCLCD(whichbay, dataset):
 	for zone in get_climate_zone_keys(dataset):
 		# air temp and swr adjustments
 		if zone == '401':
-			dataset[zone]['T2'] = remove_nas(adjustCRTemp(dataset[zone]['T2']))
+			dataset[zone]['T2'] = remove_nas(adjustCRTemp(dataset[zone]['T2']).rename('T2', inplace=True))
 
 			ShortwaveNudger.initialize(os.path.join(whichbay.template_dir, 'SolarRadiationFactor_MB.csv'))
 			dataset[zone]['SWDOWN'] = ShortwaveNudger.nudgeDF(dataset[zone]['SWDOWN'])
-		else :
-			dataset[zone]['T2'] = remove_nas(dataset[zone]['T2'])
+		else:
+			dataset[zone]['T2'] = remove_nas(dataset[zone]['T2'].rename('T2', inplace=True))
 
 		# wind speed adjustments
 		if zone == '403':
 			dataset[zone]['WSPEED'] = remove_nas(dataset[zone]['WSPEED']) * 0.75
-		else :
+		else:
 			dataset[zone]['WSPEED'] = remove_nas(dataset[zone]['WSPEED']) * 0.65
 		
 		# Removing NAs for wind direction, relative humidity, and short-wave radiation
@@ -749,8 +749,7 @@ def genclimatefiles(whichbay, settings):
 		
 		observedClimateCR = femc_ob.get_data(start_date = adjusted_spinup,
 										end_date = settings['forecast_start'],
-										locations = {'401':'ColReefQAQC'},
-										data_dir = settings['data_dir'])
+										locations = {'401':'ColReefQAQC'})
 		
 		###### FEMC+LCD DATA ADJUSTMENTS HERE ######
 		# make additional location dictionaries here rather than call for the same location multiple times in get_data()'s
@@ -814,8 +813,7 @@ def genclimatefiles(whichbay, settings):
 		
 		forecastClimateCR = femc_ob.get_data(start_date = settings['forecast_start'],
 										end_date = adjusted_end_date,
-										locations = {'401':'ColReefQAQC'},
-										data_dir = settings['data_dir'])
+										locations = {'401':'ColReefQAQC'})
 		
 		
 		# copy data from 401 for 402, 403. Make sure it's a deep copy, not memeory reference
