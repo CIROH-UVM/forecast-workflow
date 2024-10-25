@@ -2,6 +2,8 @@ import datetime as dt
 import concurrent.futures
 import pandas as pd
 import sh
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 '''
 A module containing helper and utility functions for the data acquisiton modules
 '''
@@ -300,6 +302,62 @@ def parse_to_datetime(date):
 			except ValueError:
 				continue
 		raise ValueError(f'Invalid date string: {date}. Please enter date strings in the format "YYYYMMDD" or "YYYYMMDDHH".')
+
+def plot_ts(series, label=None, day_freq=14):
+	"""
+	makes a simple plot of a timeseries (assumes datetimeIndex)
+	"""
+	plt.figure(figsize=(10, 6))
+	if label is not None:
+		plt.plot(series.index, series.values, label=label)
+		plt.legend()
+	else: plt.plot(series.index, series.values)
+	plt.title(f'{series.name} from {series.index[0].strftime("%m-%d-%Y")} to {series.index[-1].strftime("%m-%d-%Y")}')
+	plt.ylabel(series.name)
+	plt.xlabel('Date')
+
+	# Format x-axis: show only month and day, and increase tick frequency
+	ax = plt.gca()  # Get current axis
+	ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))  # Month-Day format
+	ax.xaxis.set_major_locator(mdates.DayLocator(interval=day_freq))   # Tick every 15 days
+
+	# Rotate the x-axis labels
+	plt.xticks(rotation=45)
+
+	plt.grid(True)
+	plt.tight_layout()
+	plt.show()
+
+def plot_nested_dict(data):
+	"""
+	Makes a figure with n subplots, where n is the number of vaiables in each location dict. Must have the same variables for each location
+	
+	Parameters:
+		data (dict): A nested dictionary where the outer keys are categories 
+					 and the inner keys are variables with their corresponding values.
+	"""
+	# Get the list of variables from the first category
+	locations = list(data.keys())
+	variables = list(data[locations[0]].keys())
+
+	n = len(variables)  # Number of variables
+	fig, axes = plt.subplots(n, 1, figsize=(10, n*4))  # Create subplots
+
+	# define a color map
+	cmap = plt.get_cmap("tab10") # 'Set1', 'Set2'
+	colors = [cmap(i) for i in range(len(locations))]
+	for i, var in enumerate(variables):
+		for j, loc in enumerate(locations):
+			series = data[loc][var]
+			axes[i].plot(series.index, series.values, label=loc, color=colors[j])
+			axes[i].set_title(var)
+			axes[i].set_xlabel('Datetime')
+			axes[i].set_ylabel(series.name)
+			axes[i].legend()
+			axes[i].grid()
+
+	plt.tight_layout()  # Adjust layout to prevent overlap
+	return fig
 
 def report_gaps(series):
 	"""
