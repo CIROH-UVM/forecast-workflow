@@ -122,26 +122,49 @@ def complete_dt_index(tsindx, start_t=None, end_t=None, gap_dur=None, **kwargs):
     -- complete_index (pd.DatetimeIndex): 
             A complete datetime index from `start_t` to `end_t` with a constant interval of `gap_dur`. The new index 
             will have no temporal gaps, and the interval between consecutive timestamps will be uniform.
+			Returns None if no gaps are found in the index.
 	'''
-	if start_t is None:
-		start_t = tsindx[0]
-	if end_t is None:
-		end_t = tsindx[-1]
 	if gap_dur is None:
 		# timedelta representing the smallest (temporally shortest) mode interval between timestamps in the index. 
 		gap_dur = tsindx.to_series().diff().dropna().mode().min()
 		print(f"Interval inferred from index: {gap_dur}")
-	for i, ts in enumerate(tsindx):
-		if i == 0: continue
-		delta = ts - tsindx[i-1]
-		if delta > gap_dur:
-			print(f"Temporal gap in DatetimeIndex found: {delta}")
-			print(f"\t{tsindx[i-1]} jumps to {ts}")
-	# convert the timedelta into a DateOffset (which can be passed to 'freq' param in pd.date_range())
-	toffset = pd.DateOffset(seconds=gap_dur.total_seconds())
-	complete_index = pd.date_range(start_t, end_t, freq=toffset, **kwargs)
-	return complete_index
 
+	# If no expected start or end timestamps are passed, infer from index
+	if start_t is None:
+		start_t = tsindx[0]
+	if end_t is None:
+		end_t = tsindx[-1]
+	
+	# flag determining if any gaps at all were found
+	gaps_found = False
+	for i, ts in enumerate(tsindx):
+		# For beginning of series index, check for a gap between the expected start ts and actual first ts
+		if i == 0:
+			b = start_t
+		# for all other cases, check for gap with previous timestamp
+		else:
+			b = tsindx[i-1]
+		delta = ts - b
+		if delta > gap_dur:
+			gaps_found = True
+			print(f"Temporal gap in DatetimeIndex found: {delta}")
+			print(f"\t{b} jumps to {ts}")
+
+	# Finally, check if the last ts is the expected end ts or if there's an end_gap
+	delta = end_t - ts
+	if delta > gap_dur:
+		gaps_found = True
+		print(f"Temporal gap in DatetimeIndex found: {delta}")
+		print(f"\t{ts} jumps to {end_t}")
+
+	if gaps_found:
+		# convert the timedelta into a DateOffset (which can be passed to 'freq' param in pd.date_range())
+		toffset = pd.DateOffset(seconds=gap_dur.total_seconds())
+		complete_index = pd.date_range(start_t, end_t, freq=toffset, **kwargs)
+		return complete_index
+	else: 
+		print("No gaps were found in the index.")
+		return None
 
 def fahr_to_celsius(fahren):
 	'''
@@ -226,6 +249,56 @@ def generate_hours_list(num_hours, source, forecast_type='medium', archive=False
 			if forecast_type=='long':
 				return [f"{hour:03}" for hour in range(6, num_hours, 6)]
 
+def get_dt_index_gaps(tsindx, start_t=None, end_t=None, max_acceptable_td=None):
+	'''
+	Analyzes a pandas DatetimeIndex for temporal gaps. 'Gaps' are definied as a time delta between any two adjacent indices that is greater than max_acceptable_td.
+
+	Args:
+	-- tsindx (pd.DatetimeIndex) [req]: The original datetime index that may contain temporal gaps.
+    -- start_t (pd.timestamp, dt.datetime, None) [opt]: Expected start time of the timeseries. If None, uses the first timestamp in `tsindx`
+    -- end_t (pd.timestamp, dt.datetime, None) [opt]: Expected end time of timeseries. If None, uses the last timestamp in `tsindx`. 
+    -- max_acceptable_td (pd.Timedelta or None) [opt]: The longest acceptable time interval between timestamps in the series. If None, uses the most common time interval (mode) found in tsindx
+
+	Returns:
+    gap_list (list): a list of tuples where each tuple is the pair of indices that form the gap
+	'''
+	# create empty gap list - will have list of tuples that mark the timestamps identifying the gaps
+	gap_list = []
+
+	if max_acceptable_td is None:
+		# timedelta representing the smallest (temporally shortest) mode interval between timestamps in the index. 
+		max_acceptable_td = tsindx.to_series().diff().dropna().mode().min()
+		print(f"Max allowable time difference between two indices inferred from index: {max_acceptable_td}")
+
+	# If no expected start or end timestamps are passed, infer from index
+	if start_t is None:
+		start_t = tsindx[0]
+	if end_t is None:
+		end_t = tsindx[-1]
+	
+	# flag determining if any gaps at all were found
+	for i, ts in enumerate(tsindx):
+		# For beginning of series index, check for a gap between the expected start ts and actual first ts
+		if i == 0:
+			b = start_t
+		# for all other cases, check for gap with previous timestamp
+		else:
+			b = tsindx[i-1]
+		delta = ts - b
+		if delta > max_acceptable_td:
+			print(f"Temporal gap in DatetimeIndex found: {delta}")
+			print(f"\t{b} jumps to {ts}")
+			gap_list.append((b, ts))
+
+	# Finally, check if the last ts is the expected end ts or if there's an end_gap
+	delta = end_t - ts
+	if delta > max_acceptable_td:
+		print(f"Temporal gap in DatetimeIndex found: {delta}")
+		print(f"\t{ts} jumps to {end_t}")
+		gap_list.append((ts, end_t))
+
+	return gap_list
+
 def get_hour_diff(start_date, end_date):
 	"""
 	Utility function to get the number of hours 
@@ -275,15 +348,16 @@ def multithreaded_loading(load_func, file_list, n_threads):
 
 def parse_to_datetime(date):
 	"""
-	Utility function to convert date or string to datetime obj, in UTC time
+	Utility function to convert a date and time, represented by a variety of object types, to a datetime obj, in UTC time
 
 	Args:
-	-- date (str, date, or datetime) [req]: the date to be parsed
+	-- date (str, date, dt.datetime, pd.Timestamp) [req]: the date to be parsed
 
 	Returns:
 	a datetime object representing the passed date
 	"""
 	# if already a datetime obj, just return the same obj; be sure to convert to UTC
+	# pd.Timestamps are also considered an isntance of dt.datetimes, so will be parsed here
 	if isinstance(date, dt.datetime):
 		return date.replace(tzinfo=dt.timezone.utc)
 	# if a date obj, convert to datetime
@@ -303,30 +377,64 @@ def parse_to_datetime(date):
 				continue
 		raise ValueError(f'Invalid date string: {date}. Please enter date strings in the format "YYYYMMDD" or "YYYYMMDDHH".')
 
-def plot_ts(series, label=None, day_freq=14):
+def plot_ts(series_list, scale='auto', **kwargs):
 	"""
-	makes a simple plot of a timeseries (assumes datetimeIndex)
-	"""
-	plt.figure(figsize=(10, 6))
-	if label is not None:
-		plt.plot(series.index, series.values, label=label)
-		plt.legend()
-	else: plt.plot(series.index, series.values)
-	plt.title(f'{series.name} from {series.index[0].strftime("%m-%d-%Y")} to {series.index[-1].strftime("%m-%d-%Y")}')
-	plt.ylabel(series.name)
-	plt.xlabel('Date')
+	Makes a single plot with one or many Pandas.Series. Assumes series are timeseries with Pandas.DatetimeIndex
+
+	Args:
+	-- series_list (list) [req]: a list of Pandas.Series to plot
+	-- scale (str) [opt]: determines the x-axis tick mark scale. Options are 'hours', 'days', or 'auto', which will try to determine the best scale for the x-axis based on the series' indices'.
+	-- kwargs [opt]: various kwargs to pass to matpllotlib plotting functions. 
+			- interval (int): interval for x-axis tick marks, whether the scale be days, hours, etc
+			- labels (list): list of labels to use for each series, respectively, in plt.plot()
+			- colors (list): list of colros to use for each series, respectively, in plt.plot()
+	
+	Returns:
+	the figure object created. 
+	""" 
+	fig, ax = plt.subplots(figsize=(10, 6))
+	
+	# Extract label from kwargs if it exists
+	interval = kwargs.pop('interval', None)
+	labels = kwargs.pop('labels', None)
+	colors = kwargs.pop('colors', None)
+
+	for i, series in enumerate(series_list):
+		kwargs_single = dict()
+		if labels: kwargs_single['label'] = labels[i]
+		if colors: kwargs_single['color'] = colors[i]
+		ax.plot(series.index, series.values, **kwargs_single)
+	
+	if labels:
+		ax.legend()
+	
+	ax.set_title(f'{series.name} from {series.index[0].strftime("%m-%d-%Y")} to {series.index[-1].strftime("%m-%d-%Y")}')
+	ax.set_ylabel(series.name)
+	ax.set_xlabel('Date')
 
 	# Format x-axis: show only month and day, and increase tick frequency
-	ax = plt.gca()  # Get current axis
-	ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))  # Month-Day format
-	ax.xaxis.set_major_locator(mdates.DayLocator(interval=day_freq))   # Tick every 15 days
+	if scale == 'days':
+		ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))  # Month-Day format
+		ax.xaxis.set_major_locator(mdates.DayLocator(interval=interval))
+	elif scale == 'hours':
+		ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))  # Month-Day format
+		ax.xaxis.set_major_locator(mdates.HourLocator(interval=interval))
+	elif scale == 'auto':
+		# Auto format axis by default
+		autolocator = mdates.AutoDateLocator()
+		autoformatter = mdates.AutoDateFormatter(autolocator)
+		ax.xaxis.set_major_formatter(autoformatter)
+		ax.xaxis.set_major_locator(autolocator)
 
 	# Rotate the x-axis labels
-	plt.xticks(rotation=45)
+	ax.tick_params(axis='x', rotation=45)
 
-	plt.grid(True)
-	plt.tight_layout()
-	plt.show()
+	ax.grid(True)
+	fig.tight_layout()
+
+	# Remove plt.show() and add plt.close() to prevent immediate display
+	plt.close(fig)
+	return fig
 
 def plot_nested_dict(data):
 	"""
