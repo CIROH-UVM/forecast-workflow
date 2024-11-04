@@ -98,6 +98,15 @@ def process_air_temp(temp_df, user_name):
 	temp_df = temp_df.assign(Units='\N{DEGREE SIGN}F')
 	return temp_df
 
+def process_relhum(relhum_df, user_name):
+	# get rid of duplicate timestamps, keep first instance of each duplicated index
+	relhum_df = relhum_df[~relhum_df.index.duplicated(keep='first')]
+	relhum_df[user_name] = relhum_df['HourlyRelativeHumidity'].astype('float')
+	# now drop any NA's that remain in non-duplicated timestamps
+	relhum_df = relhum_df[~relhum_df[user_name].isna()]
+	relhum_df = relhum_df.assign(Units='%')
+	return relhum_df
+
 def retrieve_data(startDate, endDate, variable, station_id):
 	# put this in loop since this fails frequently
 	returnValue = None
@@ -181,10 +190,12 @@ def get_data(start_date,
 					processed_data[user_name] = process_rain(raw_data[user_name], user_name)
 				case 'HourlyDryBulbTemperature':
 					processed_data[user_name] = process_air_temp(raw_data[user_name], user_name)
+				case 'HourlyRelativeHumidity':
+					processed_data[user_name] = process_relhum(raw_data[user_name], user_name)
 			
 			returnDict[user_name] = create_final_df(processed_data[user_name], user_name, 'DATE')
-					
+		# return processed_data
 		# created nested dictionary of pd.Series for each variable for each location
-		lcd_data[station] = {var:df[var].rename(f'{var} ({df["Units"][0]})') for var, df in returnDict.items()}
+		lcd_data[station] = {var:df[var].rename(f'{var} ({df["Units"].iloc[0]})') for var, df in returnDict.items()}
 
 	return lcd_data
