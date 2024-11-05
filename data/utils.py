@@ -395,7 +395,7 @@ def plot_ts(series_list, scale='auto', **kwargs):
 	fig, ax = plt.subplots(figsize=(10, 6))
 	
 	# Extract label from kwargs if it exists
-	interval = kwargs.pop('interval', None)
+	interval = kwargs.pop('interval', 1)
 	labels = kwargs.pop('labels', None)
 	colors = kwargs.pop('colors', None)
 
@@ -408,7 +408,7 @@ def plot_ts(series_list, scale='auto', **kwargs):
 	if labels:
 		ax.legend()
 	
-	ax.set_title(f'{series.name} from {series.index[0].strftime("%m-%d-%Y")} to {series.index[-1].strftime("%m-%d-%Y")}')
+	ax.set_title(f'{series_list[0].name} from {series_list[0].index[0].strftime("%m-%d-%Y")} to {series_list[0].index[-1].strftime("%m-%d-%Y")}')
 	ax.set_ylabel(series.name)
 	ax.set_xlabel('Date')
 
