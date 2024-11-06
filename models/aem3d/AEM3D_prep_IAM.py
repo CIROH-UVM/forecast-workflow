@@ -22,10 +22,9 @@ from data import (femc_ob,
 				  usgs_ob,
 				  gfs_fc_thredds,
 				  lcd_ob,
-				  caflow_ob
+				  caflow_ob,
+				  utils
 )
-
-from data.utils import combine_timeseries
 
 from .waterquality import *
 from .AEM3D import *
@@ -581,13 +580,96 @@ class ShortwaveNudger:
 		#swdownready = pd.Series(swdownobj_nudged.array,swdownobj.index)
 		return swdownobj_nudged
 
+def femcRhumGapfill(femc_rh, start, end, allowed_gap_size=dt.timedelta(hours=2), figname='FEMCRelHumGapFilled.png'):
+	'''
+	Identifies gaps in FEMC relative humidity series and fills them with LCD relative humidity data.
+	No adjustments or smoothing methods are applied to the LCD data. A plot of the gap-filled timeseries is
+	created and saved whenever function is called.
 
-def adjustFEMCLCD(whichbay, dataset):
-	# BTV rain adjustment
-	dataset['403']['RAIN'] = remove_nas(dataset['403']['RAIN']) * 0.6096
+	Args:
+	-- femc_rh (pd.Series) [req]: FEMC relative humidity series
+	-- start (dt.Datetime) [req]: the expected start date of the series
+	-- end (dt.Datetime) [req]: the expected end date of the series
+	-- allowed_gap_size (dt.Timedelta) [opt]: the largest acceptable duration of time between any two adjacent indices
+	-- fignmae (str) [opt]: name for the figure to be saved
+
+	Returns:
+	Saves a figure, called 'FEMCRelHumGapFilled.png' that visualies the gap-filled FEMC series.
+	-- rh_processed (pd.Series): the gap-filled FEMC relative humidity series
+	'''
+	# define some parameters for LCD data call
+	rhum = {'RH2':'HourlyRelativeHumidity'}
+	btv = {"BTV":"72617014742"}
+
+	# first off, drop Na's
+	rh_processed = femc_rh.dropna()
+
+	# it's possible entire series in empty after removing NAN's (gap spans entire series)
+	# in that case... just get LCD data and return, simple as that
+	# Even if femc_rh has just one non-Na value, the rest of the gap processing code should work as expected
+	if rh_processed.empty:
+		print(f"FEMC Relhum data is completely missing from {start.strftime('%m-%d-%Y %H%M%S')} to {end.strftime('%m-%d-%Y %H%M%S')}")
+		print("Getting BTV airport relhum data instead...\n")
+		rh_processed = lcd_ob.get_data(start, end, btv, rhum)['BTV']['RH2']
+		# now make a plot of the data
+		fig = utils.plot_ts([rh_processed], scale='days', labels=['LCD'], colors=['orange'])
+		fig.savefig(figname)
+		return rh_processed
+
+	# now, get a list of gaps in the series (assuming the series is not empty after dropping Na's)
+	gaps = utils.get_dt_index_gaps(rh_processed.index, start_t=start, end_t=end, max_acceptable_td=allowed_gap_size)
+
+	# check if that gap list is empty; if not, process and fill the gaps
+	if gaps:
+		# get lcd rhum data for the time period
+		lcd_rh = lcd_ob.get_data(start, end, btv, rhum)['BTV']['RH2']
+		# empty list to hold all of the chunks that will be stitched into the FEMC timeseries
+		gap_plugs = []
+		for left, right in gaps:
+			# get the lcd data to plug the gap with
+			lcd_plug_data = lcd_rh.loc[left:right]
+			# pad the lcd data with the gap-bordering values from the FEMC data
+			plug = rh_processed.loc[left:right].combine_first(lcd_plug_data)
+			# combine all the lcd chunks into a list of series
+			gap_plugs.append(plug)
+
+		# combine femc data with all of the lcd chunks
+		rh_processed = rh_processed.combine_first(pd.concat(gap_plugs))
+
+		# come up with some paramters for the plot function
+		# each chunk in gap_plugs is plotted as an individual series. We give them the same color and only one label
+		# so that they appear to be the same continuous series in the plot.
+		color_list = ['blue'] + ['orange' for _ in range(len(gap_plugs))]
+		full_labels = ['FEMC', 'LCD'] + [None for _ in range(len(gap_plugs) - 1)]
+
+		# want to only plot the portion of the FEMC timeseries that involves gap-filling
+		gap_zone_start = gaps[0][0] - dt.timedelta(days=7)
+		gap_zone_end = gaps[-1][-1] + dt.timedelta(days=7)
+		full_data = [rh_processed.loc[gap_zone_start:gap_zone_end]] + gap_plugs
+
+		# now make a plot
+		fig = utils.plot_ts(full_data, scale='days', labels=full_labels, colors=color_list)
+		fig.savefig(figname)
+
+		# quick catch to see if any Nan's were introduced with all the pandas shuffling above... they shouldn't have been
+		if rh_processed.hasnans: warnings.warn("NaN's detected in FEMC RelHum series after Gap Filling")
+		# check for any gaps remaining after filling
+		any_gaps_left = utils.get_dt_index_gaps(rh_processed.index, start_t=start, end_t=end, max_acceptable_td=allowed_gap_size)
+		if any_gaps_left:
+			warnings.warn('Gaps still present in FEMC relhum after femcRhumGapfill():')
+			print(any_gaps_left)
+		else: print("FEMC Relhum gaps successfully filled.")
+	else: print("No Gaps detected in FEMC Relhum data")
+	return rh_processed
+
+def adjustFEMCLCD(whichbay, dataset, start_dt, end_dt, figure_name):
 	# define a function to set relative humidity values to 100 if greater than 100
 	# seems to be a problem in observations prior to 6/6/2019 in colchesterReefFEMC/Z0080_CR_QAQC.csv
 	cap_rhum_at_100 = lambda x: 100 if x > 100 else x
+
+	# BTV rain adjustment
+	dataset['403']['RAIN'] = remove_nas(dataset['403']['RAIN']) * 0.6096
+
 	for zone in get_climate_zone_keys(dataset):
 		# air temp and swr adjustments
 		if zone == '401':
@@ -606,10 +688,11 @@ def adjustFEMCLCD(whichbay, dataset):
 		
 		# Removing NAs for wind direction, relative humidity, and short-wave radiation
 		dataset[zone]['WDIR'] = remove_nas(dataset[zone]['WDIR'])
-		dataset[zone]['RH2'] = remove_nas(dataset[zone]['RH2'].apply(cap_rhum_at_100))
-		# logger.info("REL_HUM ABOIVE 100:")
-		# logger.info(dataset[zone]['RH2'][dataset[zone]['RH2'] > 100])
-		# logger.info("The abover should be an empty series")
+		# identify and process gaps in FEMC Relhum data
+		# gap size is set to 2 hours (default); it's a parameter we could tweak if needed
+		dataset[zone]['RH2'] = femcRhumGapfill(dataset[zone]['RH2'], start_dt, end_dt, allowed_gap_size=dt.timedelta(hours=2), figname=figure_name)
+		# remove Nan's and apply relhum cap function; Intentionally keeping this seperate from femcRhumGapfill() function
+		dataset[zone]['RH2'] = remove_nas(dataset[zone]['RH2']).apply(cap_rhum_at_100)
 		dataset[zone]['SWDOWN'] = remove_nas(dataset[zone]['SWDOWN'])
 	return dataset
 
@@ -768,7 +851,7 @@ def genclimatefiles(whichbay, settings):
 		logger.info("Observed TCDC BTV:")
 		logger.info(observedClimateBTV['401']['TCDC'].info())
 		# now overwrite cloud cover for 401 - combine franklin cloud cover with that from BTV to fill in data gaps
-		observedClimateBTV['401']['TCDC'] = combine_timeseries(primary = observedClimateFSO['401']['TCDC'],
+		observedClimateBTV['401']['TCDC'] = utils.combine_timeseries(primary = observedClimateFSO['401']['TCDC'],
 															   secondary = observedClimateBTV['401']['TCDC'],
 															   interval = '20min')
 		logger.info("Observed TCDC FSO:")
@@ -790,8 +873,8 @@ def genclimatefiles(whichbay, settings):
 		# store observed lake height in bay object for later concat with predicted height
 		observedClimate['300'] = observedlake['RL']
 
-
-		observedClimate = adjustFEMCLCD(THEBAY, observedClimate)
+		# have to pass the expected start and end dates for the observed climate Series for femcRhumGapfill()
+		observedClimate = adjustFEMCLCD(THEBAY, observedClimate, start_dt=adjusted_spinup, end_dt=settings['forecast_start'], figure_name='ObservedFEMCRelHumGapFilled.png')
 
 	else:
 		raise ValueError(f"'{settings['weather_dataset_observed']}' is not a valid observational weather dataset")
@@ -851,7 +934,7 @@ def genclimatefiles(whichbay, settings):
 		# otherwise, no need to combine, will just use BTV cloud data
 		if fso_cloud_forecast:
 			# now overwrite cloud cover for 401 - combine franklin cloud cover with that from BTV to fill in data gaps
-			forecastClimateBTV['401']['TCDC'] = combine_timeseries(primary = forecastClimateFSO['401']['TCDC'],
+			forecastClimateBTV['401']['TCDC'] = utils.combine_timeseries(primary = forecastClimateFSO['401']['TCDC'],
 																secondary = forecastClimateBTV['401']['TCDC'],
 																interval = '20min')
 			logger.info("forecast TCDC FSO:")
@@ -873,7 +956,8 @@ def genclimatefiles(whichbay, settings):
 		# store observed lake height in bay object for later concat with predicted height
 		forecastClimate['300'] = forecastlake['RL']
 
-		forecastClimate = adjustFEMCLCD(THEBAY, forecastClimate)
+		# passing the expected start and end dates for the forecast climate series
+		forecastClimate = adjustFEMCLCD(THEBAY, forecastClimate, start_dt=settings['forecast_start'], end_dt=adjusted_end_date, figure_name='ForecastFEMCRelHumGapFilled.png')
 
 	elif settings['weather_dataset_forecast'] == 'NOAA_GFS':
 		############## Use this bit to load forecast climate from .csvs previously created above
