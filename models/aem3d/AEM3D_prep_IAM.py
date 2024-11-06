@@ -60,7 +60,7 @@ def add_plot(labelled_data, ylabel, title, fc_start, row, col, axis):
 	ax = axis[row,col]
 	# Plot data for location 1
 	for lab, data in labelled_data.items():
-		time_sliced_data = data[data.index <= pd.Timestamp(fc_start + dt.timedelta(days=7))]
+		time_sliced_data = data[data.index <= pd.Timestamp(fc_start + dt.timedelta(days=8))]
 		time_sliced_data = time_sliced_data[time_sliced_data.index > pd.Timestamp(fc_start - dt.timedelta(days=14))]
 		ax.plot(time_sliced_data.index, time_sliced_data, label=lab)
 
