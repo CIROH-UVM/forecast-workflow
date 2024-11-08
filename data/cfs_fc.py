@@ -81,7 +81,16 @@ def get_data(start_date,
 	remapped_locs = {key:(lat, map_function(lon)) for key, (lat, lon) in locations.items()}
 	lats, lons = zip(*remapped_locs.values())
 	# getting mins and maxs for boundary box
-	max_lat, min_lat, max_lon, min_lon = max(lats), min(lats), max(lons), min(lons)
+	# if there's only one lat/lon value requested pad either side of lat/lon to get boundaries
+	if len(set(lons)) == 1:
+		# just grab the first value, they should all be the same
+		max_lon, min_lon = lons[0]+0.25, lons[0]-0.25
+		# padding each boundary with a quarter degree to ensure the requested lat/lons are in the boundary box (cannot assume boundary is inclusive)
+	else: max_lon, min_lon = max(lons)+0.25, min(lons)-0.25
+	if len(set(lats)) == 1:
+		# just grab the first value, they should all be the same
+		max_lat, min_lat = lats[0]+0.25, lats[0]-0.25
+	else: max_lat, min_lat = max(lats)+0.25, min(lats)-0.25
 
 	##### Downloading data #####
 	# define date path for forecast url/download directory structure
@@ -107,13 +116,13 @@ def get_data(start_date,
 
 	# construct full NCSS urls for downloading
 	ncss_file_urls = [
-    f'{ncss_date_url}/{grib_file}?var=all'
-    f'&north={max_lat}&west={min_lon}&east={max_lon}&south={min_lat}'
-    f'&disableProjSubset=on&horizStride=1'
-    f'&time_start={start_date.strftime("%Y-%m-%dT%H")}%3A00%3A00Z'
-    f'&time_end={end_date.strftime("%Y-%m-%dT%H")}%3A00%3A00Z'
-    f'&timeStride=1'
-    for grib_file in grib_files]	
+	f'{ncss_date_url}/{grib_file}?var=all'
+	f'&north={max_lat}&west={min_lon}&east={max_lon}&south={min_lat}'
+	f'&horizStride=1'
+	f'&time_start={start_date.strftime("%Y-%m-%dT%H")}%3A00%3A00Z'
+	f'&time_end={end_date.strftime("%Y-%m-%dT%H")}%3A00%3A00Z'
+	f'&timeStride=1&vertStride=1'
+	for grib_file in grib_files]
 
 	file_paths = [f'{date_dir}/{file}' for file in grib_files]
 
