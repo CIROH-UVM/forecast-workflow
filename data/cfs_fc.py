@@ -15,7 +15,8 @@ cfs_variables_dict = {
 	'Specific_humidity_height_above_ground': 'q2m',
 	'Precipitation_rate_surface': 'prate',
 	'Snow_Phase_Change_Heat_Flux_surface': 'snohf',
-	'Downward_Short-Wave_Radiation_Flux_surface': 'dswsfc'
+	'Downward_Short-Wave_Radiation_Flux_surface': 'dswsfc',
+	'Pressure_surface':'pressfc'
 }
 
 def get_data(start_date,
@@ -48,7 +49,7 @@ def get_data(start_date,
 	##### Parsing arguments #####
 	# add variable file prefixes to variables dictionary
 	variables = {user_name:(cfs_variables_dict[long_name], long_name) for user_name, long_name in variables.items()}
-	
+
 	print('TASK INITIATED: Download CFS 9-month operational forecast')
 	start_date = parse_to_datetime(start_date)
 	end_date = parse_to_datetime(end_date)
@@ -68,15 +69,15 @@ def get_data(start_date,
 	if reference_date.hour not in [0, 6, 12, 18]:
 		raise ValueError(f'Invalid forecast reference time: {reference_date}. Reference time hour indicates forecast cycle and must be 0, 6, 12, or 18')
 	# if start date is before reference time, raise an error. With reference time passed, start date is used to slice forecast timeseries
-	if start_date <= reference_date:
+	if start_date < reference_date:
 		raise ValueError(f'Forecast start date: {start_date} comes before forecast reference time: {reference_date}')
 	print(f'\tFORECAST REFERENCE TIME: {reference_date}')
 	print(f'\tFORECAST CYCLE: {reference_date.hour:02d}')
 	print(f'\tSTART DATE: {start_date}')
 	print(f'\tEND DATE: {end_date}')
 
-	# function to convert longitude on the -180 to 180 scale to 0 to 360 (Higher longitude makes west side of boundary box, lower value is east boundary)
-	map_function = lambda lon: 180 + (lon + 180) if (lon < 0) else lon
+	# function to convert longitude on the -180 to 180 scale to 0 to 360 (Higher longitude makes east side of boundary box, lower value is west boundary)
+	map_function = lambda lon: 360 + lon if (lon < 0) else lon
 	# remapping longitude using map_function
 	remapped_locs = {key:(lat, map_function(lon)) for key, (lat, lon) in locations.items()}
 	lats, lons = zip(*remapped_locs.values())
@@ -140,6 +141,7 @@ def get_data(start_date,
 
 	##### Dataset Processing #####
 	ds = xr.open_mfdataset(file_paths, engine='netcdf4')
+
 	# create a list of vars to drop
 	vars_to_drop = [v for v in list(ds.data_vars.keys()) if v not in list(zip(*variables.values()))[1]]
 	# making a dictionary of units for each variable
