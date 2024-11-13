@@ -97,7 +97,7 @@ def get_data(start_date,
 	# define date path for forecast url/download directory structure
 	date_path = f'{reference_date.year}/{reference_date.strftime("%Y%m")}/{reference_date.strftime("%Y%m%d")}/{reference_date.strftime("%Y%m%d%H")}'
 	# create date-specific directory tree for storing files
-	date_dir = os.path.join(data_dir, date_path)
+	date_dir = os.path.join(data_dir, 'cfs', date_path)
 	# date-specific url for THREDDS server
 	ncss_date_url = f'{ncss_base_url}/{date_path}'
 	print(f'\tData will be stored at: {date_dir}')
@@ -168,6 +168,8 @@ def get_data(start_date,
 		for user_name in variables.keys():
 			var_series = loc_df[user_name].dropna()
 			var_series = var_series[~var_series.index.duplicated()]
+			# localize datetime index to UTC time
+			var_series.index = var_series.index.tz_localize(dt.timezone.utc)
 			loc_series[user_name] = var_series
 		cfs_data[loc_name] = loc_series
 
