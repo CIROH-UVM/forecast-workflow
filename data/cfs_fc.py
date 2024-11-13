@@ -1,7 +1,9 @@
 from data.utils import add_units, multithreaded_download, parse_to_datetime
 import os
+import datetime as dt
 import tempfile as tf
 import xarray as xr
+import numpy as np
 
 
 # IMPORTANT: to get additional variables from CFS, you must add said variable's info to this dict
@@ -18,6 +20,66 @@ cfs_variables_dict = {
 	'Downward_Short-Wave_Radiation_Flux_surface': 'dswsfc',
 	'Pressure_surface':'pressfc'
 }
+
+def calculate_rh(psfc, q2, t2):
+	'''
+	Calculate a relative humidty series. Input series must have identical indices.
+	Source: https://earthscience.stackexchange.com/questions/2360/how-do-i-convert-specific-humidity-to-relative-humidity
+
+	Args:
+	-- psfc (pd.Series) [req]: surface pressure series, in pascals (Pa).
+	-- q2 (pd.Series) [req]: specifc humidity series at 2m (dimensionless)
+	-- t2 (pd.Series) [req]: temperature at 2m series (k)
+	'''
+	# reference temperature (k), equal to 0 degrees celsius (freezing point of water)
+	T0 = 273.15
+	# Calculate rh using element-wise operations
+	rh = psfc * q2 * 0.263 * np.exp((17.67 * (t2 - T0)) / (t2 - 29.65)) ** -1
+	# cap rhum at 100%
+	cap_rhum_at_100 = lambda x: 100 if x > 100 else x
+	rh = rh.apply(cap_rhum_at_100).rename('RH2 (%)')
+	return rh
+
+def calculate_rh_LeBauer(psfc, q2, t2):
+	'''
+	Calculate a relative humidty series using equations authored by David LeBauer. Input series must have identical indices.
+	Source: https://cran.r-project.org/web/packages/humidity/vignettes/humidity-measures.html#eq:1
+
+	Args:
+	-- psfc (pd.Series) [req]: surface pressure series, in pascals (Pa).
+	-- q2 (pd.Series) [req]: specifc humidity series at 2m (dimensionless)
+	-- t2 (pd.Series) [req]: temperature at 2m series (k)
+	'''
+	##### Original Code #####
+	#   Relative Humidity : WRF, Calculated from Q2
+	#
+	#
+	# rhum = dict()
+	# for zone in climate[cs['RHUM']]['T2'].keys():
+	#     # Using an equation ported from metuils.r that was authored by David LeBauer
+	#     # es = 6.112 * np.exp((17.67 * t2) / (t2 + 243.5))
+	#     # constants synched with https://cran.r-project.org/web/packages/humidity/vignettes/humidity-measures.html
+
+	#     q2 = climate[cs['RHUM']]['Q2'][zone]
+	#     psfc = climate[cs['RHUM']]['PSFC'][zone]
+	#     t2 = climate[cs['RHUM']]['T2'][zone]
+	#     es = 6.1078 * np.exp((17.2694 * t2) / (t2 + 237.30))    
+	# Saturation vapor pressure over water
+	#     e = q2 * psfc * 0.01 / (0.378 * q2 + 0.622)        # factor of 0.01 is converting Pascal to mbar
+	#     rhum_temp = e/es
+	#     rhum_temp[rhum_temp>1] = 1
+	#     rhum_temp[rhum_temp<0] = 0
+	#     rhum[zone] = rhum_temp
+
+	es = 6.1078 * np.exp((17.2694 * (t2 - 273.16)) / (t2 - 35.86))
+	# Saturation vapor pressure over water
+	# factor of 0.01 is converting Pascal to mbar
+	e = (q2 * psfc * 0.01) / (0.378 * q2 + 0.622)
+	rhum = (e/es) * 100
+	rhum[rhum>100] = 100
+	rhum[rhum<0] = 0
+	rhum.name = 'RH2 (%)'
+	return rhum
 
 def get_data(start_date,
 			 end_date,
