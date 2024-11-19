@@ -4,6 +4,7 @@
 	"end_year":"<end_year>",
 	"start_date":"<start_date>",
 	"end_date":"<end_date>",
+	"forecast_days":"<forecast_days>",
 	"spinup_date":"<spinup_date>",
 	"weather_dataset_observed" : "NOAA_LCD+FEMC_CR",
 	"weather_dataset_forecast" : "NOAA_GFS",
