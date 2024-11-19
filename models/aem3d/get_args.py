@@ -55,9 +55,9 @@ def check_values(settings_dict, defaults=False):
 	# print("Settings to be checked ", settings_dict)
 
 	valid_datasets = {'wdo':["NOAA_LCD+FEMC_CR"],
-				   	  'wdf':["NOAA_LCD+FEMC_CR", "NOAA_GFS"],
+				   	  'wdf':["NOAA_LCD+FEMC_CR", "NOAA_GFS", "NOAA_CFS"],
 					  'hdo':["USGS_IV"],
-					  'hdf':["USGS_IV", "NOAA_NWM_PROD"],
+					  'hdf':["USGS_IV", "NOAA_NWM_PROD", "NOAA_NWMV3_RETRO"],
 					  'nwm_members':[f'medium_range_mem{n}' for n in range(1,8)] + [f'long_range_mem{n}' for n in range(1,5)] + ['short_range']}
 	# datasets should be validated
 	if settings_dict['weather_dataset_observed'] not in valid_datasets['wdo']:
