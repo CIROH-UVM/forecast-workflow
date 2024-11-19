@@ -21,6 +21,7 @@ from data import (femc_ob,
 				  nwm_fc, 
 				  usgs_ob,
 				  gfs_fc_thredds,
+				  cfs_fc,
 				  lcd_ob,
 				  caflow_ob,
 				  utils
@@ -767,9 +768,12 @@ def lakeht_est(whichbay, dataset):
 	lakeLevel_df['LakeLevel_delta'] = (lakeLevel_df['LakeLevel_corrected'] - 93) * 0.3048
 
 	return lakeLevel_df['LakeLevel_delta']
-
+def adjustNOAAFSProducts(whichbay, dataset, settings):
 def adjustGFS(whichbay, dataset):
 	# slice GFS data at forecast start date, so that AEM3D uses observed dataset up to forecast start date
+		# calculate relative humidity for CFS only, BEFORE adjusting other variables (TEMP namely)
+		if settings['weather_dataset_forecast'] == 'NOAA_CFS':
+			dataset[zone]['RH2'] = cfs_fc.calculate_rh(psfc = dataset[zone]['PRSFC'], q2 = dataset[zone]['SH2'], t2 = dataset[zone]['T2'])
 	for zone in get_climate_zone_keys(dataset):
 		# GFS rain adjustment
 		dataset[zone]['RAIN'] = dataset[zone]['RAIN'] * 86.4
@@ -782,6 +786,7 @@ def adjustGFS(whichbay, dataset):
 		dataset[zone]['WSPEED'] = np.sqrt(np.square(dataset[zone]['U10']) + np.square(dataset[zone]['V10']))
 		# GFS wind direction adjustments
 		dataset[zone]['WDIR'] = 180 + np.arctan2(dataset[zone]['U10'], dataset[zone]['V10']) * 180 / np.pi
+
 
 	#dataset['300']['LAKEHT'] = lakeht_est(whichbay, dataset)
 	dataset['300'] = {'LAKEHT' : lakeht_est(whichbay, dataset)}
@@ -875,6 +880,11 @@ def genclimatefiles(whichbay, settings):
 
 		# have to pass the expected start and end dates for the observed climate Series for femcRhumGapfill()
 		observedClimate = adjustFEMCLCD(THEBAY, observedClimate, start_dt=adjusted_spinup, end_dt=settings['forecast_start'], figure_name='ObservedFEMCRelHumGapFilled.png')
+
+	# define lat/lon coords for bay zones (needed for GFS and CFS)
+	zone_coords = {'401': (45.00, -73.25),
+				   '402': (44.75, -73.25),
+				   '403': (44.75, -73.25)}
 
 	else:
 		raise ValueError(f"'{settings['weather_dataset_observed']}' is not a valid observational weather dataset")
@@ -973,9 +983,7 @@ def genclimatefiles(whichbay, settings):
 		############## Use this bit to load forecast climate from original GRIB files and create .csvs for quick loading later
 			logger.info(f"Begin GFS get_data()")
 			# determine the timedelta adjustment for GFS based of NWM forecast memeber
-			member = settings['nwm_forecast_member'][-1]
-			# if there is no member num (such as 'short_range/') default to 1 so that there is no timedelta adjust
-			if not member.isdigit():
+													locations = zone_coords,
 				member = '1'
 			# NOTE forecast_end adjustment: between forecast_start and end, we only want 7.5 days of data.
 				# forecast_start will be adjusted based on the NWM member, but end will stay the same
@@ -986,16 +994,36 @@ def genclimatefiles(whichbay, settings):
 													locations = {'401': (45.00, -73.25),
 																'402': (44.75, -73.25),
 																'403': (44.75, -73.25)},
-													data_dir = settings['data_dir'],
+			forecastClimate = adjustNOAAFSProducts(THEBAY, forecastClimate, settings)
+
+	# Handling CFS as the weather dataset for the forecast
+	elif settings['weather_dataset_forecast'] == 'NOAA_CFS':
+		logger.info(f"Begin CFS get_data()")
+		forecastClimate = cfs_fc.get_data(start_date = settings['forecast_start'],
+										  end_date = settings['forecast_end'],
+										  locations = zone_coords,
+										  variables = {'T2':'Temperature_height_above_ground',
+													   'TCDC':'Total_cloud_cover_entire_atmosphere_single_layer',
+													   'U10':'u-component_of_wind_height_above_ground',
+													   'V10':'v-component_of_wind_height_above_ground',
+													   'SH2':'Specific_humidity_height_above_ground',
+													   'RAIN':'Precipitation_rate_surface',
+													   'SWDOWN':'Downward_Short-Wave_Radiation_Flux_surface',
+													   'PRSFC':'Pressure_surface'},
+										   data_dir = settings['data_dir'])
+		####### CFS Data Adjustments ######
+		forecastClimate = adjustNOAAFSProducts(THEBAY, forecastClimate, settings)
+
 													load_threads = 1)
+	logger.info("Air Temp for Zone 401")
 			
 			###### GFS DATA ADJUSTMENTS HERE ######
 			# slice GFS data at forecast start date, so that AEM3D uses observed dataset up to forecast start date
 			for zone in forecastClimate.keys():
 				for var in forecastClimate[zone].keys():
-					forecastClimate[zone][var] = forecastClimate[zone][var].loc[pd.to_datetime(settings['forecast_start'].replace(tzinfo=dt.timezone.utc)):]
-			forecastClimate = adjustGFS(THEBAY, forecastClimate)
-
+	air_temp = {"401": pd.concat([observedClimate['401']['T2'],forecastClimate['401']['T2']]).rename('T2'),
+				"402": pd.concat([observedClimate['402']['T2'],forecastClimate['402']['T2']]).rename('T2'),
+				"403": pd.concat([observedClimate['403']['T2'],forecastClimate['403']['T2']]).rename('T2')}
 	logger.info('Climate Observed Data')
 	logger.info(observedClimate)
 	logger.info('Climate Forecast Data (Zone 401)')
@@ -1079,6 +1107,7 @@ def genclimatefiles(whichbay, settings):
 			output_file.write('TIME      WTR_TEMP\n')
 
 			# output the ordinal date and temp dataframe columns
+		print(f"Air Temp for zone {zone}")
 			index_to_ordinal_date(wtr_temp_zones[wtr_temp_dict[baysource]]).to_csv(path_or_buf = output_file, float_format='%.3f',
 			sep=' ', index=True, header=False)
 
