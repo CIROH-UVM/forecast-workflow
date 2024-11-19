@@ -637,6 +637,8 @@ def femcRhumGapfill(femc_rh, start, end, allowed_gap_size=dt.timedelta(hours=2),
 
 		# combine femc data with all of the lcd chunks
 		rh_processed = rh_processed.combine_first(pd.concat(gap_plugs))
+		# remove duplicate indices that can occur if a FEMC data point is the right end of one gap and left end of another
+		rh_processed = rh_processed.loc[~rh_processed.index.duplicated(keep='first')]
 
 		# come up with some paramters for the plot function
 		# each chunk in gap_plugs is plotted as an individual series. We give them the same color and only one label
@@ -750,7 +752,7 @@ def lakeht_est(whichbay, dataset):
 	logger.info(print_df(lakeLevel_df))
 
 	print('Calculating Lake Levels')
-	lakeLevel_df['LakeLevel'] = 94.05887 + 0.007910834 * lakeLevel_df['T2'] + \
+	lakeLevel_df['LakeLevel'] = 94.05887 + 0.007910834 * lakeLevel_df[dataset['403']['T2'].name] + \
 		7.034478e-05 * lakeLevel_df['msflow'] + \
 		0.003396492 * lakeLevel_df['flowmean_07'] + \
 		0.01173037 * lakeLevel_df['flowmean_30'] + \
@@ -769,13 +771,13 @@ def lakeht_est(whichbay, dataset):
 	lakeLevel_df['LakeLevel_delta'] = (lakeLevel_df['LakeLevel_corrected'] - 93) * 0.3048
 
 	return lakeLevel_df['LakeLevel_delta']
+
 def adjustNOAAFSProducts(whichbay, dataset, settings):
-def adjustGFS(whichbay, dataset):
 	# slice GFS data at forecast start date, so that AEM3D uses observed dataset up to forecast start date
+	for zone in get_climate_zone_keys(dataset):
 		# calculate relative humidity for CFS only, BEFORE adjusting other variables (TEMP namely)
 		if settings['weather_dataset_forecast'] == 'NOAA_CFS':
 			dataset[zone]['RH2'] = cfs_fc.calculate_rh(psfc = dataset[zone]['PRSFC'], q2 = dataset[zone]['SH2'], t2 = dataset[zone]['T2'])
-	for zone in get_climate_zone_keys(dataset):
 		# GFS rain adjustment
 		dataset[zone]['RAIN'] = dataset[zone]['RAIN'] * 86.4
 		# GFS temperature adjustment
@@ -882,15 +884,15 @@ def genclimatefiles(whichbay, settings):
 		# have to pass the expected start and end dates for the observed climate Series for femcRhumGapfill()
 		observedClimate = adjustFEMCLCD(THEBAY, observedClimate, start_dt=adjusted_spinup, end_dt=settings['forecast_start'], figure_name='ObservedFEMCRelHumGapFilled.png')
 
-	# define lat/lon coords for bay zones (needed for GFS and CFS)
-	zone_coords = {'401': (45.00, -73.25),
-				   '402': (44.75, -73.25),
-				   '403': (44.75, -73.25)}
-
 	else:
 		raise ValueError(f"'{settings['weather_dataset_observed']}' is not a valid observational weather dataset")
 
 	forecastClimate = {}
+
+	# define lat/lon coords for bay zones (needed for GFS and CFS)
+	zone_coords = {'401': (45.00, -73.25),
+				   '402': (44.75, -73.25),
+				   '403': (44.75, -73.25)}
 	##### GRABBING FORECASTED CLIMATE DATA #####
 	if settings['weather_dataset_forecast'] == 'NOAA_LCD+FEMC_CR':
 		# Adjust end_date for FEMC data gap 2021-06-14 21:15:00+00:00 -> 2021-06-18 10:45:00+00:00
@@ -984,7 +986,9 @@ def genclimatefiles(whichbay, settings):
 		############## Use this bit to load forecast climate from original GRIB files and create .csvs for quick loading later
 			logger.info(f"Begin GFS get_data()")
 			# determine the timedelta adjustment for GFS based of NWM forecast memeber
-													locations = zone_coords,
+			member = settings['nwm_forecast_member'][-1]
+			# if there is no member num (such as 'short_range/') default to 1 so that there is no timedelta adjust
+			if not member.isdigit():
 				member = '1'
 			# NOTE forecast_end adjustment: between forecast_start and end, we only want 7.5 days of data.
 				# forecast_start will be adjusted based on the NWM member, but end will stay the same
@@ -992,9 +996,15 @@ def genclimatefiles(whichbay, settings):
 				# ex. member 7 uses a GFS adjustment of forecast_start-1.5 days, so will grab 9 days total (1.5+7.5)
 			forecastClimate = gfs_fc_thredds.get_data(forecast_datetime = settings['forecast_start'] - dt.timedelta(hours=(6*(int(member)-1))),
 													end_datetime = settings['forecast_end'] + dt.timedelta(hours=12),
-													locations = {'401': (45.00, -73.25),
-																'402': (44.75, -73.25),
-																'403': (44.75, -73.25)},
+													locations = zone_coords,
+													data_dir = settings['data_dir'],
+													load_threads = 1)
+			
+			###### GFS DATA ADJUSTMENTS HERE ######
+			# slice GFS data at forecast start date, so that AEM3D uses observed dataset up to forecast start date
+			for zone in forecastClimate.keys():
+				for var in forecastClimate[zone].keys():
+					forecastClimate[zone][var] = forecastClimate[zone][var].loc[pd.to_datetime(settings['forecast_start'].replace(tzinfo=dt.timezone.utc)):]
 			forecastClimate = adjustNOAAFSProducts(THEBAY, forecastClimate, settings)
 
 	# Handling CFS as the weather dataset for the forecast
@@ -1015,24 +1025,15 @@ def genclimatefiles(whichbay, settings):
 		####### CFS Data Adjustments ######
 		forecastClimate = adjustNOAAFSProducts(THEBAY, forecastClimate, settings)
 
-													load_threads = 1)
-	logger.info("Air Temp for Zone 401")
-			
-			###### GFS DATA ADJUSTMENTS HERE ######
-			# slice GFS data at forecast start date, so that AEM3D uses observed dataset up to forecast start date
-			for zone in forecastClimate.keys():
-				for var in forecastClimate[zone].keys():
-	air_temp = {"401": pd.concat([observedClimate['401']['T2'],forecastClimate['401']['T2']]).rename('T2'),
-				"402": pd.concat([observedClimate['402']['T2'],forecastClimate['402']['T2']]).rename('T2'),
-				"403": pd.concat([observedClimate['403']['T2'],forecastClimate['403']['T2']]).rename('T2')}
+
 	logger.info('Climate Observed Data')
 	logger.info(observedClimate)
 	logger.info('Climate Forecast Data (Zone 401)')
 	logger.info(forecastClimate)
 
-	air_temp = {"401": pd.concat([observedClimate['401']['T2'],forecastClimate['401']['T2']]),
-				"402": pd.concat([observedClimate['402']['T2'],forecastClimate['402']['T2']]),
-				"403": pd.concat([observedClimate['403']['T2'],forecastClimate['403']['T2']])}
+	air_temp = {"401": pd.concat([observedClimate['401']['T2'],forecastClimate['401']['T2']]).rename('T2'),
+				"402": pd.concat([observedClimate['402']['T2'],forecastClimate['402']['T2']]).rename('T2'),
+				"403": pd.concat([observedClimate['403']['T2'],forecastClimate['403']['T2']]).rename('T2')}
 
 	global SUBPLOT_PACKAGES
 	global AXES
@@ -1045,6 +1046,7 @@ def genclimatefiles(whichbay, settings):
 									'col':1,
 									'axis':AXES}
 	
+	logger.info("Air Temp for Zone 401")
 	logger.info(print_df(air_temp['401']))
 
 	'''
@@ -1109,7 +1111,6 @@ def genclimatefiles(whichbay, settings):
 			output_file.write('TIME      WTR_TEMP\n')
 
 			# output the ordinal date and temp dataframe columns
-		print(f"Air Temp for zone {zone}")
 			index_to_ordinal_date(wtr_temp_zones[wtr_temp_dict[baysource]]).to_csv(path_or_buf = output_file, float_format='%.3f',
 			sep=' ', index=True, header=False)
 
@@ -1138,6 +1139,7 @@ def genclimatefiles(whichbay, settings):
 		# give series a name... beacuse pandas wants one for the merge below
 		bay_rain[zone] = bay_rain[zone].rename('RAIN')
 
+		print(f"Air Temp for zone {zone}")
 		print(air_temp[zone])
 		TEMP = air_temp[zone].reindex(bay_rain[zone].index, method='nearest')
 
