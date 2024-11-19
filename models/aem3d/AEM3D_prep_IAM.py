@@ -57,11 +57,11 @@ for i in range(0,5):
 def get_climate_zone_keys(dict):
 	return [zone for zone in dict.keys() if int(int(zone) / 100) == 4]
 
-def add_plot(labelled_data, ylabel, title, fc_start, row, col, axis):
+def add_plot(labelled_data, ylabel, title, fc_start, fc_end, row, col, axis):
 	ax = axis[row,col]
 	# Plot data for location 1
 	for lab, data in labelled_data.items():
-		time_sliced_data = data[data.index <= pd.Timestamp(fc_start + dt.timedelta(days=8))]
+		time_sliced_data = data[data.index <= pd.Timestamp(fc_end + dt.timedelta(days=1))]
 		time_sliced_data = time_sliced_data[time_sliced_data.index > pd.Timestamp(fc_start - dt.timedelta(days=14))]
 		ax.plot(time_sliced_data.index, time_sliced_data, label=lab)
 
@@ -321,6 +321,7 @@ def getflowfiles(whichbay, settings):
 								   	  'ylabel':'Streamflow (m/s^3)',
 									  'title':f"{settings['hydrology_dataset_observed']} vs. {settings['hydrology_dataset_forecast']}",
 									  'fc_start':settings['forecast_start'],
+									  'fc_end':settings['forecast_end'],
 									  'row':0,
 									  'col':0,
 									  'axis':AXES}
@@ -1039,6 +1040,7 @@ def genclimatefiles(whichbay, settings):
 								   	'ylabel':'Air Temperature at 2m (C)',
 									'title':f"{settings['weather_dataset_observed']} vs. {settings['weather_dataset_forecast']}",
 									'fc_start':settings['forecast_start'],
+									'fc_end':settings['forecast_end'],
 									'row':0,
 									'col':1,
 									'axis':AXES}
@@ -1198,6 +1200,7 @@ def genclimatefiles(whichbay, settings):
 									'ylabel':'Rainfall (m/day)',
 									'title':'Rainfall for Inland Sea',
 									'fc_start':settings['forecast_start'],
+									'fc_end':settings['forecast_end'],
 									'row':0,
 									'col':2,
 									'axis':AXES}
@@ -1206,6 +1209,7 @@ def genclimatefiles(whichbay, settings):
 									'ylabel':'Snow Fall (m/day)',
 									'title':'Snow Fall for Inland Sea',
 									'fc_start':settings['forecast_start'],
+									'fc_end':settings['forecast_end'],
 									'row':0,
 									'col':3,
 									'axis':AXES}
@@ -1277,6 +1281,7 @@ def genclimatefiles(whichbay, settings):
 										'ylabel':'Total Cloud Cover (%)',
 										'title':'Cloud Cover',
 										'fc_start':settings['forecast_start'],
+										'fc_end':settings['forecast_end'],
 										'row':1,
 										'col':0,
 										'axis':AXES}
@@ -1315,6 +1320,7 @@ def genclimatefiles(whichbay, settings):
 										'ylabel':'Wind Speed at 10m (m/s)',
 										'title':'Wind Speed',
 										'fc_start':settings['forecast_start'],
+										'fc_end':settings['forecast_end'],
 										'row':1,
 										'col':1,
 										'axis':AXES}
@@ -1323,6 +1329,7 @@ def genclimatefiles(whichbay, settings):
 										'ylabel':'Wind Direction at 10m (degrees clockwise from North)',
 										'title':'Wind Direction',
 										'fc_start':settings['forecast_start'],
+										'fc_end':settings['forecast_end'],
 										'row':1,
 										'col':2,
 										'axis':AXES}
@@ -1390,6 +1397,7 @@ def genclimatefiles(whichbay, settings):
 										'ylabel':'Relative Humidity at 2m (%)',
 										'title':'Relative Humidity',
 										'fc_start':settings['forecast_start'],
+										'fc_end':settings['forecast_end'],
 										'row':1,
 										'col':3,
 										'axis':AXES}
@@ -1471,6 +1479,7 @@ def genclimatefiles(whichbay, settings):
 										'ylabel':'Short-wave Downward Radition (W/m^2)',
 										'title':'Short-Wave Down Rad (Un-nudged)',
 										'fc_start':settings['forecast_start'],
+										'fc_end':settings['forecast_end'],
 										'row':1,
 										'col':4,
 										'axis':AXES}
@@ -1524,6 +1533,7 @@ def genclimatefiles(whichbay, settings):
 									'ylabel':'Lake Level (m) above 93ft',
 									'title':'Lake Level',
 									'fc_start':settings['forecast_start'],
+									'fc_end':settings['forecast_end'],
 									'row':0,
 									'col':4,
 									'axis':AXES}
