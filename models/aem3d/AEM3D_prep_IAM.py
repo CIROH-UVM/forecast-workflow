@@ -18,7 +18,8 @@
 import copy
 from lib import *
 from data import (femc_ob,
-				  nwm_fc, 
+				  nwm_fc,
+				  nwmv3_retro_fc,
 				  usgs_ob,
 				  gfs_fc_thredds,
 				  cfs_fc,
@@ -100,6 +101,14 @@ def remove_nas(series):
 	# logger.info(len(new_series))    
 	# return new_series
 	return series[~series.isna()]
+
+def scaleRockandPikeQ(missisquoi_q):
+	#	approximate Rock and Pike forecast from scaled Missisquoi forecast
+	# TODO: Devise a better plan to reference the scaling factors than hardcoding them here
+	forecastca = {'RK':{},'PK':{}}
+	forecastca['RK']['streamflow'] = missisquoi_q * 0.038  # scale Missisquoi to Rock
+	forecastca['PK']['streamflow'] = missisquoi_q * 0.228  # scale Missisquoi to Pike
+	return forecastca
 
 def backfillCaFlowsSpinup(ca_data, settings):
 	'''
@@ -260,6 +269,12 @@ def getflowfiles(whichbay, settings):
 
 
 	forecastHydro = None
+
+	# define reaches for NWM
+	nwm_reaches = {"MS":"166176984",
+				   "JS":"4587092",
+				   "ML":"4587100"}
+	
 	if settings['hydrology_dataset_forecast'] == 'USGS_IV':
 		forecastHydro = usgs_ob.get_data(start_date = settings['forecast_start'],
 								 		 end_date = settings['forecast_end'] + dt.timedelta(days=1),
@@ -276,22 +291,23 @@ def getflowfiles(whichbay, settings):
 			   										 "RK":'030425'})
 
 	
-	elif(settings['hydrology_dataset_forecast'] == 'NOAA_NWM_PROD'):
+	elif settings['hydrology_dataset_forecast'] == 'NOAA_NWM_PROD':
 		forecastHydro = nwm_fc.get_data(forecast_datetime = settings['forecast_start'],
 						end_datetime = settings['forecast_end'] + dt.timedelta(days=1),
-						locations = {"MS":"166176984",
-									 "JS":"4587092",
-									 "ML":"4587100"},
+						locations = nwm_reaches,
 						forecast_type = settings['nwm_forecast_member'],
 						data_dir = settings['data_dir'],
 						load_threads = 1,
 						google_buckets = True)
-
-		#	approximate Rock and Pike forecast from scaled Missisquoi forecast
-		# TODO: Devise a better plan to reference the scaling factors than hardcoding them here
-		forecastca = {'RK':{},'PK':{}}
-		forecastca['RK']['streamflow'] = forecastHydro['MS']['streamflow'] * 0.038  # scale Missisquoi to Rock
-		forecastca['PK']['streamflow'] = forecastHydro['MS']['streamflow'] * 0.228  # scale Missisquoi to Pike
+		# calculate streamflow for Rock and Pike based off Missisquoi streamflow
+		forecastca = scaleRockandPikeQ(forecastHydro['MS']['streamflow'])
+	
+	elif settings['hydrology_dataset_forecast'] == 'NOAA_NWMV3_RETRO':
+		forecastHydro = nwmv3_retro_fc.get_data(start_date = settings['forecast_start'],
+										  		end_date = settings['forecast_end'] + dt.timedelta(days=1),
+												locations = nwm_reaches)
+		# calculate streamflow for Rock and Pike based off Missisquoi streamflow
+		forecastca = scaleRockandPikeQ(forecastHydro['MS']['streamflow'])
 
 	else: raise ValueError(f"'{settings['hydrology_dataset_forecast']}' is not a valid hydrology forecast dataset")
 			
