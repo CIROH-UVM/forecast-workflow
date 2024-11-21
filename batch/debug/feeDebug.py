@@ -140,7 +140,7 @@ def report_df(failure_dict):
 	return df
 
 ##### DEBUG PARAMTERS #####
-fee_version = 3
+root_dir = "/netfiles/ciroh/<hindcast_dir>/"
 # cq_paradigms = ['calibratedCQ', 'randomForestCQ']
 cq_paradigms = ['randomForestCQ']
 # dir_years = ['2019', '2020', '2021', '2022','2023']
@@ -166,18 +166,14 @@ logger.addHandler(logging.FileHandler(f'{log_name}.log', 'w'))
 print = logger.info
 
 def main():
-	# define the root fee dir
-	fee_dir = f"/netfiles/ciroh/7dayHABsHindcast/FEE_v{fee_version}"
-
 	# determine the error message to use based on fee version
 	# NOTE: prior to v3, there was no universal failed run message, but the most common failure was an AEM3D one
-	if fee_version < 3:
-		common_error_msg = 'Exception: AEM3D failure.'
-	else: common_error_msg = 'ERROR: RUN FAILED'
+	# common_error_msg = 'Exception: AEM3D failure.'
+	common_error_msg = 'ERROR: RUN FAILED'
 
 	# Print the debug parameters
 	print(f"##### DEBUG PARAMETERS #####")
-	print(f"ROOT DIR: {fee_dir}")
+	print(f"ROOT DIR: {root_dir}")
 	print(f"CQ PARADIGMs: {cq_paradigms}")
 	print(f"SCENARIOS: {scenarios}")
 	print(f"YEARS: {dir_years}")
@@ -201,7 +197,7 @@ def main():
 				date_range = [launch_start_date + dt.timedelta(days=x) for x in range((launch_end_date - launch_start_date).days + 1)]
 				for date in date_range:
 					# fail_dict[cq][scen][dr_yr][date.strftime("%Y%m%d")] = None
-					run_dir = os.path.join(fee_dir, cq, scen, dr_yr, date.strftime("%Y%m%d"))
+					run_dir = os.path.join(root_dir, cq, scen, dr_yr, date.strftime("%Y%m%d"))
 
 					# list the directory and filter to get just the outfile
 					outfile = [f for f in os.listdir(run_dir) if f.endswith(".out")]
