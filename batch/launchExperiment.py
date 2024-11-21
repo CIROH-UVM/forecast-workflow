@@ -20,6 +20,16 @@ experiment_conf_file = sys.argv[1]
 with open(experiment_conf_file) as experiment_config:
 	experiment_launch_params = json.load(experiment_config)
 
+# parse start and end year args from command line if passed
+try:
+	start_year = int(sys.argv[2])
+except IndexError:
+	start_year = int(experiment_launch_params['start_year'])
+try:
+	end_year = int(sys.argv[3])
+except IndexError:
+	end_year = int(experiment_launch_params['end_year'])
+
 # load in the default run config file
 config = get_args.load_defaults()
 
@@ -31,7 +41,7 @@ with open('/users/n/b/nbeckage/ciroh/forecast-workflow/batch/submitTEMPLATE.sh')
 # root_dir = '/netfiles/ciroh/7dayHABsHindcast/'
 # scenario_dir = os.path.join(root_dir, f"{experiment_launch_params['scenario']}/")
 
-years = list(reversed([str(y) for y in range(int(experiment_launch_params['end_year']), int(experiment_launch_params['start_year'])+1)]))
+years = list(reversed([str(y) for y in range(end_year, start_year+1)]))
 
 for year in years:
 	start_dt = dt.datetime.strptime(year+experiment_launch_params['start_date'], '%Y%m%d')
