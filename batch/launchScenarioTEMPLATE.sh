@@ -15,12 +15,13 @@ source /users/n/b/nbeckage/miniconda3/etc/profile.d/conda.sh
 
 conda activate forecast
 
-# parse cq dir (1st arg) scenario dir (2nd arg)
-CQ_DIR=$1
-SCENARIO_DIR=$2
+# parse scenario dir, start year, end year
+SCENARIO_DIR=$1
+START_YEAR=$2
+END_YEAR=$3
 
 # change to whatever directory you want to put your scenario runs in
-cd /netfiles/ciroh/7dayHABsHindcast/<FEE_VERSION>/$CQ_DIR/$SCENARIO_DIR/
+cd /netfiles/ciroh/<hindcast_dir>/<cq_dir>/$SCENARIO_DIR/
 
 # note that you must have an experiment-specific configuration file in your scenario directory
-python /users/n/b/nbeckage/ciroh/forecast-workflow/batch/launchExperiment.py experiment_config.json
+python /users/n/b/nbeckage/ciroh/forecast-workflow/batch/launchExperiment.py experiment_config.json $START_YEAR $END_YEAR
