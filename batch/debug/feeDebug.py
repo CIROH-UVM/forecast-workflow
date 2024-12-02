@@ -143,9 +143,9 @@ def report_df(failure_dict):
 root_dir = "/netfiles/ciroh/<hindcast_dir>/"
 # cq_paradigms = ['calibratedCQ', 'randomForestCQ']
 cq_paradigms = ['randomForestCQ']
-# dir_years = ['2019', '2020', '2021', '2022','2023']
+# dir_years = [list_of_years] or 'all'
 dir_years = ['2023']
-# scenarios = ['baseline', 'mem1', 'mem2', 'mem3', 'mem4', 'mem5', 'mem6']
+# scenarios = [list_of_scenarios] or 'all'
 scenarios = ['baseline', 'mem3']
 launch_start = '0601'
 launch_end = '1031'
@@ -166,6 +166,12 @@ logger.addHandler(logging.FileHandler(f'{log_name}.log', 'w'))
 print = logger.info
 
 def main():
+	# define scenarios and dir_years as global variables, because we are modifying them in main()
+	# NOTE: if you're just accessing the value of variables defined outsidd the local scope (function)
+	# you don't need to define them as globals; only if you plan on modifying them do you need to declar them as global
+	global scenarios
+	global dir_years
+
 	# determine the error message to use based on fee version
 	# NOTE: prior to v3, there was no universal failed run message, but the most common failure was an AEM3D one
 	# common_error_msg = 'Exception: AEM3D failure.'
@@ -183,12 +189,21 @@ def main():
 	fail_dict = {}
 
 	for cq in cq_paradigms:
+		cq_path = os.path.join(root_dir, cq)
 		print(f"CURRENT CQ PARADIGM: {cq}")
 		fail_dict[cq] = {}
+		if scenarios == 'all':
+			scenarios = os.listdir(cq_path)
 		for scen in scenarios:
 			print(f"\t SCENARIO: {scen}")
+			scen_path = os.path.join(cq_path, scen)
+			if dir_years == 'all':
+				with os.scandir(scen_path) as entries:
+					dir_years_list = [entry.name for entry in entries if entry.is_dir()]
+				dir_years_list = [str(year) for year in sorted([int(yr) for yr in dir_years_list], reverse=True)]
+			else: dir_years_list = dir_years
 			fail_dict[cq][scen] = {}
-			for dr_yr in dir_years:
+			for dr_yr in dir_years_list:
 				print(f"\t\t YEAR: {dr_yr}")
 				fail_dict[cq][scen][dr_yr] = {}
 				launch_start_date = dt.datetime.strptime(launch_start, "%m%d").replace(year=int(dr_yr))
@@ -198,6 +213,9 @@ def main():
 				for date in date_range:
 					# fail_dict[cq][scen][dr_yr][date.strftime("%Y%m%d")] = None
 					run_dir = os.path.join(root_dir, cq, scen, dr_yr, date.strftime("%Y%m%d"))
+
+					# skip to try the next run dir if the current one does not exist
+					if not os.path.exists(run_dir): continue
 
 					# list the directory and filter to get just the outfile
 					outfile = [f for f in os.listdir(run_dir) if f.endswith(".out")]
