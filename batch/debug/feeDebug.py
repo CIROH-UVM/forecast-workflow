@@ -6,11 +6,30 @@ import os
 import pandas as pd
 import warnings
 import xarray as xr
+import json
+import argparse
 
 '''
 This purpose of this script is to Loop through some FEE runs (specififed by the paramters below) and report any failed runs.
 If a failed run is detected, the error is diagnosed and reported. This script creates two files by default; (1) a comprehensive log file that
 reports error messages detected in failed runs, and (2) a concise csv summary file of failed runs and their causes.
+The script is designed to be run in a debugging environment, and is not intended for production use.
+
+Settings in the debug_params.json file:
+- root_dir (str): the root directory of the FEE runs
+- cq_paradigms (list of str): a list of CQ paradigms to loop through
+- scenarios (str or list of str): 'all' or a list of scenarios to loop through
+- dir_years (str or list of str): 'all' or a list of years to loop through
+- launch_start (str): the start date of the FEE runs in MMDD format
+- launch_end (str): the end date of the FEE runs in MMDD format
+- file_path (str): the path to the debug_params.json file
+- last_lines_to_read (int): the number of lines to read from the end of the .out file
+- log_name (str): the name of the log file to create
+
+TO RUN THIS DEBUG SCRIPT:
+1. Create a custom debug parameters json file with the settings above
+2. Run the script with the --conf argument pointing to the debug parameters json file
+3. The script will output a log file and a csv file with the error messages detected in failed runs
 '''
 
 def aem3d_fatal(fatal_msg, err_report):
@@ -139,43 +158,48 @@ def report_df(failure_dict):
 
 	return df
 
-##### DEBUG PARAMTERS #####
-root_dir = "/netfiles/ciroh/<hindcast_dir>/"
-# cq_paradigms = ['calibratedCQ', 'randomForestCQ']
-cq_paradigms = ['randomForestCQ']
-# dir_years = [list_of_years] or 'all'
-dir_years = ['2023']
-# scenarios = [list_of_scenarios] or 'all'
-scenarios = ['baseline', 'mem3']
-launch_start = '0601'
-launch_end = '1031'
-file_path = "*.out"
-# NOTE: last 150 lines should
-last_lines_to_read = 150
-# provide a custom log name
-log_name = 'rf2023BLM3'
+def load_debug_parameters():
+	parser = argparse.ArgumentParser(description='command-line arguments for executing the feeDebug.py script.')
+	parser.add_argument('--conf', type=str, help='The path to the debug parameters JSON file.')
+	args = parser.parse_args()
+	with open(args.conf, 'r') as file:
+		return json.load(file)
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,           # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-    format='%(asctime)s - %(levelname)s - %(message)s'  # Log format
-)
-
-logger = logging.getLogger()
-logger.addHandler(logging.FileHandler(f'{log_name}.log', 'w'))
-print = logger.info
+def setup_logging(log_name):
+	logging.basicConfig(
+		level=logging.INFO,           # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+		format='%(asctime)s - %(levelname)s - %(message)s'  # Log format
+	)
+	logger = logging.getLogger()
+	logger.addHandler(logging.FileHandler(f'{log_name}.log', 'w'))
+	return logger
 
 def main():
 	# define scenarios and dir_years as global variables, because we are modifying them in main()
 	# NOTE: if you're just accessing the value of variables defined outsidd the local scope (function)
 	# you don't need to define them as globals; only if you plan on modifying them do you need to declar them as global
-	global scenarios
-	global dir_years
+	# global scenarios
+	# global dir_years
 
 	# determine the error message to use based on fee version
 	# NOTE: prior to v3, there was no universal failed run message, but the most common failure was an AEM3D one
 	# common_error_msg = 'Exception: AEM3D failure.'
 	common_error_msg = 'ERROR: RUN FAILED'
+
+	##### DEBUG PARAMETERS #####
+	debug_params = load_debug_parameters()
+	root_dir = debug_params["root_dir"]
+	cq_paradigms = debug_params["cq_paradigms"]
+	dir_years = debug_params["dir_years"]
+	scenarios = debug_params["scenarios"]
+	launch_start = debug_params["launch_start"]
+	launch_end = debug_params["launch_end"]
+	file_path = debug_params["file_path"]
+	last_lines_to_read = debug_params["last_lines_to_read"]
+	log_name = debug_params["log_name"]
+	
+	logger = setup_logging(log_name)
+	print = logger.info
 
 	# Print the debug parameters
 	print(f"##### DEBUG PARAMETERS #####")
