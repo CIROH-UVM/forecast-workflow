@@ -49,6 +49,17 @@ for year in years:
 	delta = end_dt - start_dt
 	scenario_dir_year = os.path.join(orig, f'{year}/')
 	dates = [start_dt + dt.timedelta(days=d) for d in range(delta.days+1)]
+	# Optionally, manually choose dates (for testing, mainly)
+	# dates = [dt.datetime(int(year), 5, 5),
+	# 		 dt.datetime(int(year), 5, 26),
+	# 		 dt.datetime(int(year), 6, 5),
+	# 		 dt.datetime(int(year), 6, 26),
+	# 		 dt.datetime(int(year), 7, 5),
+	# 		 dt.datetime(int(year), 7, 26),
+	# 		 dt.datetime(int(year), 8, 5),
+	# 		 dt.datetime(int(year), 8, 26),
+	# 		 dt.datetime(int(year), 9, 5),
+	# 		 dt.datetime(int(year), 9, 26)]
 	spinup_month_and_day = dt.datetime.strptime(experiment_launch_params['spinup_date'], "%m%d")
 	# get the length of the forecast in days (7 days, 30, etc)
 	forecast_days = int(experiment_launch_params['forecast_days'])
