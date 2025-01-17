@@ -54,22 +54,22 @@ def check_values(settings_dict, defaults=False):
 	
 	# print("Settings to be checked ", settings_dict)
 
-	valid_datasets = {'wdo':["NOAA_LCD+FEMC_CR"],
+	valid_datasets = {'wds':["NOAA_LCD+FEMC_CR"],
 				   	  'wdf':["NOAA_LCD+FEMC_CR", "NOAA_GFS", "NOAA_CFS"],
-					  'hdo':["USGS_IV"],
+					  'hds':["USGS_IV"],
 					  'hdf':["USGS_IV", "NOAA_NWM_PROD", "NOAA_NWMV3_RETRO"],
 					  'nwm_members':[f'medium_range_mem{n}' for n in range(1,8)] + [f'long_range_mem{n}' for n in range(1,5)] + ['short_range']}
 	# datasets should be validated
-	if settings_dict['weather_dataset_observed'] not in valid_datasets['wdo']:
-		raise ValueError(f"'{settings_dict['weather_dataset_observed']}' is not a valid observational weather dataset")
-	if settings_dict['weather_dataset_forecast'] not in valid_datasets['wdf']:
+	if settings_dict['weather_dataset_spinup'] not in valid_datasets['wds'] and not settings_dict['weather_dataset_spinup'].startswith("READ_CSV"):
+		raise ValueError(f"'{settings_dict['weather_dataset_spinup']}' is not a valid observational weather dataset")
+	if settings_dict['weather_dataset_forecast'] not in valid_datasets['wdf'] and not settings_dict['weather_dataset_forecast'].startswith("READ_CSV"):
 		raise ValueError(f"'{settings_dict['weather_dataset_forecast']}' is not a valid forecast weather dataset")
-	if settings_dict['hydrology_dataset_observed'] not in valid_datasets['hdo']:
-		raise ValueError(f"'{settings_dict['hydrology_dataset_observed']}' is not a valid observational hydrology dataset")
-	if settings_dict['hydrology_dataset_forecast'] not in valid_datasets['hdf']:
+	if settings_dict['hydrology_dataset_spinup'] not in valid_datasets['hds'] and not settings_dict['hydrology_dataset_spinup'].startswith("READ_CSV"):
+		raise ValueError(f"'{settings_dict['hydrology_dataset_spinup']}' is not a valid observational hydrology dataset")
+	if settings_dict['hydrology_dataset_forecast'] not in valid_datasets['hdf'] and not settings_dict['hydrology_dataset_forecast'].startswith("READ_CSV"):
 		raise ValueError(f"'{settings_dict['hydrology_dataset_forecast']}' is not a valid forecast hydrology dataset")
 	
-	# valiudate NWM forecast member
+	# validate NWM forecast member
 	if settings_dict['nwm_forecast_member'] not in valid_datasets['nwm_members']:
 		raise ValueError(f"'{settings_dict['nwm_forecast_member']}' is not a valid NWM forecast member")
 
@@ -108,12 +108,12 @@ def get_cmdln_args():
 	parser.add_argument('--restart_file', type=str, help='model restart file name')
 	parser.add_argument('--bl_var', type=str, help='name of the input variable to be blended')
 	parser.add_argument('--bl_ratio', type=float, help='blending ratio')
-	parser.add_argument('--wdo', type=str, help='observed weather dataset to use for model run')
+	parser.add_argument('--wds', type=str, help='weather dataset to use for model spinup period')
 	parser.add_argument('--wdf', type=str, help='forecasted weather dataset to use for model run')
-	parser.add_argument('--hdo', type=str, help='observed hydrological dataset to use for model run')
+	parser.add_argument('--hds', type=str, help='hydrological dataset to use for model run spinup period')
 	parser.add_argument('--hdf', type=str, help='forecasted hydrological dataset to use for model run')
 	parser.add_argument('--mem', type=str, help='NWM forecast member to use IFF using a NWM production dataset')
-	parser.add_argument('--csv', action='store_true', help="flag determining whether or not to use GFS/NWM CSV's. Default is False.")
+	parser.add_argument('--csv', type=bool, help="flag determining whether or not to use GFS/NWM CSV's. Default is False.")
 	parser.add_argument('--data', type=str, help='directory containing meteorology & hydrology data for workflow, i.e. forecastData, hindcastData, etc.')
 	parser.add_argument('--aem_in', type=str, help="absolute path to 'AEM3D-inputs/'")
 	parser.add_argument('--aem_ex', type=str, help="absolute path to AEM3D executable, 'aem3d_openmp.exe'")
@@ -133,7 +133,7 @@ def get_default_fpath():
 	return settings_path
 
 def get_settings_keys():
-	return list(load_defaults().keys())
+	return list(load_json(get_default_fpath()).keys())
 
 def load_config(config_fpath):
 	config_settings = load_json(config_fpath)
@@ -155,20 +155,26 @@ def load_json(fpath):
 
 def process_args(args):
 	SETTINGS_KEYS = get_settings_keys()
-	print("SETTINGS_KEYS:\n", SETTINGS_KEYS)
+	# print("SETTINGS_KEYS:\n", SETTINGS_KEYS)
 	# convert args from a Namespace to a dict
 	args = vars(args)
-	print("Raw Args", args)
+	# print("Raw Args", args)
+	# print()
 	# we don't need the configuration file setting anymore
 	args.pop('conf')
 	# create a mapping from json-format setting names to command-line setting names
 	zipped_key_map = zip(SETTINGS_KEYS, args)
 	key_map = list(zipped_key_map)
+	# print(key_map)
+	# print()
 	# update the keys of the command-line arg dict to have the same key names as the json settings dict
 	renamed_args = {setting[0]: args[setting[1]] for setting in key_map}
+	# print(renamed_args)
+	# print()
 	# we only want to update settings with command-line args if they were passed
 	passed_args = {key:renamed_args[key] for key in renamed_args if renamed_args[key] is not None}
-	print("Arg List Generate ", passed_args)
+	if passed_args:
+		print("Args parsed from command line:", passed_args)
 	return passed_args
 
 
@@ -199,13 +205,17 @@ def get_args(default_fpath = get_default_fpath(), command_line = True):
 		custom_settings = load_config(args.conf)
 		# updating settings dict with config file settings
 		settings.update(custom_settings)
-	print("Settings before args ", settings)
+	# print("Settings before args ", settings)
 	# processing cmd line args to match cmd line arg names with json arg names
 	cmd_args = process_args(args)
 	# update settings with cmd line arguments
 	settings.update(cmd_args)
 	# check settings to ensure all values are valid
 	check_values(settings)
+	print("\nFORECAST WORKFLOW SETTINGS:")
+	for key, value in settings.items():
+		print(f"{key}: {value}")
+	print()
 	return settings
 
 def main():
