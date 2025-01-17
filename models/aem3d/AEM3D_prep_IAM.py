@@ -247,7 +247,7 @@ def getflowfiles(whichbay, settings):
 	logger.info('Loading Hydrology Flow Data')
 
 	observedHydro = None
-	if settings['hydrology_dataset_observed'] == 'USGS_IV':
+	if settings['hydrology_dataset_spinup'] == 'USGS_IV':
 		observedHydro = usgs_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
 								 		 end_date = settings['forecast_start'],
 										 locations = {"MS":'04294000',
@@ -265,7 +265,7 @@ def getflowfiles(whichbay, settings):
 		# backfill missing IV data with DV data - Right now we are just doing this for th spinup periop only
 		backfillCaFlowsSpinup(observedca, settings)
 
-	else: raise ValueError(f"'{settings['hydrology_dataset_observed']}' is not a valid observational hydrology dataset")
+	else: raise ValueError(f"'{settings['hydrology_dataset_spinup']}' is not a valid observational hydrology dataset")
 
 
 	forecastHydro = None
@@ -335,7 +335,7 @@ def getflowfiles(whichbay, settings):
 	global AXES
 	SUBPLOT_PACKAGES['streamflow'] = {'labelled_data':flow_data,
 								   	  'ylabel':'Streamflow (m/s^3)',
-									  'title':f"{settings['hydrology_dataset_observed']} vs. {settings['hydrology_dataset_forecast']}",
+									  'title':f"{settings['hydrology_dataset_spinup']} vs. {settings['hydrology_dataset_forecast']}",
 									  'fc_start':settings['forecast_start'],
 									  'fc_end':settings['forecast_end'],
 									  'row':0,
@@ -415,11 +415,11 @@ def getdailyflows(whichbay, settings):
 	all_gauges = us_gauges | ca_gauges
 
 	logger.info("Getting daily streamflow for spinup period...")
-	logger.info(f"Dataset: {settings['hydrology_dataset_observed']}")
+	logger.info(f"Dataset: {settings['hydrology_dataset_spinup']}")
 
 	# getting spinup period daily streamflows
 	spinupDailyFlows = None
-	if settings['hydrology_dataset_observed'] == 'USGS_IV':
+	if settings['hydrology_dataset_spinup'] == 'USGS_IV':
 		# get spinup daily values from USGS
 		usgs_spinup_dv = usgs_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
 										  end_date = settings['forecast_start'],
@@ -445,8 +445,8 @@ def getdailyflows(whichbay, settings):
 			q.index = q.index.map(lambda t: t.replace(hour=12, tzinfo=None).tz_localize('America/New_York').tz_convert('UTC'))
 			q_dict['streamflow'] = q
 
-	# currently there should be only one valid option for 'hydrology_dataset_observed' : 'USGS_IV'
-	else: raise ValueError(f"'{settings['hydrology_dataset_observed']}' is not a valid observational hydrology dataset")
+	# currently there should be only one valid option for 'hydrology_dataset_spinup' : 'USGS_IV'
+	else: raise ValueError(f"'{settings['hydrology_dataset_spinup']}' is not a valid observational hydrology dataset")
 
 	logger.info("Spinup Period Daily Streamflow:")
 	logger.info(spinupDailyFlows)
@@ -847,7 +847,7 @@ def genclimatefiles(whichbay, settings):
 
 	observedClimate = {}
 	##### GRABBING OBSERVATIONAL CLIMATE DATA #####
-	if settings['weather_dataset_observed'] == 'NOAA_LCD+FEMC_CR':
+	if settings['weather_dataset_spinup'] == 'NOAA_LCD+FEMC_CR':
 		observedClimateBTV = lcd_ob.get_data(start_date = adjusted_spinup,
 										end_date = settings['forecast_start'],
 										locations = {"401":"72617014742"},
@@ -901,7 +901,7 @@ def genclimatefiles(whichbay, settings):
 		observedClimate = adjustFEMCLCD(THEBAY, observedClimate, start_dt=adjusted_spinup, end_dt=settings['forecast_start'], figure_name='ObservedFEMCRelHumGapFilled.png')
 
 	else:
-		raise ValueError(f"'{settings['weather_dataset_observed']}' is not a valid observational weather dataset")
+		raise ValueError(f"'{settings['weather_dataset_spinup']}' is not a valid observational weather dataset")
 
 	forecastClimate = {}
 
@@ -1055,7 +1055,7 @@ def genclimatefiles(whichbay, settings):
 	global AXES
 	SUBPLOT_PACKAGES['air temp'] = {'labelled_data':air_temp,
 								   	'ylabel':'Air Temperature at 2m (C)',
-									'title':f"{settings['weather_dataset_observed']} vs. {settings['weather_dataset_forecast']}",
+									'title':f"{settings['weather_dataset_spinup']} vs. {settings['weather_dataset_forecast']}",
 									'fc_start':settings['forecast_start'],
 									'fc_end':settings['forecast_end'],
 									'row':0,

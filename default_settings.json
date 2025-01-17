@@ -9,14 +9,14 @@
 	"restart_read_file" : "",
 	"blending_variable" : null,
 	"blending_ratio" : 1.0,
-	"weather_dataset_observed" : "NOAA_LCD+FEMC_CR",
+	"weather_dataset_spinup" : "NOAA_LCD+FEMC_CR",
 	"weather_dataset_forecast" : "NOAA_GFS",
-	"hydrology_dataset_observed" : "USGS_IV",
+	"hydrology_dataset_spinup" : "USGS_IV",
 	"hydrology_dataset_forecast" : "NOAA_NWM_PROD",
 	"nwm_forecast_member" : "medium_range_mem1",
 	"csv" : false,
-	"data_dir" : "/netfiles/ciroh/7dayHABsHindcast/hindcastData/",
+	"data_dir" : "/netfiles/ciroh/hindcastData/",
 	"aem3d_input_dir" : "/netfiles/ciroh/models/aem3d/current/AEM3D-inputs",
-	"aem3d_command_path" : "/usr/local/aem3d-1.1.2-535/aem3d_openmp.exe",
+	"aem3d_command_path" : "/netfiles/ciroh/models/aem3d/aem3d-1.1.2-535/aem3d_openmp.exe",
 	"cqVersion" : "202406Calibration"
 }
