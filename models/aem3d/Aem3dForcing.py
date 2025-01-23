@@ -3,7 +3,7 @@ from data import (usgs_ob,
 				  caflow_ob,
 				  utils)
 import datetime as dt
-from get_args import get_args
+from models.aem3d.get_args import get_args
 import os
 import pandas as pd
 
@@ -144,7 +144,7 @@ class HydroForcings(Aem3dForcings):
 				  "PK":"Pike",
 				  "RK":"Rock"}
 	
-	### Initial Hydroings
+	### Initialize HydroForcings
 	def __init__(self,
 				data=None,
 				start_date=None,
@@ -185,6 +185,7 @@ class HydroForcings(Aem3dForcings):
 		print(f"\tLOCATIONS: {self.locations}")
 		print(f"\tVARIABLES: {self.variables}")
 		print(f"\tSOURCE: {self.source.split(':')[0]}")
+		print(f"\tSERVICE: {self.service}")
 		if self.start_date is None or self.end_date is None:
 			raise ValueError("Start and end date must be provided to get hydrology data")
 		if self.locations is None:
@@ -200,10 +201,11 @@ class HydroForcings(Aem3dForcings):
 			print(f"Converting USGS streamflow to m³/s...")
 			for loc in usgs_data.keys():
 				usgs_data[loc]['streamflow'] = usgs_data[loc]['streamflow'].rename('streamflow (m³/s)') * 0.0283168
+			# now get the data for the CA gauges
 			ca_data = caflow_ob.get_data(start_date=self.start_date,
 										end_date=self.end_date,
-										locations=self.locations["CA"])
-			
+										locations=self.locations["CA"],
+										service=self.service)
 			# now combine the dictionaries and set as data
 			q = usgs_data | ca_data
 			self.set_data(q)
@@ -217,6 +219,26 @@ class HydroForcings(Aem3dForcings):
 			self.set_dir(os.path.join(data_dir, csv_dir))
 			print(f"\tHYDRO CSV DIR: {self.dir}")
 			self.parse_hydro_csvs()
+
+	@staticmethod
+	def dv_to_iv_index(dv_index):
+		'''
+		Converts a daily value index (no time of day info) to an instantaneous value index.
+		Which means the hour of each indices is set to 16:00 UTC
+		'''
+		# We've decided that daily flows, when being used as IV flows, should be set to 16:00 UTC
+		iv_index = dv_index.map(lambda x: x.replace(hour=16)).tz_localize('UTC')
+		return iv_index
+	
+	@staticmethod
+	def iv_to_dv_series(iv_series):
+		'''
+		Converts an instantaneous value series to a daily value series.
+		Which means the daily mean is calculated for each date, and time of day is removed from the index
+		'''
+		daily_means = iv_series.resample('D').mean().dropna()
+		daily_means.index = pd.DatetimeIndex(ts.date() for ts in daily_means.index)
+		return daily_means
 
 	def parse_hydro_csvs(self):
 		'''
@@ -232,22 +254,46 @@ class HydroForcings(Aem3dForcings):
 				fname = f"Q_{reachnames[loc]}"
 				# print(fname)
 				q = pd.read_csv(os.path.join(self.dir, f"{fname}.csv"), index_col='Date', parse_dates=True)
-				new_index = q.index.map(lambda x: x.replace(hour=14))
-				q.index = new_index.tz_localize('UTC')
+				# if 
+				if self.service == "iv":
+					# if there is no time component to the index, then we need to add a time component...
+					if all(d.time() == dt.time(0) for d in q.index):
+						print(f"Daily values detected when instantaneous values were expected for {reachnames[loc]}. Adding time component to index...")
+						q.index = HydroForcings.dv_to_iv_index(q.index)
+					q = q.loc[self.start_date:self.end_date]
+				if self.service == "dv":
+					# if there is a time compoenent to the index, get rid of it and calculate daily means
+					if all(d.time() != dt.time(0) for d in q.index):
+						print(f"Instantaneous values detected when daily values were expected for {reachnames[loc]}. Calculating daily means from IV...")
+						q = HydroForcings.iv_to_dv_series(q)
+					q = q.loc[self.start_date.date():self.end_date.date()]
 				csv_q[loc] = {"streamflow":q[fname].rename("Streamflow (m³/s)")}
 		self.set_data(csv_q)
 
+class NutrientForcings(Aem3dForcings):
+	### Initialize NutrientForcings
+	def __init__(self,
+				data=None,
+				start_date=None,
+				end_date=None,
+				locations=None,
+				variables=None,
+				source=None,
+				period=None,
+				dir=None):
+		# Call the parent class constructor
+		super().__init__(data, start_date, end_date, locations, variables, source, period, dir)
+
 if __name__ == "__main__":
 
-	SETTINGS = get_args()
+	SETTINGS = get_args(default_fpath="/netfiles/ciroh/IslesHindcast/configuration.json")
 	# Test the class
-	hydro = HydroForcings(period='spinup',
-						  dir=SETTINGS["data_dir"],
-						  source=SETTINGS['hydrology_dataset_spinup'])
-	
-	start = dt.datetime(2024, 1, 1)
-	end = dt.datetime(2024, 9, 1)
-	hydro.set_dates(start_date=start, end_date=end)
+	hydro = HydroForcings(start_date=SETTINGS['forecast_start'],
+					   	  end_date=SETTINGS['forecast_end'],
+						  source=SETTINGS['hydrology_dataset_spinup'],
+						#   source="USGS_IV",
+						  period='spinup',
+						  dir=SETTINGS['data_dir'],
+						  service='iv')
 	hydro.get_hydro_data()
-
 	print(hydro.access_data())
