@@ -178,6 +178,75 @@ def backfillCaFlowsSpinup(ca_data, settings):
 		# set the streamflow dict of ca_data to be the new combined series
 		iv_dict['streamflow'] = combined
 
+def getRichelieuLakeHt(start, end, service='dv'):
+	# this is the date and time (in UTC) where "Current Observations" begin for the Richelieu gage
+	# for Richelieu gage lake height calls prior to this date, we will use the "Daily Statistics" service ("dv")
+	# https://waterdata.usgs.gov/nwis/inventory?agency_code=USGS&site_no=04295000
+	rl_current_obs_begin = dt.datetime(2007, 10, 1, 5, tzinfo=dt.timezone.utc)
+	rl = {"RL":'04295000'}
+	lakeht = {'LAKEHT':'62614'}
+
+	# This logic is only relevant if iv service Richelieu lake height data is requested; dv service request should be fine
+	# if the end of the timeseries comes before the beginning of iv obs, use dv service
+	if end < rl_current_obs_begin or service == 'dv':
+		dv_data_chunks = []
+		# use the "dv" service
+		print(f"Requested date range ends before the beginning of the iv observations for Lake Height at the Richelieu gage ({rl_current_obs_begin})")
+		print("Or you've explicitly requested daily means... either way getting daily means:")
+		current_start = start
+		while current_start < end:
+			current_end = min(current_start + dt.timedelta(days=365), end)  # End of the 1-year chunk
+			
+			# Fetch data for the current 1-year period
+			dv_data_chunk = usgs_ob.get_data(
+				start_date=current_start,
+				end_date=current_end,
+				locations=rl,
+				variables=lakeht,
+				service='dv')["RL"]["LAKEHT"]
+    
+			# Add the chunk to the list
+			dv_data_chunks.append(dv_data_chunk)
+    
+			# Update the start date for the next iteration
+			current_start = current_end
+		dv_data = {'RL':{"LAKEHT":pd.concat(dv_data_chunks)}}
+		# dv_data = usgs_ob.get_data(start_date = start,
+		# 						end_date = end,
+		# 						locations = rl,
+		# 						variables = lakeht,
+		# 						service='dv')
+		return dv_data
+	# don't logically need the below end >= rl_current_obs_begin condition, since if the above if statement is false, then this one must be true
+	elif end >= rl_current_obs_begin and start >= rl_current_obs_begin:
+		# use the "iv" service
+		iv_data = usgs_ob.get_data(start_date = start,
+								end_date = end,
+								locations = rl,
+								variables = lakeht,
+								service=service)
+		return iv_data
+	# this elif could just be an else, since if start >= rl_current_obs_begin is false, then this elif must always be true
+	elif start < rl_current_obs_begin:
+		print(f"Requested date range starts before the beginning of the iv observations for Lake Height at the Richelieu gage ({rl_current_obs_begin}) and ends after it")
+		print("Getting both daily means and iv observations, then concating:")
+		dv_data = usgs_ob.get_data(start_date = start,
+								end_date = rl_current_obs_begin,
+								locations = rl,
+								variables = lakeht,
+								service='dv')
+		iv_data = usgs_ob.get_data(start_date = rl_current_obs_begin,
+								end_date = end,
+								locations = rl,
+								variables = lakeht,
+								service=service)
+		# Make dv_series timezone-aware in order to combine it with iv_series;, hour also set to noon
+		dv_data["RL"]["LAKEHT"].index = dv_data["RL"]["LAKEHT"].index.map(lambda x: x.replace(hour=12)).tz_localize('UTC')
+
+		# Combine the series
+		combined_data = {"RL": {"LAKEHT":pd.concat([dv_data["RL"]["LAKEHT"], dv_data["RL"]["LAKEHT"]])}}
+		return combined_data
+
 def ordinalnudgerow(rowtonudge, columntonudge, nudgeframe):
 	# apply a proportional nudge value that is specific to the day of year in the passed row
 	#   rowtonudge - row from a dataframe with TIME column and a value column
@@ -959,11 +1028,12 @@ def genclimatefiles(whichbay, settings):
 		
 		# fetch observed Richelieu height for use as Lake Height
 		# Richelieu data represents observed lake height
-		getvars = {'LAKEHT':'62614'}
-		observedlake = usgs_ob.get_data(start_date = settings['spinup_date'] - dt.timedelta(days=1),
-								 		 end_date = settings['forecast_start'],
-										 locations = {"RL":'04295000'},
-										  variables = getvars)
+		observedlake = getRichelieuLakeHt(start=adjusted_spinup,
+										  end=settings['forecast_start'])
+		# observedlake = usgs_ob.get_data(start_date = adjusted_spinup,
+		# 						 		 end_date = settings['forecast_start'],
+		# 								 locations = {"RL":'04295000'},
+		# 								 variables = {'LAKEHT':'62614'})
 		# adjust height reference to 93 ft and convert to meters
 		observedlake['RL']['LAKEHT'] = (observedlake['RL']['LAKEHT']-93) * 0.3048
 		# store observed lake height in bay object for later concat with predicted height
@@ -1047,11 +1117,12 @@ def genclimatefiles(whichbay, settings):
 			forecastClimate[zone] = forecastClimateCR[zone] | forecastClimateBTV[zone]
 
 		# Richelieu data represents forecast lake height
-		getvars = {'LAKEHT':'62614'}
-		forecastlake = usgs_ob.get_data(start_date = settings['forecast_start'],
-								 		end_date = adjusted_end_date,
-										locations = {"RL":'04295000'},
-										variables = getvars)
+		forecastlake = getRichelieuLakeHt(start=settings['forecast_start'],
+										  end=adjusted_end_date)
+		# forecastlake = usgs_ob.get_data(start_date = settings['forecast_start'],
+		# 						 		end_date = adjusted_end_date,
+		# 								locations = {"RL":'04295000'},
+		# 								variables = {'LAKEHT':'62614'})
 		# adjust height reference to 93 ft and convert to meters
 		forecastlake['RL']['LAKEHT'] = (forecastlake['RL']['LAKEHT']-93) * 0.3048
 		# store observed lake height in bay object for later concat with predicted height
