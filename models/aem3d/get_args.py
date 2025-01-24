@@ -89,7 +89,7 @@ def check_values(settings_dict, defaults=False):
 	# Define valid CQ versions:
 	valid_cqVersions = ['BREE2021Quad', '202406Calibration', 'Clelia', 'islesRF']
 	# validate
-	if settings_dict['cqVersion'] not in valid_cqVersions:
+	if settings_dict['cqVersion'] not in valid_cqVersions and not settings_dict['cqVersion'].startswith("READ_CSV"):
 		raise ValueError(f"'{settings_dict['cqVersion']}' is not a valid CQ version. Valid versions are: {valid_cqVersions}")
 	
 # setting up command-line argument parser
