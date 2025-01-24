@@ -17,6 +17,7 @@ from string import Template
 import numpy as np
 import pandas as pd
 from .AEM3D import *
+from .Aem3dForcings import *
 
 '''
 List of WQ control Files present in wq_files from AEM3D_prep_file
@@ -123,7 +124,7 @@ def gensilicafile(theBay):
 								})        
 
 
-def genwqfiles (theBay):
+def genwqfiles (theBay, settings):
 
 	THEBAY = theBay
 
@@ -319,8 +320,29 @@ def genwqfiles (theBay):
 				phosdf['TP'] = np.power(10, (1.7935 + 0.4052 * logQ + 0.1221 * logQ * logQ)) * p_redux / 1000
 			else:
 				raise Exception(f'CQ Equation for baysource={bs_name} not found for cqVersion={cqVersion}')
-		else:
-			raise Exception(f'cqVersion {cqVersion} not defined')
+		elif cqVersion.startswith("READ_CSV"):
+			### NOTE: NutrientForcings class NOT implmented -- that will require restructuring a lot of genwqfiles()
+			tpForcings = NutrForcings(start_date=ordinalToDatetime(THEBAY.FirstDate),
+								 		  end_date=ordinalToDatetime(THEBAY.LastDate),
+										  source=cqVersion.split(":")[0],
+										  dir=cqVersion.split(":")[-1])
+			tp_csv_dir = os.path.join(settings["data_dir"], cqVersion.split(":")[-1], "TP")
+			if bs_name.startswith("Missisquoi"):
+				fname = "Conc_TP_Missisquoi"
+				phosdf['TP'] = pd.read_csv(os.path.join(tp_csv_dir, f"{fname}.csv"), parse_dates=True, index_col='Date')[fname]
+			if bs_name.startswith("Rock"):
+				fname = "Conc_TP_Rock"
+				phosdf['TP'] = pd.read_csv(os.path.join(tp_csv_dir, f"{fname}.csv"), parse_dates=True, index_col='Date')[fname]
+			if bs_name.startswith("Pike"):
+				fname = "Conc_TP_Pike"
+				phosdf['TP'] = pd.read_csv(os.path.join(tp_csv_dir, f"{fname}.csv"), parse_dates=True, index_col='Date')[fname]
+			if bs_name.startswith("Mill"):
+				fname = "Conc_TP_Mill"
+				phosdf['TP'] = pd.read_csv(os.path.join(tp_csv_dir, f"{fname}.csv"), parse_dates=True, index_col='Date')[fname]
+			if bs_name.startswith("Jewett"):
+				fname = "Conc_TP_Jewett"
+				phosdf['TP'] = pd.read_csv(os.path.join(tp_csv_dir, f"{fname}.csv"), parse_dates=True, index_col='Date')[fname]
+		else: raise Exception(f'cqVersion {cqVersion} not defined')
 
 		# Check for NAs -- will throw an error and log data if NA's are returned
 		#   Gonna keep this code in case we need to debug similar issues again
@@ -352,6 +374,34 @@ def genwqfiles (theBay):
 				phosdf['POPL'] = 0.48 * phosdf['TP']
 			else:
 				raise Exception(f'baysource={bs_name} not found when calculating phosphorus species for 202406Calibration')
+		
+		elif cqVersion.startswith("READ_CSV"):
+			dp_csv_dir = os.path.join(settings["data_dir"], cqVersion.split(":")[-1], "DP")
+			if bs_name.startswith("Missisquoi"):
+				fname = "Conc_DP_Missisquoi"
+				phosdf['DP'] = pd.read_csv(os.path.join(dp_csv_dir, f"{fname}.csv"), parse_dates=True, index_col='Date')[fname]
+			if bs_name.startswith("Rock"):
+				fname = "Conc_DP_Rock"
+				phosdf['DP'] = pd.read_csv(os.path.join(dp_csv_dir, f"{fname}.csv"), parse_dates=True, index_col='Date')[fname]
+			if bs_name.startswith("Pike"):
+				fname = "Conc_DP_Pike"
+				phosdf['DP'] = pd.read_csv(os.path.join(dp_csv_dir, f"{fname}.csv"), parse_dates=True, index_col='Date')[fname]
+			if bs_name.startswith("Mill"):
+				fname = "Conc_DP_Mill"
+				phosdf['DP'] = pd.read_csv(os.path.join(dp_csv_dir, f"{fname}.csv"), parse_dates=True, index_col='Date')[fname]
+			if bs_name.startswith("Jewett"):
+				fname = "Conc_DP_Jewett"
+				phosdf['DP'] = pd.read_csv(os.path.join(dp_csv_dir, f"{fname}.csv"), parse_dates=True, index_col='Date')[fname]
+			
+			# These equations come from email communication Peter Isles', 1/22/2025 (RE:Status of longer-term AEM3D Hindcasts)
+			phosdf['PO4'] = phosdf['DP'] * 0.3
+			phosdf['DOPL'] = phosdf['DP'] * 0.7
+			print("phosdf['TP']")
+			print(phosdf['TP'])
+			print("phosdf['DP']")
+			print(phosdf['DP'])
+			# Replace values with 0 where the below condition is False (i.e. where DP > TP)
+			phosdf['POPL'] = (phosdf['TP'] - phosdf['DP']).where(phosdf['DP'] <= phosdf['TP'], 0)
 
 		# Same for cqVersion = Clelia or BREE2021
 		#   Updated 2021.05.27 per WQS Docs
@@ -372,8 +422,8 @@ def genwqfiles (theBay):
 			else:
 				raise Exception(f'baysource={bs_name} not found when calculating phosphorus species for {cqVersion}')
 
-		# print('Check of PO4 dataframe')
-		# print(phosdf['PO4'])
+		print('Check of PO4 dataframe')
+		print(phosdf['PO4'])
 
 		# Nitrogen Series
 		nitdf = pd.DataFrame()
@@ -410,32 +460,35 @@ def genwqfiles (theBay):
 			elif bs_name.startswith('JewettStevens'):
 				rf_tn = joblib.load(os.path.join(rf_tn_dir, 'jewett_TN.joblib'))
 				nitdf['TN'] = rf_tn.predict(Q_features)
-		
+
+		elif cqVersion.startswith("READ_CSV"):
+			tn_csv_dir = os.path.join(settings["data_dir"], cqVersion.split(":")[-1], "TN")
+			if bs_name.startswith("Missisquoi"):
+				fname = "Conc_TN_Missisquoi"
+				nitdf['TN'] = pd.read_csv(os.path.join(tn_csv_dir, f"{fname}.csv"), parse_dates=True, index_col='Date')[fname]
+			if bs_name.startswith("Rock"):
+				fname = "Conc_TN_Rock"
+				nitdf['TN'] = pd.read_csv(os.path.join(tn_csv_dir, f"{fname}.csv"), parse_dates=True, index_col='Date')[fname]
+			if bs_name.startswith("Pike"):
+				fname = "Conc_TN_Pike"
+				nitdf['TN'] = pd.read_csv(os.path.join(tn_csv_dir, f"{fname}.csv"), parse_dates=True, index_col='Date')[fname]
+			if bs_name.startswith("Mill"):
+				fname = "Conc_TN_Mill"
+				nitdf['TN'] = pd.read_csv(os.path.join(tn_csv_dir, f"{fname}.csv"), parse_dates=True, index_col='Date')[fname]
+			if bs_name.startswith("Jewett"):
+				fname = "Conc_TN_Jewett"
+				nitdf['TN'] = pd.read_csv(os.path.join(tn_csv_dir, f"{fname}.csv"), parse_dates=True, index_col='Date')[fname]
 		else:
 			zTN = (Q - 166.3734) / 138.1476
 			nitdf['TN'] = 0.00407 * (zTN*zTN)  + 0.12853 * zTN + 0.75675
 			
-		# islesRf should use the same equations as 202406Calibration for all other nitrogren species
-		if cqVersion == '202406Calibration' or cqVersion == 'islesRF':
-			if bs_name.startswith('PikeRiver'):
-				nitdf['NH4'] = 0.1 * nitdf['TN']
-				nitdf['NO3'] = 0.3 * nitdf['TN']
-				nitdf['DONL'] = 0.1 * nitdf['TN']
-				nitdf['PONL'] = 0.5 * nitdf['TN']
-			elif bs_name.startswith('RockRiver'):
-				nitdf['NH4'] = 0.1 * nitdf['TN']
-				nitdf['NO3'] = 0.3 * nitdf['TN']
-				nitdf['DONL'] = 0.1 * nitdf['TN']
-				nitdf['PONL'] = 0.5 * nitdf['TN']
-			elif (
-			bs_name.startswith('MissisquoiRiver') or
-			bs_name.startswith('JewettStevens') or
-			bs_name.startswith('MillRiver')
-			):
-				nitdf['NH4'] = 0.1 * nitdf['TN']
-				nitdf['NO3'] = 0.3 * nitdf['TN']
-				nitdf['DONL'] = 0.1 * nitdf['TN']
-				nitdf['PONL'] = 0.5 * nitdf['TN']   
+		# islesRf and READ_CSV (for Peter's CSVs) should use the same equations as 202406Calibration for all other nitrogren species
+		if cqVersion == '202406Calibration' or cqVersion == 'islesRF' or cqVersion.startswith("READ_CSV"):
+			# using the same equations for nitrogen species for every trib
+			nitdf['NH4'] = 0.1 * nitdf['TN']
+			nitdf['NO3'] = 0.3 * nitdf['TN']
+			nitdf['DONL'] = 0.1 * nitdf['TN']
+			nitdf['PONL'] = 0.5 * nitdf['TN']   
 		else:
 			nitdf['NH4'] = 0.1 * nitdf['TN']            # Updated 2021.05.27 per WQS Docs
 			nitdf['NO3'] = 0.3 * nitdf['TN']
