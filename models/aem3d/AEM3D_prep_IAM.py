@@ -63,7 +63,17 @@ def add_plot(labelled_data, ylabel, title, fc_start, fc_end, row, col, axis):
 	ax = axis[row,col]
 	# Plot data for location 1
 	for lab, data in labelled_data.items():
-		time_sliced_data = data[data.index <= pd.Timestamp(fc_end + dt.timedelta(days=1))]
+		data.index = pd.to_datetime(data.index, utc=True)
+		# print("data.index BEFORE")
+		# print(data.index)
+		
+		# if there is no time component to the index...
+		if all(d.time() == dt.time(0) for d in data.index) and not data.index.empty:
+			# add a time component
+			data.index = data.index.map(lambda x: x.replace(hour=12)).tz_localize('UTC')
+		# print("data.index AFTER")
+		# print(data.index)
+		time_sliced_data = data[data.index <= (fc_end + dt.timedelta(days=1))]
 		time_sliced_data = time_sliced_data[time_sliced_data.index > pd.Timestamp(fc_start - dt.timedelta(days=14))]
 		ax.plot(time_sliced_data.index, time_sliced_data, label=lab)
 
