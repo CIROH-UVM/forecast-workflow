@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --partition=bluemoon
+#SBATCH --partition=general
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
