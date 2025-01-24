@@ -31,7 +31,7 @@ def leavenosuspect(raw_temp):
 	Returns:
 	A copy of the passed series with 's' and '*' characters removed
 	'''
-	print('Removing special indicator chars from raw air temp data...')
+	print('Removing special indicator chars from raw data...')
 	corrected_temp = raw_temp.copy()
 	for i, value in enumerate(raw_temp.astype(str)):
 		corrected_value = ''
@@ -101,7 +101,8 @@ def process_air_temp(temp_df, user_name):
 def process_relhum(relhum_df, user_name):
 	# get rid of duplicate timestamps, keep first instance of each duplicated index
 	relhum_df = relhum_df[~relhum_df.index.duplicated(keep='first')]
-	relhum_df[user_name] = relhum_df['HourlyRelativeHumidity'].astype('float')
+	# remove special characters from rel hum column
+	relhum_df[user_name] = leavenosuspect(relhum_df['HourlyRelativeHumidity'])
 	# now drop any NA's that remain in non-duplicated timestamps
 	relhum_df = relhum_df[~relhum_df[user_name].isna()]
 	relhum_df = relhum_df.assign(Units='%')
