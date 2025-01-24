@@ -1005,22 +1005,41 @@ def genclimatefiles(whichbay, settings):
 			observedClimateBTV[key] = copy.deepcopy(observedClimateBTV['401'])
 			observedClimateCR[key] = copy.deepcopy(observedClimateCR['401'])
 
+
 		# For MB (zone 401), we actually want cloud cover from Franklin Airport
 		# Franklin airport ID: 00152
 		# common code prefix for vermont stations: 726170
-		observedClimateFSO = lcd_ob.get_data(start_date = adjusted_spinup,
-									  	  end_date = settings['forecast_start'],
-									  	  locations = {"401":"72049400152"},
-										  variables = {'TCDC':'HourlySkyConditions'})
+		# try Franklin data grab - 7-day data grab might return empty json, so in that case, use BTV data
+		
+		# boolean switch - if true, we are using franklin aiport cloud data for the forecast period
+		fso_cloud_forecast = True
+		try:
+			# trying Franklin grab, and if that doesn't work...
+			logger.info("Trying to get Spinup Period cloud data from Franklin airport (72049400152)...")
+			observedClimateFSO = lcd_ob.get_data(start_date = adjusted_spinup,
+											end_date = settings['forecast_start'],
+											locations = {"401":"72049400152"},
+											variables = {'TCDC':'HourlySkyConditions'})
+		except Exception as e:
+			# use Burlington data
+			logger.warning("Franklin airport cloud data grab for Spinup Period Failed.")
+			logger.warning(e)
+			logger.warning("Getting Spinup Period cloud data from Burlington instead...")
+			fso_cloud_forecast = False
 
 		logger.info("Observed TCDC BTV:")
 		logger.info(observedClimateBTV['401']['TCDC'].info())
-		# now overwrite cloud cover for 401 - combine franklin cloud cover with that from BTV to fill in data gaps
-		observedClimateBTV['401']['TCDC'] = utils.combine_timeseries(primary = observedClimateFSO['401']['TCDC'],
-															   secondary = observedClimateBTV['401']['TCDC'],
-															   interval = '20min')
-		logger.info("Observed TCDC FSO:")
-		logger.info(observedClimateBTV['401']['TCDC'].info())
+
+		# only need to combine franklin and burlington cloud data if franklin data grab worked
+		# otherwise, no need to combine, will just use BTV cloud data
+		if fso_cloud_forecast:
+			# now overwrite cloud cover for 401 - combine franklin cloud cover with that from BTV to fill in data gaps
+			observedClimateBTV['401']['TCDC'] = utils.combine_timeseries(primary = observedClimateFSO['401']['TCDC'],
+																secondary = observedClimateBTV['401']['TCDC'],
+																interval = '20min')
+			logger.info("Observed TCDC FSO:")
+			logger.info(observedClimateBTV['401']['TCDC'].info())
+		
 		# cool new way to combine dictionaries (python >= 3.9)for zone, ds in climateObsCR.items():
 		# Both FEMC and LCD data grabbers now need mathing location keys to work since they are being combine
 		for zone in observedClimateCR.keys():
