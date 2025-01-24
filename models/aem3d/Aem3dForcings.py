@@ -10,6 +10,14 @@ import pandas as pd
 # I don't intend for the parent class, Aem3dForcings, to really be that functional;
 # instead, it just has common attributes and methods that the child classes can inherit
 class Aem3dForcings:
+	# These 5 reaches are the locations around which hydro, met, and nutrient data are organized
+	global reachnames
+	reachnames = {"MS":"Missisquoi",
+				  "ML":"Mill",
+				  "JS":"Jewett",
+				  "PK":"Pike",
+				  "RK":"Rock"}
+	
 	def __init__(self,
 				data=None,
 				start_date=None,
@@ -136,13 +144,6 @@ class HydroForcings(Aem3dForcings):
 			   "CA":ca_gauges}
 
 	streamflow = {'streamflow':'00060'}
-
-	global reachnames
-	reachnames = {"MS":"Missisquoi",
-				  "ML":"Mill",
-				  "JS":"Jewett",
-				  "PK":"Pike",
-				  "RK":"Rock"}
 	
 	### Initialize HydroForcings
 	def __init__(self,
@@ -270,19 +271,94 @@ class HydroForcings(Aem3dForcings):
 				csv_q[loc] = {"streamflow":q[fname].rename("Streamflow (m³/s)")}
 		self.set_data(csv_q)
 
-class NutrientForcings(Aem3dForcings):
+class MetrForcings(Aem3dForcings):
+	global aem3d_met_vars
+	aem3d_met_vars = {"TCDC":"Total cloud cover",
+					  "RAIN":"Precipitation rate",
+					  "T2":"Temperature at 2m",
+					  "RH2":"Relative humidity at 2m",
+					  "WSPEED":"Wind speed at 10m",
+					  "WDIR":"Wind direction at 10m",
+					  "SWDOWN":"Downward shortwave radiation flux",
+					  "LAKEHT":"Lake height"}
+	global climate_zones
+	climate_zones = {"401":"MB",
+				  	 "402":"SAB",
+					 "403":"IS"}
+	global femc_vars
+	femc_vars = ['T2', 'SWDOWN', 'RH2', 'WSPEED', 'WDIR']
+
+	global lcd_vars
+	lcd_vars = ['TCDC', 'RAIN']
+	
+	def __init__(self,
+				 data=None,
+				 start_date=None,
+				 end_date=None,
+				 locations=climate_zones,
+				 variables=aem3d_met_vars,
+				 source=None,
+				 period=None,
+				 dir=None):
+		super().__init__(data, start_date, end_date, locations, variables, source, period, dir)
+	
+	def get_metr_data(self):
+		print("ACQUIRING METEOROLOGY DATA")
+		print(f"\tPERIOD: {self.period}")
+		print(f"\tSTART DATE: {self.start_date}")
+		print(f"\tEND DATE: {self.end_date}")
+		print(f"\tLOCATIONS: {self.locations}")
+		print(f"\tVARIABLES: {self.variables}")
+		print(f"\tSOURCE: {self.source.split(':')[0]}")
+		if self.start_date is None or self.end_date is None:
+			raise ValueError("Start and end date must be provided to get meteorology data")
+		if self.locations is None:
+			raise ValueError("Locations must be provided to get meteorology data")
+		
+		if self.source == "NOAA_LCD+FEMC_CR":
+			raise ValueError("NOAA_LCD+FEMC_CR not yet implemented")
+		elif self.source == "NOAA_GFS":
+			raise ValueError("NOAA_GFS not yet implemented")
+		elif self.source == "NOAA_CFS":
+			raise ValueError("NOAA_CFS not yet implemented")
+		elif self.source.startswith("READ_CSV"):
+			csv_dir = self.source.split(":")[-1]
+			data_dir = self.dir
+			self.set_dir(os.path.join(data_dir, csv_dir))
+			print(f"\tMETR CSV DIR: {self.dir}")
+			self.parse_metr_csvs()
+
+
+	def parse_metr_csvs(self):
+		'''
+		Loads meteorology data from CSV files and sets resulting nested dict of Pandas Series as the data attribute of the MetrForcing object.
+		CSV files should be stored in the directory specified by the "data_dir" setting in default_Settings.json. Naming and format
+		for the meteorology CSVs follow the conventions establishded by Peter Isles' csv files. This and related functions could be made more general
+		in the future, in part by changing the naming conventiond in the code below
+		'''
+		pass
+
+
+class NutrForcings(Aem3dForcings):
+	##### Hardcoding paramters relevant to AEM3D workflow #####
+	global primary_nutrients
+	primary_nutrients = {"TN":"Total Nitrogen",
+					  	 "TP":"Total Phosphorus",
+						 "DP":"Dissolved Phosphorus"}
+
 	### Initialize NutrientForcings
 	def __init__(self,
 				data=None,
 				start_date=None,
 				end_date=None,
-				locations=None,
-				variables=None,
+				locations=reachnames,
+				variables=primary_nutrients,
 				source=None,
 				period=None,
 				dir=None):
 		# Call the parent class constructor
 		super().__init__(data, start_date, end_date, locations, variables, source, period, dir)
+
 
 if __name__ == "__main__":
 
@@ -296,4 +372,4 @@ if __name__ == "__main__":
 						  dir=SETTINGS['data_dir'],
 						  service='iv')
 	hydro.get_hydro_data()
-	print(hydro.access_data())
+	print(hydro)
