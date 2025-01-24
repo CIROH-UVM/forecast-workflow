@@ -30,7 +30,7 @@ from data import (femc_ob,
 
 from .waterquality import *
 from .AEM3D import *
-from .Aem3dForcing import *
+from .Aem3dForcings import *
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -670,6 +670,8 @@ def getdailyflows(whichbay, settings):
 	for loc in all_gauges.keys():
 		# Build Dictionary of Series with adjusted column names
 		dv_combined = pd.concat([spinupDailyFlows['MS']['streamflow'], forecastDailyFlows['MS']['streamflow']]).rename_axis('time').astype('float')
+		# remove any duplicate timestamps
+		dv_combined = dv_combined[~dv_combined.index.duplicated(keep='first')]
 		dv_dict = {'streamflow':dv_combined}
 		dv_flows[loc] = dv_dict
 	
@@ -727,10 +729,9 @@ class ShortwaveNudger:
 		#dayofyear = dt.strftime(swdownDF.index, '%-j')
 		dayofyear = swdownobj.index.strftime('%j').astype(int).to_series()
 
-		#print('Days of Year ',dayofyear)
-		#print(cls.nudge_df)
+		# print(cls.nudge_df)
 
-		multiplier = cls.nudge_df.iloc[dayofyear]['Ratio (MB/CR)'] # the multiplier for each data record
+		multiplier = cls.nudge_df.loc[dayofyear]['Ratio (MB/CR)'] # the multiplier for each data record
 		#print('Multipliers ',multiplier)
 
 		#swdownobj_nudged = swdownobj.reset_index(drop=True) * multiplier.reset_index(drop=True)
@@ -809,7 +810,7 @@ def femcRhumGapfill(femc_rh, start, end, allowed_gap_size=dt.timedelta(hours=2),
 		full_data = [rh_processed.loc[gap_zone_start:gap_zone_end]] + gap_plugs
 
 		# now make a plot
-		fig = utils.plot_ts(full_data, scale='days', labels=full_labels, colors=color_list)
+		fig = utils.plot_ts(full_data, scale='auto', labels=full_labels, colors=color_list)
 		fig.savefig(figname)
 
 		# quick catch to see if any Nan's were introduced with all the pandas shuffling above... they shouldn't have been
@@ -954,8 +955,6 @@ def adjustNOAAFSProducts(whichbay, dataset, settings):
 	return dataset
 
 def genclimatefiles(whichbay, settings):
-
-	global SCENARIO
 
 	THEBAY = whichbay   # passed object defining bay characteristics
 	year=THEBAY.year   # starting year pulled from IAMBAY class object (lib.py)
@@ -1960,7 +1959,7 @@ def AEM3D_prep_IAM(theBay, settings):
 	gentracerfiles(theBay)
 
 	# generate the water quality files (waterquality.py script)
-	genwqfiles(theBay)
+	genwqfiles(theBay, settings)
 
 	# generate the datablock.xml file
 	gendatablockfile(theBay, settings)
