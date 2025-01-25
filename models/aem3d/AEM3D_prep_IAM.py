@@ -193,29 +193,35 @@ def getRichelieuLakeHt(start, end, service='dv'):
 		# use the "dv" service
 		print(f"Requested date range ends before the beginning of the iv observations for Lake Height at the Richelieu gage ({rl_current_obs_begin})")
 		print("Or you've explicitly requested daily means... either way getting daily means:")
-		current_start = start
-		while current_start < end:
-			current_end = min(current_start + dt.timedelta(days=365), end)  # End of the 1-year chunk
+		# current_start = start
+		# counter = 1
+		# while current_start < end:
+		# 	print(f"ITER #: {counter}")
+		# 	current_end = min(current_start + dt.timedelta(days=365), end)  # End of the 1-year chunk
 			
-			# Fetch data for the current 1-year period
-			dv_data_chunk = usgs_ob.get_data(
-				start_date=current_start,
-				end_date=current_end,
-				locations=rl,
-				variables=lakeht,
-				service='dv')["RL"]["LAKEHT"]
+		# 	# Fetch data for the current 1-year period
+		# 	print("starting data get")
+		# 	dv_data_chunk = usgs_ob.get_data(
+		# 		start_date=current_start,
+		# 		end_date=current_end,
+		# 		locations=rl,
+		# 		variables=lakeht,
+		# 		service='dv')["RL"]["LAKEHT"]
+		
+		# 	# Add the chunk to the list
+		# 	dv_data_chunks.append(dv_data_chunk)
     
-			# Add the chunk to the list
-			dv_data_chunks.append(dv_data_chunk)
-    
-			# Update the start date for the next iteration
-			current_start = current_end
-		dv_data = {'RL':{"LAKEHT":pd.concat(dv_data_chunks)}}
-		# dv_data = usgs_ob.get_data(start_date = start,
-		# 						end_date = end,
-		# 						locations = rl,
-		# 						variables = lakeht,
-		# 						service='dv')
+		# 	# Update the start date for the next iteration
+		# 	current_start = current_end
+		# 	counter += 1
+		# print("Out of the loop")
+		# dv_data = {'RL':{"LAKEHT":pd.concat(dv_data_chunks)}}
+		# print("data concatenated")
+		dv_data = usgs_ob.get_data(start_date = start,
+								end_date = end,
+								locations = rl,
+								variables = lakeht,
+								service='dv')
 		return dv_data
 	# don't logically need the below end >= rl_current_obs_begin condition, since if the above if statement is false, then this one must be true
 	elif end >= rl_current_obs_begin and start >= rl_current_obs_begin:
@@ -687,28 +693,55 @@ def getdailyflows(whichbay, settings):
 #
 ##########################################################################
 
-def adjustCRTemp(air_data):
-	# S.E.T. - 20240206 - Adjust Colchester Reef Observed temp by month for the Missisquoi Bay Zone (401)
-	# the adjustment, by month, to apply to CR data for use in MissBay
-	tempadjust = {
-		1 : -2.6,
-		2 : -2.4,
-		3 : -0.7,
-		4 : 0.8,
-		5 : 1.3,
-		6 : 0.8,
-		7 : -0.4,
-		8 : -0.8,
-		9 : -1.0,
-		10 : -1.2,
-		11 : -1.6,
-		12 : -2.4 }
+# def adjustCRTemp(air_data):
+# 	# S.E.T. - 20240206 - Adjust Colchester Reef Observed temp by month for the Missisquoi Bay Zone (401)
+# 	# the adjustment, by month, to apply to CR data for use in MissBay
+# 	tempadjust = {
+# 		1 : -2.6,
+# 		2 : -2.4,
+# 		3 : -0.7,
+# 		4 : 0.8,
+# 		5 : 1.3,
+# 		6 : 0.8,
+# 		7 : -0.4,
+# 		8 : -0.8,
+# 		9 : -1.0,
+# 		10 : -1.2,
+# 		11 : -1.6,
+# 		12 : -2.4 }
+# 	print("line 715")
+# 	adjustedCRtemp = pd.Series()
+# 	print("air_data shape:")
+# 	print(air_data.shape)
+# 	for row in range(air_data.shape[0]):
+# 		print(row)
+# 		adjustedCRtemp[row] = air_data.iloc[row] + tempadjust[air_data.index[row].month]
+# 	print("out of loop")
+# 	adjustedCRtemp = adjustedCRtemp.set_axis(air_data.index)
+# 	print("line 720")
+# 	return adjustedCRtemp
 
-	adjustedCRtemp = pd.Series()
-	for row in range(air_data.shape[0]):
-		adjustedCRtemp[row] = air_data.iloc[row] + tempadjust[air_data.index[row].month]
-	adjustedCRtemp = adjustedCRtemp.set_axis(air_data.index)
-	return adjustedCRtemp
+def adjustCRTemp(air_data):
+    # S.E.T. - 20240206 - Adjust Colchester Reef Observed temp by month for the Missisquoi Bay Zone (401)
+    # the adjustment, by month, to apply to CR data for use in MissBay
+    # P.J.C. - 20250124 - Updated to use pandas vectorized math so performance is much improved
+   
+    tempadjust_dict = {
+        1 : -2.6,
+        2 : -2.4,
+        3 : -0.7,
+        4 : 0.8,
+        5 : 1.3,
+        6 : 0.8,
+        7 : -0.4,
+        8 : -0.8,
+        9 : -1.0,
+        10 : -1.2,
+        11 : -1.6,
+        12 : -2.4 }
+ 
+    tempadjust = pd.Series(tempadjust_dict)
+    return air_data + tempadjust[air_data.index.month].set_axis(air_data.index)
 
 
 # Class for adjusting shortwave radiation
@@ -1142,6 +1175,7 @@ def genclimatefiles(whichbay, settings):
 		# 								locations = {"RL":'04295000'},
 		# 								variables = {'LAKEHT':'62614'})
 		# adjust height reference to 93 ft and convert to meters
+		print("Out of getRichelieuLakeHt()...")
 		forecastlake['RL']['LAKEHT'] = (forecastlake['RL']['LAKEHT']-93) * 0.3048
 		# store observed lake height in bay object for later concat with predicted height
 		forecastClimate['300'] = forecastlake['RL']
