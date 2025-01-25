@@ -1969,7 +1969,7 @@ def AEM3D_prep_IAM(theBay, settings):
 
 	global FIG
 	global SUBPLOT_PACKAGES
-	make_figure(SUBPLOT_PACKAGES)
-	FIG.savefig('weatherVars.png')
+	# make_figure(SUBPLOT_PACKAGES)
+	# FIG.savefig('weatherVars.png')
 
 	return 0
