@@ -1,11 +1,11 @@
 import datetime as dt
-from .utils import add_units, get_hour_diff, parse_to_datetime
+import data.utils as utils
 import pandas as pd
 import zarr
 import xarray as xr
 
 '''
-Data Aquisition Module for NOAA Analysis of Record for Calibration (AORC) Dataset
+Data Aquisition Module for NOAA Analysis of Record for Calibration (AORC) v1.1 Dataset
 Amazon Bucket (cuurently implmented): https://registry.opendata.aws/noaa-nws-aorc/
 NOAA NWS AORC archive: (not implemented): https://hydrology.nws.noaa.gov/aorc-historic/AORC_NERFC_4km/NERFC_precip_partition/
 '''
@@ -38,11 +38,11 @@ def get_data(start_date,
 	# 			 'V-Component of Wind':'VGRD_10maboveground'}
 
 	# standardize datetime inputs
-	start_date = parse_to_datetime(start_date)
-	end_date = parse_to_datetime(end_date)
+	start_date = utils.parse_to_datetime(start_date)
+	end_date = utils.parse_to_datetime(end_date)
 
 	# remove time zone info dor Datetime index, as AORC zarr files don't specify timezone
-	dates = pd.DatetimeIndex([start_date.replace(tzinfo=None)+(dt.timedelta(hours=1)*i) for i in range(0, get_hour_diff(start_date, end_date))])
+	dates = pd.DatetimeIndex([start_date.replace(tzinfo=None)+(dt.timedelta(hours=1)*i) for i in range(0, utils.get_hour_diff(start_date, end_date))])
 	years = list(range(start_date.year, end_date.year+1))
 
 	# define the AORC bucket
@@ -88,6 +88,14 @@ def get_data(start_date,
 	approx_lats = ds['latitude'].values
 	approx_lons = ds['longitude'].values
 
+	# location dictionary but the coordinates are the actual values pulled out of the AORC dataset
+	approx_locs = {loc:(lat, lon) for loc, lat, lon in zip(list(locations.keys()), approx_lats, approx_lons)}
+
+	print("Requested coordinates --> nearest AORC coordinates")
+	for loc, coords in locations.items():
+		print(loc)
+		print(f"\t{coords} --> {approx_locs[loc]}")
+
 	# group dataset by latitude
 	grouped_ds = ds.groupby('latitude')
 	# select and concat only the datasets that correspond to the lat/lon pairs that we need
@@ -110,7 +118,7 @@ def get_data(start_date,
 	aorc_data = {location:{name:data.dropna() for name, data in loc_df.drop(['latitude','longitude'], axis=1).T.iterrows()} for location, loc_df in location_dataframes.items()}
 
 	# add units to nested series dictionary
-	add_units(aorc_data, var_units)
+	utils.add_units(aorc_data, var_units)
 
 	# return the AORC data
 	return aorc_data
