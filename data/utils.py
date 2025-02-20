@@ -518,36 +518,58 @@ def plot_ts(series_list, scale='auto', **kwargs):
 	plt.close(fig)
 	return fig
 
-def plot_nested_dict(data):
+def plot_nested_dict(data, **kwargs):
 	"""
 	Makes a figure with n subplots, where n is the number of vaiables in each location dict. Must have the same variables for each location
-	
+
 	Parameters:
-		data (dict): A nested dictionary where the outer keys are categories 
-					 and the inner keys are variables with their corresponding values.
+		-- data (dict): A nested dictionary where the outer keys are categories 
+						and the inner keys are variables with their corresponding values.
+		-- kwargs [opt]: various kwargs to pass to matpllotlib plotting functions. 
+			- interval (int): interval for x-axis tick marks, whether the scale be days, hours, etc (forwarded to plot_ts() in single-variable cases only)
+			- labels (list): list of labels to use for each series, respectively, in plt.plot()
+			- colors (list): list of colors to use for each series, respectively, in plt.plot()
 	"""
 	# Get the list of variables from the first category
 	locations = list(data.keys())
 	variables = list(data[locations[0]].keys())
 
 	n = len(variables)  # Number of variables
-	fig, axes = plt.subplots(n, 1, figsize=(10, n*4))  # Create subplots
 
-	# define a color map
-	cmap = plt.get_cmap("tab10") # 'Set1', 'Set2'
-	colors = [cmap(i) for i in range(len(locations))]
-	for i, var in enumerate(variables):
-		for j, loc in enumerate(locations):
-			series = data[loc][var]
-			axes[i].plot(series.index, series.values, label=loc, color=colors[j])
-			axes[i].set_title(var)
-			axes[i].set_xlabel('Datetime')
-			axes[i].set_ylabel(series.name)
-			axes[i].legend()
-			axes[i].grid()
+	# if there's more than 1 variable to plot, we need to make subplots
+	if n > 1:
+		fig, axes = plt.subplots(n, 1, figsize=(10, n*4))  # Create subplots
+		# check to see if colors (list) was passed. If not, set to None
+		colors = kwargs.pop('colors', None)
+		if colors is None:
+			# define a color map
+			cmap = plt.get_cmap("tab10") # 'Set1', 'Set2'
+			colors = [cmap(i) for i in range(len(locations))]
+		for i, var in enumerate(variables):
+			for j, loc in enumerate(locations):
+				series = data[loc][var]
+				axes[i].plot(series.index, series.values, label=loc, color=colors[j])
+				axes[i].set_title(var)
+				axes[i].set_xlabel('Datetime')
+				axes[i].set_ylabel(series.name)
+				axes[i].legend()
+				axes[i].grid()
 
-	plt.tight_layout()  # Adjust layout to prevent overlap
-	return fig
+		plt.tight_layout()  # Adjust layout to prevent overlap
+		return fig
+	
+	# otherwise, we just need one plot
+	else:
+		# returns a list of series to be plotted
+		# NOTE: indexing the first position is allowable because it is assumed that there is one variable per location
+		# that is why we are making a single timeseries plot
+		series_list = [list(vardict.values())[0] for vardict in data.values()]
+		# if 'labels' were passed in plot_nested_dict, use those. otherwise, use the default location names from the nested dict
+		if 'labels' in kwargs:
+			labels = kwargs.pop('labels', None)
+		else: labels = locations
+		# pass any other kwargs to plot_ts
+		return plot_ts(series_list, labels=labels, **kwargs)
 
 def report_gaps(series):
 	"""
@@ -580,6 +602,8 @@ def report_gaps(series):
 		elif not is_nan.iloc[i] and gap_start is not None:
 			# End of the current gap
 			gap_end = series.index[i - 1]
+			gap_start_ind = series.index.get_loc(gap_start)
+			# duration = series.index[i] - series.index[gap_start_ind - 1]
 			duration = gap_end - gap_start
 			# if the timedelta between the start and end of the gap is zero, then it reprewsents a single missing data point
 			if duration.to_pytimedelta().total_seconds() == 0:
