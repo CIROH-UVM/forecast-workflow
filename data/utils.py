@@ -4,6 +4,7 @@ import pandas as pd
 import sh
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import numpy as np
 '''
 A module containing helper and utility functions for the data acquisiton modules
 '''
@@ -175,7 +176,7 @@ def complete_dt_index(tsindx, start_t=None, end_t=None, gap_dur=None, **kwargs):
 	-- tsindx (pd.DatetimeIndex) [req]: The original datetime index that may contain temporal gaps. The function will infer the appropriate interval between timestamps if `gap_dur` is not provided.
     -- start_t (pd.timestamp, dt.datetime, None) [opt]: Expected start time of the timeseries. If None, uses the first timestamp in `tsindx`
     -- end_t (pd.timestamp, dt.datetime, None) [opt]: Expected end time of timeseries. If None, uses the last timestamp in `tsindx`. 
-    -- gap_dur (pd.Timedelta or None) [opt]: The longest acceptable time interval between timestamps in the series. If None, eses the most common time interval found in tsindx
+    -- gap_dur (pd.Timedelta or None) [opt]: The longest acceptable time interval between timestamps in the series. If None, uses the most common (mode) time interval found in tsindx
     -- **kwargs: Additional keyword arguments passed to `pd.date_range()`
 
 	Returns:
@@ -443,11 +444,18 @@ def plot_ts(series_list, scale='auto', **kwargs):
 
 	Args:
 	-- series_list (list) [req]: a list of Pandas.Series to plot
-	-- scale (str) [opt]: determines the x-axis tick mark scale. Options are 'hours', 'days', or 'auto', which will try to determine the best scale for the x-axis based on the series' indices'.
+	-- scale (str) [opt]: determines the x-axis tick mark scale. Options are:
+	 	- 'years'
+		- 'months'
+		- 'weeks'
+		- 'days'
+		- 'hours'
+		- 'auto' : will try to determine the best scale for the x-axis based on the series' indices'
 	-- kwargs [opt]: various kwargs to pass to matpllotlib plotting functions. 
-			- interval (int): interval for x-axis tick marks, whether the scale be days, hours, etc
-			- labels (list): list of labels to use for each series, respectively, in plt.plot()
-			- colors (list): list of colros to use for each series, respectively, in plt.plot()
+		- interval (int): interval for x-axis tick marks, whether the scale be days, hours, etc
+		- labels (list): list of labels to use for each series, respectively, in plt.plot()
+		- colors (list): list of colors to use for each series, respectively, in plt.plot()
+		- title (str): a custom title for the plot
 	
 	Returns:
 	the figure object created. 
@@ -458,6 +466,7 @@ def plot_ts(series_list, scale='auto', **kwargs):
 	interval = kwargs.pop('interval', 1)
 	labels = kwargs.pop('labels', None)
 	colors = kwargs.pop('colors', None)
+	title = kwargs.pop('title', None)
 
 	for i, series in enumerate(series_list):
 		kwargs_single = dict()
@@ -468,23 +477,36 @@ def plot_ts(series_list, scale='auto', **kwargs):
 	if labels:
 		ax.legend()
 	
-	ax.set_title(f'{series_list[0].name} from {series_list[0].index[0].strftime("%m-%d-%Y")} to {series_list[0].index[-1].strftime("%m-%d-%Y")}')
+	if title:
+		ax.set_title(title)
+	else: ax.set_title(f'{series_list[0].name} from {series_list[0].index[0].strftime("%m-%d-%Y")} to {series_list[0].index[-1].strftime("%m-%d-%Y")}')
+	
 	ax.set_ylabel(series.name)
 	ax.set_xlabel('Date')
 
 	# Format x-axis: show only month and day, and increase tick frequency
-	if scale == 'days':
-		ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))  # Month-Day format
-		ax.xaxis.set_major_locator(mdates.DayLocator(interval=interval))
-	elif scale == 'hours':
-		ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))  # Month-Day format
-		ax.xaxis.set_major_locator(mdates.HourLocator(interval=interval))
-	elif scale == 'auto':
-		# Auto format axis by default
-		autolocator = mdates.AutoDateLocator()
-		autoformatter = mdates.AutoDateFormatter(autolocator)
-		ax.xaxis.set_major_formatter(autoformatter)
-		ax.xaxis.set_major_locator(autolocator)
+	match scale:
+		case 'years':
+			ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+			ax.xaxis.set_major_locator(mdates.YearLocator(base=interval))  # Set ticks at year intervals
+		case 'months':
+			ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%Y'))
+			ax.xaxis.set_major_locator(mdates.MonthLocator(interval=interval))  # Set ticks at month intervals
+		case 'weeks':
+			ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d/%Y'))
+			ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=interval))  # Set ticks at week intervals
+		case 'days':
+			ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
+			ax.xaxis.set_major_locator(mdates.DayLocator(interval=interval))
+		case 'hours':
+			ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))
+			ax.xaxis.set_major_locator(mdates.HourLocator(interval=interval))
+		case 'auto':
+			# Auto format axis by default
+			autolocator = mdates.AutoDateLocator()
+			autoformatter = mdates.AutoDateFormatter(autolocator)
+			ax.xaxis.set_major_formatter(autoformatter)
+			ax.xaxis.set_major_locator(autolocator)
 
 	# Rotate the x-axis labels
 	ax.tick_params(axis='x', rotation=45)
