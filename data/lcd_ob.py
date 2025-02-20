@@ -1,8 +1,38 @@
+from data import utils
 import datetime as dt
-import requests
+import numpy as np
 import pandas as pd
-from .utils import parse_to_datetime, fahr_to_celsius
+import requests
+import warnings
 
+'''
+var_units represents a dictionary of LCD variable names and their corresponding units.
+Only the variables listed here have been tested and are sure to work in this module.
+
+LCD metadata and attributes, inlcude standard and metric units, can be found at:
+https://www.ncei.noaa.gov/access/services/support/v3/datasets.json
+'''
+global standard_var_units
+standard_var_units = {'HourlySkyConditions':'%',
+					  'HourlyPrecipitation':'inches',
+					  'HourlyDryBulbTemperature':'\N{DEGREE SIGN}F',
+					  'HourlyRelativeHumidity':'%',
+					  'HourlyWindSpeed':'mph',
+					  'HourlyWindDirection':'\N{DEGREE SIGN}E of N'}
+
+global metric_var_units
+metric_var_units = {'HourlySkyConditions':'%',
+					'HourlyPrecipitation':'mm',
+					'HourlyDryBulbTemperature':'\N{DEGREE SIGN}C',
+					'HourlyRelativeHumidity':'%',
+					'HourlyWindSpeed':'m/s',
+					'HourlyWindDirection':'\N{DEGREE SIGN}E of N'}
+
+'''
+
+Var-specific processing functions:
+
+'''
 def splitsky ( instring ) :
 	thestring = str(instring)
 	tokens = thestring.split(':')   # looking for at least one cover code marker :
