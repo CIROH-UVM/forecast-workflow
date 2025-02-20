@@ -20,34 +20,12 @@ def sky2prop (theskycode) :
   theprop = skypropmap[str(theskycode)]
   return theprop
 
-def leavenosuspect(raw_temp):
-	'''
-	Processes air temp Series to strip away 's' and '*' characters from the data. These are special indicator characters appended to some air temp values
-	from the Burlington Airport weather station. For more info on special indicator characters, see https://www.ncei.noaa.gov/pub/data/cdo/documentation/LCD_documentation.pdf
-	
-	Args:
-	-- raw_temp (Pandas Series) [req]: the raw temp Series to parse
-
-	Returns:
-	A copy of the passed series with 's' and '*' characters removed
-	'''
-	print('Removing special indicator chars from raw data...')
-	corrected_temp = raw_temp.copy()
-	for i, value in enumerate(raw_temp.astype(str)):
-		corrected_value = ''
-		# correct suspect values
-		if 's' in value:
-			corrected_value = value.replace('s','')
-			corrected_temp[i] = corrected_value
-		# correct missing values
-		if '*' in value:
-			corrected_value = value.replace('*', 'nan')
-			corrected_temp[i] = corrected_value
-		# if no correction is needed, use original value
-		if corrected_value:
-			print(f'Value at index {i} corrected from {value} to {corrected_value}')
-		else: corrected_temp[i] = value
-	return corrected_temp.astype(float)
+def process_clouds(cloud_series):
+	cloud_series = cloud_series.apply(splitsky)
+	# Remove those that don't convert to skycode... junk entries
+	cloud_series = cloud_series[cloud_series != ' ']
+	cloud_series = cloud_series.apply(sky2prop)
+	return cloud_series
 
 def leavenotrace (precip) :
 	if str(precip) == 'T' :
@@ -60,13 +38,6 @@ def leavenotrace (precip) :
 		#return precip
 		return str(precip).replace('s', '')
 
-def create_final_df(df, colToKeep, index):
-	# print(f'Creating final df for {colToKeep}')
-	# print(df[colToKeep])
-	# print(df['Units'])
-	# 20231211 - set index as datetime with timezone suffix set to UTC; data is in UTC, tz_localize() tells pandas that
-	return pd.DataFrame(data={colToKeep: df[colToKeep].to_numpy(), 'Units':df['Units'].to_numpy()}, index=pd.DatetimeIndex(data=pd.to_datetime(df[index]), name='time')).tz_localize('UTC')
-
 def process_rain(precip_df, user_name):
 	# First replace 'T's for trace precip with 0.0
 	#  leavenotrace also removes 's' notations on some precip values
@@ -78,34 +49,25 @@ def process_rain(precip_df, user_name):
 	precip_df = precip_df.assign(Units='inches')
 	return precip_df
 
-def process_clouds(cloud_df, user_name):
-	cloud_df['skycode'] = cloud_df['HourlySkyConditions'].apply(splitsky)
-	# Remove those that don't convert to skycode... junk entries
-	cloud_df = cloud_df[cloud_df['skycode'] != ' ']
-	cloud_df[user_name] = cloud_df['skycode'].apply(sky2prop).astype('float')
-	# add units
-	cloud_df = cloud_df.assign(Units='%')
-	return cloud_df
+# def process_air_temp(temp_df, user_name):
+# 	# create a new column with user-defined var name, and strip special indicator characters
+# 	temp_df[user_name] = leavenosuspect(temp_df['HourlyDryBulbTemperature'])
+# 	# uncomment the below line to convert temperature to celsius
+# 	# temp_df[user_name] = fahr_to_celsius(temp_df[user_name])
+# 	# drop NA's, based on corrected column
+# 	temp_df = temp_df[~temp_df[user_name].isna()]
+# 	# adding a units column
+# 	temp_df = temp_df.assign(Units='\N{DEGREE SIGN}F')
+# 	return temp_df
 
-def process_air_temp(temp_df, user_name):
-	# create a new column with user-defined var name, and strip special indicator characters
-	temp_df[user_name] = leavenosuspect(temp_df['HourlyDryBulbTemperature'])
-	# uncomment the below line to convert temperature to celsius
-	# temp_df[user_name] = fahr_to_celsius(temp_df[user_name])
-	# drop NA's, based on corrected column
-	temp_df = temp_df[~temp_df[user_name].isna()]
-	# adding a units column
-	temp_df = temp_df.assign(Units='\N{DEGREE SIGN}F')
-	return temp_df
-
-def process_relhum(relhum_df, user_name):
-	# get rid of duplicate timestamps, keep first instance of each duplicated index
-	relhum_df = relhum_df[~relhum_df.index.duplicated(keep='first')]
-	# remove special characters from rel hum column
-	relhum_df[user_name] = leavenosuspect(relhum_df['HourlyRelativeHumidity'])
-	# now drop any NA's that remain in non-duplicated timestamps
-	relhum_df = relhum_df[~relhum_df[user_name].isna()]
-	relhum_df = relhum_df.assign(Units='%')
+# def process_relhum(relhum_df, user_name):
+# 	# get rid of duplicate timestamps, keep first instance of each duplicated index
+# 	relhum_df = relhum_df[~relhum_df.index.duplicated(keep='first')]
+# 	# remove special characters from rel hum column
+# 	relhum_df[user_name] = leavenosuspect(relhum_df['HourlyRelativeHumidity'])
+# 	# now drop any NA's that remain in non-duplicated timestamps
+# 	relhum_df = relhum_df[~relhum_df[user_name].isna()]
+# 	relhum_df = relhum_df.assign(Units='%')
 # 	return relhum_df
 
 '''
