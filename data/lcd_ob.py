@@ -106,9 +106,121 @@ def process_relhum(relhum_df, user_name):
 	# now drop any NA's that remain in non-duplicated timestamps
 	relhum_df = relhum_df[~relhum_df[user_name].isna()]
 	relhum_df = relhum_df.assign(Units='%')
-	return relhum_df
+# 	return relhum_df
 
-def retrieve_data(startDate, endDate, variable, station_id):
+'''
+Some variables may need unique special methods to parse the data (such as splitsky() for clouds for example). Others do not.
+Regardless, the general procedure for cleaning the raw data returned by the API is written partially in  clean_raw_df() and then get_data(), and is in order as follows:
+
+1. Remove duplicate values in the 'DATE' column, comparing 'REPORT_TPYE' to decide between which duplicates to keep
+2. Set the index of the df to the 'DATE' column as UTC datetime timestamps, rename to 'time'
+3. Remove special indicator characters ['*', 's'] from the data
+4. Cast series values as np.float64 type
+5. Remove Nan's from the data
+6. Add a unit the series' name
+'''
+def clean_raw_df(raw_df):
+	'''
+	1. Remove duplicate values in the 'DATE' column
+	2. Set the index of the df to the 'DATE' column as UTC datetime timestamps, rename to 'time'
+	'''
+	# all of the duplicated Dates
+	all_dup_rows = raw_df.loc[raw_df['DATE'].duplicated(keep=False)]
+	# Keep FM-16 reports, as we will prefer those over FM-15 reports when they exist for duplicated timestamps, since they are specially updated reports
+	# we will also keep SOD reports over SOM reports when they exist for duplicated timestamps
+	'''
+	FM-15 = METAR Aviation routine weather report
+	FM-16 = SPECI Aviation selected special weather report
+	SOD = Summary of day report from U.S. ASOS or AWOS station
+	SOM = Summary of month report from U.S. ASOS or AWOS station
+
+	Source: https://www.ncei.noaa.gov/data/global-hourly/doc/isd-format-document.pdf
+	'''
+	drop_indices = []
+	for ts, dups in all_dup_rows.groupby(['DATE']):
+		# print(f"for duplicate Timestamp: {ts}")
+		rtypes = dups['REPORT_TYPE'].values
+		# print(f"\treport types: {rtypes}")
+		# If there is a FM-16 report in the duplicate pair, keep it; drop the other report
+		if 'FM-16' in rtypes:
+			dups = dups[dups['REPORT_TYPE'] != 'FM-16']
+		# else if there's no FM-16, keep the FM-15 report
+		elif 'FM-15' in rtypes:
+			dups = dups[dups['REPORT_TYPE'] != 'FM-15']
+		# next highest priority is FM-12
+		elif 'FM-12' in rtypes:
+			dups = dups[dups['REPORT_TYPE'] != 'FM-12']
+		# next highest priority is SOD
+		elif 'SOD  ' in rtypes:
+			dups = dups[dups['REPORT_TYPE'] != 'SOD  ']
+		# theoretically, duplicate groups should be in pairs, so there should be just one left aftering dropping the rows we intend to keep
+		if len(dups) > 1:
+			raise IndexError(f"Duplicates still detected after filtering: {dups.values}")
+		# print(f"DUPS AFTER FILTERING: {dups['REPORT_TYPE']}")
+		# the indices that remain after filtering correspond to the rows we want to drop
+		drop_indices.append(dups.index[0])
+	# print(drop_indices)
+	# drop the row for the report that we don't want to keep
+	no_dup_df = raw_df.drop(index=drop_indices)
+	# check to ensure that no duplicates remain
+	if any(no_dup_df['DATE'].duplicated(keep=False)):
+		raise IndexError(f"Duplicate timestamps detected: {no_dup_df[no_dup_df['DATE'].duplicated(keep=False)]}")
+	# set the index to the DATE column as datetime timestamps, rename to 'time'
+	no_dup_df.set_index(pd.to_datetime(no_dup_df['DATE'], utc=True), inplace=True)
+	no_dup_df.index.rename('time', inplace=True)
+	return no_dup_df
+
+def scrubSpecialChars(raw_series, inplace=False):
+	'''
+	Processes raw LCD data Series to strip away 's' and '*' characters. These are special indicator characters appended to weather data values
+	from the Burlington Airport weather station (and LCD datasets broadly). For more info on special indicator characters, see https://www.ncei.noaa.gov/pub/data/cdo/documentation/LCD_documentation.pdf
+	
+	Args:
+	-- raw_series (Pandas Series) [req]: the raw Series to scrub
+
+	Returns:
+	A copy of the passed series with 's' and '*' characters removed
+	'''
+	# print('Removing special indicator chars from raw data...')
+	corrected_series = raw_series.copy()
+	for i, value in enumerate(raw_series.astype(str)):
+		corrected_value = ''
+		# correct suspect values
+		# 's' character means suspect value; keep the value, ditch the char
+		if 's' in value:
+			corrected_value = value.replace('s','')
+			corrected_series.iloc[i] = corrected_value
+		# correct missing values
+		# '*' shows up by itself and has no value associated with it
+		if '*' in value:
+			corrected_value = value.replace('*', 'nan')
+			corrected_series.iloc[i] = corrected_value
+		# removing variable wind (or could replace with different value)
+		if value == 'VRB':
+			corrected_value = value.replace('VRB', 'nan')
+			corrected_series.iloc[i] = corrected_value
+		# if no correction is needed, use original value
+		if corrected_value:
+			# optional log message below
+			# print(f'Value at index {i} corrected from {value} to {corrected_value}')
+			pass
+		else: corrected_series.iloc[i] = np.float64(value)
+	if inplace:
+		raw_series[:] = corrected_series.astype(float)
+		return None
+	else: return corrected_series.astype(float)
+
+
+# def create_final_df(df, colToKeep, index):
+# 	# print(f'Creating final df for {colToKeep}')
+# 	# print(df[colToKeep])
+# 	# print(df['Units'])
+# 	# 20231211 - set index as datetime with timezone suffix set to UTC; data is in UTC, tz_localize() tells pandas that
+# 	return pd.DataFrame(data={colToKeep: df[colToKeep].to_numpy(), 'Units':df['Units'].to_numpy()}, index=pd.DatetimeIndex(data=pd.to_datetime(df[index]), name='time')).tz_localize('UTC')
+
+def lcdRequest(startDate, endDate, var_list, station_id, units='standard'):
+	# join all requested variables by a comma for the API call
+	varstring = (',').join(var_list)
 	# put this in loop since this fails frequently
 	returnValue = None
 	# note that 'T00:00:00Z' is added to startDate (and similar appendage) to endDate in order to grab data for UTC time
@@ -118,12 +230,15 @@ def retrieve_data(startDate, endDate, variable, station_id):
 								'&stations='+\
 									station_id+\
 								'&startDate='+\
-									str(startDate)+'T00:00:00Z'+\
+									str(startDate.date())+'T00:00:00Z'+\
 								'&endDate='+\
-									str(endDate-dt.timedelta(days=1))+'T23:59:00Z'+\
+									str(endDate.date()-dt.timedelta(days=1))+'T23:59:00Z'+\
 								'&dataTypes='+\
-									variable+\
-								'&format=json' 
+									varstring+\
+								'&format=json'+\
+								'&reportTypes=FM-15'+\
+								'&units='+\
+									units
 		print(requeststring)
 		result = requests.get(requeststring)
 		# Old way to test for valid response
@@ -134,69 +249,78 @@ def retrieve_data(startDate, endDate, variable, station_id):
 		try:
 			returnValue = result.json()
 		except:
-			print("NOAA Local Climatological Data Request Failed... Will retry")
+			print('NOAA Local Climatological Data Request Failed... Will retry')
 			print(result.text)
 	# logger.info('result.text')
 	# logger.info(result.text)
 
 	return pd.DataFrame(returnValue)
-	
 
 def get_data(start_date,
-			 end_date,
-			 locations,
-			 variables):
+			  end_date,
+			  locations,
+			  variables,
+			  units='standard'):
 	"""
 	A function to download and process NOAA Local Climatological Data data to return nested dictionary of pandas series for each variable, for each location.
 
 	Args:
 	-- start_date (str, date, or datetime) [req]: the start date for which to grab LCD data.
 	-- end_date (str, date, or datetime) [req]: the end date for which to grab LCD data.
-	-- locations (dict) [req]: a dictionary (stationID/name:IDValue/latlong tuple) of locations to get USGS data for.
+	-- locations (dict) [req]: a dictionary (stationID/name:IDValue/latlong tuple) of locations to get data for.
 	-- variables (dict) [req]: a dictionary of variables to download, where keys are user-defined variable names and values are LCD-specific variable names.
-								Currently only works for LCD variables HourlyPrecipitation, HourlySkyCondtions, and HourlyDryBulbTemperature. 
+								Currently only tested for variables listed in global var_units. 
+	-- units (str) [opt]: specifies unit convention for the data request. Options are 'standard' for standard US units, or 'metric' for metric units.
 		
 	Returns:
 	NOAA Local Climatological Data timeseries for the given locations in a nested dict format where 1st-level keys are user-provided location names and 2nd-level keys
 	are variables names and values are the respective data in a Pandas Series object.
 	"""
-
-	# 20231211 - Do not adjust passed dates to a previous day, that's a caller concern if that data buffer is needed
-	start_date = parse_to_datetime(start_date).date()
-	end_date = parse_to_datetime(end_date).date()
+	start_date = utils.parse_to_datetime(start_date)
+	end_date = utils.parse_to_datetime(end_date)
 	lcd_data = {loc:{} for loc in locations.keys()}
-
 	for station, id in locations.items():
-		# define an empty return dict for each station
-		returnDict = {}
-		# define dicionaries to hold raw and processed lcd data
-		raw_data = {}
-		processed_data = {}
-		# retrieve all of the data in the variables dictionary
-		for user_name, lcd_name in variables.items():
-			raw_data[user_name] = retrieve_data(start_date, end_date, lcd_name, id)
-			# keep first instance of any duplicates in the raw data
-			print('Removing duplicate timestamps from raw data, keeping first instance of each duplication...')
-			raw_data[user_name] = raw_data[user_name].loc[~raw_data[user_name]['DATE'].duplicated(keep='first')]
-			try:
-				print(f"{lcd_name} for station ID {id}")
-				print(raw_data[user_name])
-			except Exception as e:
-				print(f'{type(e)}:{e}')
-			# add more cases as more variables come in and need specific processing
-			match lcd_name:
-				case 'HourlySkyConditions':
-					processed_data[user_name] = process_clouds(raw_data[user_name], user_name)
-				case 'HourlyPrecipitation':
-					processed_data[user_name] = process_rain(raw_data[user_name], user_name)
-				case 'HourlyDryBulbTemperature':
-					processed_data[user_name] = process_air_temp(raw_data[user_name], user_name)
-				case 'HourlyRelativeHumidity':
-					processed_data[user_name] = process_relhum(raw_data[user_name], user_name)
-			
-			returnDict[user_name] = create_final_df(processed_data[user_name], user_name, 'DATE')
-		# return processed_data
-		# created nested dictionary of pd.Series for each variable for each location
-		lcd_data[station] = {var:df[var].rename(f'{var} ({df["Units"].iloc[0]})') for var, df in returnDict.items()}
-
+		print(f'Requesting data for {station}: {id}')
+		raw_df = lcdRequest(start_date, end_date, var_list=list(variables.values()), station_id=id, units=units)
+		if raw_df.empty:
+			warnings.warn(f"Above API request returns empty dataframe")
+		else:
+			clean_df = clean_raw_df(raw_df)
+			var_dict = {}
+			for user_name, lcd_name in variables.items():
+				print(f"Processing {lcd_name} data...")
+				try:
+					var_series = clean_df[lcd_name]
+				except Exception as e:
+					# print(e)
+					warnings.warn(f"The following variable was not available for the above API request: {lcd_name}")
+					continue
+				match lcd_name:
+					case 'HourlySkyConditions':
+						var_series = process_clouds(var_series)
+					case 'HourlyPrecipitation':
+						var_series = var_series.apply(leavenotrace)
+				# scrub special indicator characters from data as described in LCD documentation
+				# casts remaining values to float64
+				var_series = scrubSpecialChars(var_series)
+				# wind processing requires that the series already be cast as floats
+				match lcd_name:
+					case 'HourlyWindDirection':
+						# drop rows where wind direction = 0 (little to no wind)
+						var_series = var_series[var_series != 0]
+					case 'HourlyWindSpeed':
+						# Remove any outliers in the data (removing wind speed greater than 300 mph seems reasonable)
+						var_series = var_series[var_series<300]
+				# now drop nan's from series
+				# var_series.dropna(inplace=True)
+				# add unit information to the series' name
+				match units:
+					case 'standard':
+						var_units = standard_var_units
+					case 'metric':
+						var_units = metric_var_units
+				var_series.rename(f"{user_name} ({var_units[lcd_name]})", inplace=True)
+				# assign series to variable key
+				var_dict[user_name] = var_series
+			lcd_data[station] = var_dict
 	return lcd_data
