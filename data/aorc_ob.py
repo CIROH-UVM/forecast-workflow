@@ -1,7 +1,7 @@
 import datetime as dt
 from .utils import add_units, get_hour_diff, parse_to_datetime
 import pandas as pd
-import s3fs
+import zarr
 import xarray as xr
 
 '''
@@ -46,13 +46,28 @@ def get_data(start_date,
 	years = list(range(start_date.year, end_date.year+1))
 
 	# define the AORC bucket
-	bucket = 's3://noaa-nws-aorc-v1-1-1km'
+	bucket = 'noaa-nws-aorc-v1-1-1km'
 
 	# define the fileset for each year requested
-	s3_out = s3fs.S3FileSystem(anon=True)
-	fileset = [s3fs.S3Map(
-				root=f"s3://{bucket}/{dataset_year}.zarr", s3=s3_out, check=False
-			) for dataset_year in years]
+	
+	# Original Version by Noah Becakge... But ZARR no longer likes S3Map
+	# s3_out = s3fs.S3FileSystem(anon=True)
+	# fileset = [s3fs.S3Map(
+	# 			root=f"s3://{bucket}/{dataset_year}.zarr", s3=s3_out, check=False
+	# 		) for dataset_year in years]
+	
+	# Suggested fix at https://github.com/zarr-developers/zarr-python/issues/2706
+	#   But, doesn't allow for anonymous access???
+	# fs = fsspec.filesystem('s3', asynchronous=True)
+	# fileset = [zarr.storage.FsspecStore(fs, 
+	# 	path=f"{bucket}/{dataset_year}.zarr") for dataset_year in years]
+	
+	# Current suggested solution at https://zarr.readthedocs.io/en/v3.0.0/user-guide/storage.html#remote-store
+	#   Also, see https://zarr.readthedocs.io/en/latest/user-guide/v3_migration.html
+	fileset = [zarr.storage.FsspecStore.from_url(
+		url=f's3://{bucket}/{dataset_year}.zarr',
+		# read_only=True,
+		storage_options={'anon': True}) for dataset_year in years]
 	
 	ds_multi_year = xr.open_mfdataset(fileset, engine='zarr')
 
