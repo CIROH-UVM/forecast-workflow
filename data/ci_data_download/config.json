@@ -1,0 +1,12 @@
+{
+  "_comment": "Configuration file for the Dataset Download Class",
+  "app_key_path": "Path to App Key - See https://oceancolor.gsfc.nasa.gov/data/download_methods/",
+  "start_date": "start date in '%Y-%m-%d' format",
+  "end_date": "end date '%Y-%m-%d' format",
+  "output_dir": "Directory to store the GeoTIFFs",
+  "json_path": "Path to the AOI JSON file defining coordinates",
+  "ci_script_path": "Path to the CI download script - See https://oceancolor.gsfc.nasa.gov/data/download_methods/",
+  "convert_to_ci": false,
+  "remove_temp": true,
+}
+
