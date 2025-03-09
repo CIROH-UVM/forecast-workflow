@@ -5,7 +5,8 @@
 	"scenarios": ["baseline", "mem3"],
 	"launch_start": "0601",
 	"launch_end": "1031",
-	"file_path": "*.out",
+	"file_string": "*.out",
 	"last_lines_to_read": 150,
-	"log_name": "rf2023BLM3"
+	"log_name": "rf2023BLM3",
+	"rm_runs": "False"
 }
