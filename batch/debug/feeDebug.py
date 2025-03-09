@@ -8,6 +8,7 @@ import warnings
 import xarray as xr
 import json
 import argparse
+import shutil
 
 '''
 This purpose of this script is to Loop through some FEE runs (specififed by the paramters below) and report any failed runs.
@@ -22,9 +23,10 @@ Settings in the debug_params.json file:
 - dir_years (str or list of str): 'all' or a list of years to loop through
 - launch_start (str): the start date of the FEE runs in MMDD format
 - launch_end (str): the end date of the FEE runs in MMDD format
-- file_path (str): the path to the debug_params.json file
+- file_string (str): the fstring of the file to look for errors in
 - last_lines_to_read (int): the number of lines to read from the end of the .out file
 - log_name (str): the name of the log file to create
+- rm_runs (str): whether or not to delete the identified failed runs
 
 TO RUN THIS DEBUG SCRIPT:
 1. Create a custom debug parameters json file with the settings above
@@ -194,9 +196,10 @@ def main():
 	scenarios = debug_params["scenarios"]
 	launch_start = debug_params["launch_start"]
 	launch_end = debug_params["launch_end"]
-	file_path = debug_params["file_path"]
+	file_string = debug_params["file_string"]
 	last_lines_to_read = debug_params["last_lines_to_read"]
 	log_name = debug_params["log_name"]
+	rm_run_dir = bool(debug_params["rm_runs"])
 	
 	logger = setup_logging(log_name)
 	print = logger.info
@@ -230,19 +233,19 @@ def main():
 			for dr_yr in dir_years_list:
 				print(f"\t\t YEAR: {dr_yr}")
 				fail_dict[cq][scen][dr_yr] = {}
-				launch_start_date = dt.datetime.strptime(launch_start, "%m%d").replace(year=int(dr_yr))
-				launch_end_date = dt.datetime.strptime(launch_end, "%m%d").replace(year=int(dr_yr))
+				launch_start_date = dt.datetime.strptime(launch_start, "%m%d%S").replace(year=int(dr_yr))
+				launch_end_date = dt.datetime.strptime(launch_end, "%m%d%S").replace(year=int(dr_yr))
 				# print(launch_start_date)
 				date_range = [launch_start_date + dt.timedelta(days=x) for x in range((launch_end_date - launch_start_date).days + 1)]
 				for date in date_range:
 					# fail_dict[cq][scen][dr_yr][date.strftime("%Y%m%d")] = None
-					run_dir = os.path.join(root_dir, cq, scen, dr_yr, date.strftime("%Y%m%d"))
+					run_dir = os.path.join(root_dir, cq, scen, dr_yr, date.strftime("%Y%m%d.t%Sz"))
 
 					# skip to try the next run dir if the current one does not exist
 					if not os.path.exists(run_dir): continue
 
 					# list the directory and filter to get just the outfile
-					outfile = [f for f in os.listdir(run_dir) if f.endswith(".out")]
+					outfile = [f for f in os.listdir(run_dir) if f.endswith(file_string)]
 					# the list above should have a length of exactly 1 (there should be one outfile)
 					# raise a warning if for some reason ther is more than 1 outfile
 					if len(outfile) != 1:
@@ -264,6 +267,9 @@ def main():
 						error_report = parse_failed_run(lastlines, error_report)
 						# print(error_report)
 						fail_dict[cq][scen][dr_yr][date.strftime('%Y%m%d')] = error_report
+						if rm_run_dir:
+							print(f"\t\t REMOVING RUN DIR: {run_dir}")
+							shutil.rmtree(run_dir)
 					# # optional message
 					# else: print("\t\t\t\t No run failure detected")
 
