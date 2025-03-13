@@ -6,6 +6,7 @@ import time
 from string import Template
 import sys
 import models.aem3d.get_args as get_args
+import random
 
 '''
 Script to Launch Model Runs for a given hindcast scenario
@@ -29,6 +30,12 @@ try:
 	end_year = int(sys.argv[3])
 except IndexError:
 	end_year = int(experiment_launch_params['end_year'])
+# parse test arg from command line if passed
+# should be an integer specifying the number of runs to randomly launch for a given year
+try:
+	test = int(sys.argv[4])
+except IndexError:
+	test = False
 
 # load in the default run config file
 config = get_args.load_defaults()
@@ -44,22 +51,14 @@ with open('/users/n/b/nbeckage/ciroh/forecast-workflow/batch/submitTEMPLATE.sh')
 years = list(reversed([str(y) for y in range(end_year, start_year+1)]))
 
 for year in years:
-	start_dt = dt.datetime.strptime(year+experiment_launch_params['start_date'], '%Y%m%d')
+	start_dt = dt.datetime.strptime(year+experiment_launch_params['start_date'], '%Y%m%d%H')
 	end_dt = dt.datetime.strptime(year+experiment_launch_params['end_date'], '%Y%m%d')
 	delta = end_dt - start_dt
 	scenario_dir_year = os.path.join(orig, f'{year}/')
 	dates = [start_dt + dt.timedelta(days=d) for d in range(delta.days+1)]
-	# Optionally, manually choose dates (for testing, mainly)
-	# dates = [dt.datetime(int(year), 5, 5),
-	# 		 dt.datetime(int(year), 5, 26),
-	# 		 dt.datetime(int(year), 6, 5),
-	# 		 dt.datetime(int(year), 6, 26),
-	# 		 dt.datetime(int(year), 7, 5),
-	# 		 dt.datetime(int(year), 7, 26),
-	# 		 dt.datetime(int(year), 8, 5),
-	# 		 dt.datetime(int(year), 8, 26),
-	# 		 dt.datetime(int(year), 9, 5),
-	# 		 dt.datetime(int(year), 9, 26)]
+	# if testing, takes a random sample of the dates
+	if test:
+		dates = random.sample(dates, test)
 	spinup_month_and_day = dt.datetime.strptime(experiment_launch_params['spinup_date'], "%m%d")
 	# get the length of the forecast in days (7 days, 30, etc)
 	forecast_days = int(experiment_launch_params['forecast_days'])

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --partition=bluemoon
+#SBATCH --partition=general
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
@@ -19,9 +19,10 @@ conda activate forecast
 SCENARIO_DIR=$1
 START_YEAR=$2
 END_YEAR=$3
+TEST=$4
 
 # change to whatever directory you want to put your scenario runs in
 cd /netfiles/ciroh/<hindcast_dir>/<cq_dir>/$SCENARIO_DIR/
 
 # note that you must have an experiment-specific configuration file in your scenario directory
-python /users/n/b/nbeckage/ciroh/forecast-workflow/batch/launchExperiment.py experiment_config.json $START_YEAR $END_YEAR
+python /users/n/b/nbeckage/ciroh/forecast-workflow/batch/launchExperiment.py experiment_config.json $START_YEAR $END_YEAR $TEST
