@@ -52,8 +52,8 @@ def USGSgetvars_function(id, variables, start, end, service='iv'):
 						f'&endDT={(end-dt.timedelta(days=1)).strftime("%Y-%m-%d")}{end_tz}'                     
 						f'&parameterCd={parameter}'
 						)
-			gage = requests.get(url)
 			print(f"\tAqcuiring USGS data from: {url}")
+			gage = requests.get(url)
 			try:
 				returnValue = gage.json()
 				values = gage.json()['value']['timeSeries'][0]['values'][0]['value']
