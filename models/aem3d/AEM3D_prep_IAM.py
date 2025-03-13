@@ -396,8 +396,8 @@ def getflowfiles(whichbay, settings):
 
 	
 	elif settings['hydrology_dataset_forecast'] == 'NOAA_NWM_PROD':
-		forecastHydro = nwm_fc.get_data(forecast_datetime = settings['forecast_start'],
-						end_datetime = settings['forecast_end'] + dt.timedelta(days=1),
+		forecastHydro = nwm_fc.get_data(start_date = settings['forecast_start'],
+						end_date = settings['forecast_end'] + dt.timedelta(days=1),
 						locations = nwm_reaches,
 						forecast_type = settings['nwm_forecast_member'],
 						data_dir = settings['data_dir'],
@@ -454,7 +454,7 @@ def getflowfiles(whichbay, settings):
 	global SUBPLOT_PACKAGES
 	global AXES
 	SUBPLOT_PACKAGES['streamflow'] = {'labelled_data':flow_data,
-								   	  'ylabel':'Streamflow (m/s^3)',
+								   	  'ylabel':'Streamflow (m^3/s)',
 									  'title':f"{settings['hydrology_dataset_spinup']} vs. {settings['hydrology_dataset_forecast']}",
 									  'fc_start':settings['forecast_start'],
 									  'fc_end':settings['forecast_end'],
@@ -621,8 +621,8 @@ def getdailyflows(whichbay, settings):
 		
 	elif(settings['hydrology_dataset_forecast'] == 'NOAA_NWM_PROD'):
 		# get forecast streamflow from NWM
-		nwm_forecast = nwm_fc.get_data(forecast_datetime = settings['forecast_start'],
-									   end_datetime = adjusted_forecast_enddate,
+		nwm_forecast = nwm_fc.get_data(start_date = settings['forecast_start'],
+									   end_date = adjusted_forecast_enddate,
 									   locations = {"MS":"166176984",
 													"JS":"4587092",
 													"ML":"4587100"},
@@ -968,7 +968,7 @@ def adjustNOAAFSProducts(whichbay, dataset, settings):
 	for zone in get_climate_zone_keys(dataset):
 		# calculate relative humidity for CFS only, BEFORE adjusting other variables (TEMP namely)
 		if settings['weather_dataset_forecast'] == 'NOAA_CFS':
-			dataset[zone]['RH2'] = cfs_fc.calculate_rh(psfc = dataset[zone]['PRSFC'], q2 = dataset[zone]['SH2'], t2 = dataset[zone]['T2'])
+			dataset[zone]['RH2'] = utils.calculate_rh_LeBauer(psfc = dataset[zone]['PRSFC'], q2 = dataset[zone]['SH2'], t2 = dataset[zone]['T2'])
 		# GFS rain adjustment
 		dataset[zone]['RAIN'] = dataset[zone]['RAIN'] * 86.4
 		# GFS temperature adjustment
@@ -1232,7 +1232,9 @@ def genclimatefiles(whichbay, settings):
 													   'RAIN':'Precipitation_rate_surface',
 													   'SWDOWN':'Downward_Short-Wave_Radiation_Flux_surface',
 													   'PRSFC':'Pressure_surface'},
-										   data_dir = settings['data_dir'])
+										   data_dir = settings['data_dir'],
+										   ncss=True,
+										   end_date_exclusive=False)
 		####### CFS Data Adjustments ######
 		forecastClimate = adjustNOAAFSProducts(THEBAY, forecastClimate, settings)
 
@@ -2005,7 +2007,7 @@ def AEM3D_prep_IAM(theBay, settings):
 
 	global FIG
 	global SUBPLOT_PACKAGES
-	# make_figure(SUBPLOT_PACKAGES)
-	# FIG.savefig('weatherVars.png')
+	make_figure(SUBPLOT_PACKAGES)
+	FIG.savefig('weatherVars.png')
 
 	return 0
