@@ -1,11 +1,6 @@
 import datetime as dt
 from glob import glob
-from .utils import (download_data,
-				 multithreaded_download,
-				 multithreaded_loading,
-				 parse_to_datetime,
-				 get_hour_diff,
-				 generate_hours_list)
+import data.utils as utils
 import numpy as np
 import os
 import pandas as pd
@@ -46,7 +41,7 @@ def get_forecast_File(Url, download_dir='.'):
 	
 	# sh.curl('-o', FilePath,'-C','-', Url)
 
-	download_data(Url, FilePath)
+	utils.download_data(Url, FilePath)
 	
 	return FilePath
 
@@ -92,7 +87,7 @@ def download_nwm_threaded(date,
 		else:
 			print(f'Skipping download; {os.path.basename(netcdf_fpath)} found at: {netcdf_fpath}')
 	if download_list:
-		multithreaded_download(download_list, num_threads)
+		utils.multithreaded_download(download_list, num_threads)
 	print('TASK COMPLETE: NWM DOWNLOAD')
 
 def process_nwm_data(location_dict,
@@ -119,7 +114,7 @@ def process_nwm_data(location_dict,
    
 	# load the NWM data with multithreading
 	# dataset_list will be in the same order as file list submitted, download_files
-	dataset_dict = multithreaded_loading(xr.open_dataset, download_files, num_threads)
+	dataset_dict = utils.multithreaded_loading(xr.open_dataset, download_files, num_threads)
 
 	# Time to read the data files
 	for data in dataset_dict.values():
@@ -141,8 +136,8 @@ def process_nwm_data(location_dict,
 	
 	return results_dict
 
-def get_data(forecast_datetime,
-			 end_datetime,
+def get_data(start_date,
+			 end_date,
 			 locations,
 			 forecast_type,
 			 data_dir=tf.gettempdir(),
@@ -154,14 +149,14 @@ def get_data(forecast_datetime,
 	A function to download and process NWM hydrology forecast data to return nested dictionary of pandas series fore each variable, for each location.
 	
 	Args:
-	-- forecast_datetime (str, date, or datetime) [req]: the start date and time (00, 06, 12, 18) of the forecast to download. Times are assumed to be UTC time.
-	-- end_datetime (str, date, or datetime) [req]: the end date and time for the forecast. GFS forecasts 16-days out for a given start date.
+	-- start_date (str, date, or datetime) [req]: the start date and time (00, 06, 12, 18) of the forecast to download. Times are assumed to be UTC time.
+	-- end_date (str, date, or datetime) [req]: the end date and time for the forecast. GFS forecasts 16-days out for a given start date.
 	-- locations (dict) [req]: a dictionary (stationID/name:IDValue/latlong tuple) of locations to download forecast data for.
-	-- forecast_type (str) [req]: The type of forecast.
+	-- forecast_type (str) [req]: The type of forecast (medium_range_mem1, long_range_mem3, short_range, etc).
+	-- forecast_cycle (str) [req]: The starting time for the forecasts. valid values are 00, 06, 12, 18.
 	-- data_dir (str) [opt]: directory to store donwloaded data. Defaults to OS's default temp directory.
 	-- dwnld_threads (int) [opt]: number of threads to use for downloads. Default is half of OS's available threads.
 	-- load_threads (int) [opt]: number of threads to use for reading data. Default is 2 for GFS, since file reads are already pretty fast.
-	-- forecast_cycle (str) [req]: The starting time for the forecasts. valid values are 00, 06, 12, 18
 	-- google_buckets (bool) [opt]: Flag determining wether or not to use google buckets for nwm download as opposed to NOMADs site.
 	-- archive (bool) [opt]: Flag determining wether or not data you are grabbing is older than the last two days (relevant for NWM only)
 	
@@ -169,12 +164,12 @@ def get_data(forecast_datetime,
 	NWM timeseries for the given locations in a nested dict format where 1st-level keys are user-provided location names and 2nd-level keys
 	are variables names and values are the respective data in a Pandas Series object.
 	"""
-	forecast_datetime = parse_to_datetime(forecast_datetime)
-	end_datetime = parse_to_datetime(end_datetime)
+	start_date = utils.parse_to_datetime(start_date)
+	end_date = utils.parse_to_datetime(end_date)
 
 	# the type of forecast to grab should be a parameter in the future, though right now the function can't accomodate all fc types produced by NWM
 	# To get any kind of data at https://nomads.ncep.noaa.gov/pub/data/nccf/com/nwm/prod/nwm.20231218/ would probably require a new, comprehensive function
-	forecast_cycle = f"{forecast_datetime.hour:02d}"
+	forecast_cycle = f"{start_date.hour:02d}"
 	forecast_member = forecast_type.split('range')[-1]
 	forecast_type = forecast_type.split('_')[0]
 	netcdf_template = f"nwm.t{forecast_cycle}z.{forecast_type}_range.channel_rt{forecast_member.replace('mem','')}"
@@ -183,17 +178,17 @@ def get_data(forecast_datetime,
 	if google_buckets:
 		source = 'buckets'
 		# Set archive = true if forecast older than 11/1/2020.  Might need to go even later... need to test
-		if forecast_datetime < parse_to_datetime('20201101'):
+		if start_date < utils.parse_to_datetime('20201101'):
 			archive = True
 	else: source = 'nwm'
 
 	# calculate the number of hours of forecast data to grab. I.e. for a 5 day forecast, hours would be 120
-	forecast_hours = generate_hours_list(get_hour_diff(forecast_datetime, end_datetime), source, forecast_type, archive)
-	forecast_date = forecast_datetime.strftime("%Y%m%d")
+	forecast_hours = utils.generate_hours_list(utils.get_hour_diff(start_date, end_date), source, forecast_type, archive)
+	forecast_date = start_date.strftime("%Y%m%d")
 
 	# define the directory for storing NWM data
 	# directory should be made in download function, so that it can be used independently if necessary
-	nwm_date_dir = os.path.join(data_dir, f'nwm/{forecast_datetime.strftime("%Y")}/nwm.{forecast_date}/{forecast_type}_range{forecast_member}')
+	nwm_date_dir = os.path.join(data_dir, f'nwm/{start_date.strftime("%Y")}/nwm.{forecast_date}/{forecast_type}_range{forecast_member}')
 
 	# downloading the NWM data with multithreading; 
 	download_nwm_threaded(date=forecast_date,
@@ -210,6 +205,8 @@ def get_data(forecast_datetime,
 								  fname_template=netcdf_template)
 	
 	nwm_data = {reach:{name:data for name, data in reach_df.T.iterrows()} for reach, reach_df in reach_data.items()}
+	
+	utils.add_units(nwm_data, {'streamflow':'m3 s-1'})
 
 	# return the NWM data
 	return nwm_data
