@@ -251,6 +251,31 @@ def dfprint(df):
 	with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
 		print(df)
 
+def get_bounding_box(locations):
+	'''
+	Computes the geospatial bounding box for a given dictionary of location coordinates. IOW calculates min and max for lat/lon values given 
+	the coordinates passed, plus adds a quarter degree of padding to ensure location is included in the box.
+	
+	Args:
+	-- locations (dict) [req]: A dictionary mapping location names to latitude-longitude tuples.
+	
+	Returns:
+	-- tuple (float, float, float, float): min_lat, max_lat, min_lon, max_lon
+	'''
+	lats, lons = zip(*locations.values())
+	# getting mins and maxs for boundary box
+	# if there's only one lat/lon value requested pad either side of lat/lon to get boundaries
+	if len(set(lons)) == 1:
+		# just grab the first value, they should all be the same
+		max_lon, min_lon = lons[0]+0.25, lons[0]-0.25
+		# padding each boundary with a quarter degree to ensure the requested lat/lons are in the boundary box (cannot assume boundary is inclusive)
+	else: max_lon, min_lon = max(lons)+0.25, min(lons)-0.25
+	if len(set(lats)) == 1:
+		# just grab the first value, they should all be the same
+		max_lat, min_lat = lats[0]+0.25, lats[0]-0.25
+	else: max_lat, min_lat = max(lats)+0.25, min(lats)-0.25
+	
+	return min_lat, max_lat, min_lon, max_lon
 		
 def generate_date_strings(start_date, end_date):
 	"""
@@ -663,3 +688,35 @@ def strip_non_numeric_chars(raw_series):
 			# print(f'Value at index {i} corrected from {value} to {corrected_value}')
 			corrected_series[i] = corrected_value
 	return corrected_series.astype(float)
+
+def validate_forecast_cycle(start_date, end_date, reference_date=None):
+	'''
+	Validates and processes forecast dates to ensure compliance with model forecast cycles.
+	
+	Args:
+	-- start_date (str, date, or datetime) [req]: The start date for which to slice data.
+	-- end_date (str, date, or datetime) [req]: The end date for which to slice data.
+	-- reference_date (str, date, or datetime) [opt]: The forecast reference time, i.e. the date and time cycle at which the particular forecast was launched.
+		Defaults to start_date if None.
+
+	Returns:
+	-- tuple (datetime, datetime, datetime): Processed start_date, end_date, and reference_date.
+	'''
+	start_date = parse_to_datetime(start_date)
+	end_date = parse_to_datetime(end_date)
+	
+	# if no reference time is passed, set it to start date
+	if reference_date is None:
+		reference_date = start_date
+		print(f'Forecast reference time and cycle inferred from start_date: {reference_date}')
+	# if reference time was passed, parse it
+	else: reference_date = parse_to_datetime(reference_date)
+	
+	# if the reference time does not have a valid forecast cycle, raise error
+	if reference_date.hour not in [0, 6, 12, 18]:
+		raise ValueError(f'Invalid forecast reference time: {reference_date}. Reference time hour indicates forecast cycle and must be 0, 6, 12, or 18')
+	# if start date is before reference time, raise an error. With reference time passed, start date is used to slice forecast timeseries
+	if start_date < reference_date:
+		raise ValueError(f'Forecast start date: {start_date} comes before forecast reference time: {reference_date}')
+	
+	return start_date, end_date, reference_date
