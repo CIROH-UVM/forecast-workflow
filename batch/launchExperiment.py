@@ -48,7 +48,12 @@ with open('/users/n/b/nbeckage/ciroh/forecast-workflow/batch/submitTEMPLATE.sh')
 # root_dir = '/netfiles/ciroh/7dayHABsHindcast/'
 # scenario_dir = os.path.join(root_dir, f"{experiment_launch_params['scenario']}/")
 
-years = list(reversed([str(y) for y in range(end_year, start_year+1)]))
+if start_year > end_year:
+	years = list(reversed([str(y) for y in range(end_year, start_year+1)]))
+else: years = [str(y) for y in range(start_year, end_year+1)]
+
+# print(years)
+# sys.exit()
 
 for year in years:
 	start_dt = dt.datetime.strptime(year+experiment_launch_params['start_date'], '%Y%m%d%H')
@@ -63,7 +68,7 @@ for year in years:
 	# get the length of the forecast in days (7 days, 30, etc)
 	forecast_days = int(experiment_launch_params['forecast_days'])
 	for date in dates:
-		scenario_dir_date = os.path.join(scenario_dir_year,date.strftime('%Y%m%d'))
+		scenario_dir_date = os.path.join(scenario_dir_year,date.strftime('%Y%m%d.t%Hz'))
 		# if the run exists, skip it
 		if os.path.exists(scenario_dir_date):
 			continue
@@ -71,12 +76,12 @@ for year in years:
 		os.chdir(scenario_dir_date)
 		
 		config['spinup_date'] = dt.datetime(date.year, spinup_month_and_day.month, spinup_month_and_day.day).strftime('%Y%m%d')
-		config['forecast_start'] = date.strftime('%Y%m%d')
+		config['forecast_start'] = date.strftime('%Y%m%d%H')
 		config['forecast_end'] = (date + dt.timedelta(days=forecast_days)).strftime('%Y%m%d')
 		config['data_dir'] = experiment_launch_params['data_dir']
-		config['weather_dataset_observed'] = experiment_launch_params['weather_dataset_observed']
+		config['weather_dataset_spinup'] = experiment_launch_params['weather_dataset_spinup']
 		config['weather_dataset_forecast'] = experiment_launch_params['weather_dataset_forecast']
-		config['hydrology_dataset_observed'] = experiment_launch_params['hydrology_dataset_observed']
+		config['hydrology_dataset_spinup'] = experiment_launch_params['hydrology_dataset_spinup']
 		config['hydrology_dataset_forecast'] = experiment_launch_params['hydrology_dataset_forecast']
 		config['nwm_forecast_member'] = experiment_launch_params['nwm_forecast_member']
 		config['aem3d_command_path'] = experiment_launch_params['aem3d_command_path']
@@ -88,7 +93,7 @@ for year in years:
 			config_file.write('\n')
 
 		# define the job params for the run
-		job_params = {'job_name':f'{experiment_launch_params["job_name_prefix"]}{date.strftime("%Y%m%d")}',
+		job_params = {'job_name':f'{experiment_launch_params["job_name_prefix"]}{date.strftime("%Y%m%d.t%Hz")}',
 			  		  'run_dir':scenario_dir_date}
 		job_script = src.substitute(job_params)
 
@@ -101,7 +106,7 @@ for year in years:
 		# Uncomment to submit
 		subprocess.run(['sbatch ' 'submit.sh'], shell=True)
 		# wait so as to not overwhelm the VACC with GFS / NWM file reads for AEM3D_prep_IAM
-		time.sleep(30)
+		time.sleep(45)
 os.chdir(orig)
 
 print("Experiment Launch Complete.")
