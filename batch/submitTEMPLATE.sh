@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=8G
+#SBATCH --mem=24G
 #SBATCH --time=18:00:00
 #SBATCH --job-name=$job_name
 #SBATCH --output=%x_%j.out
