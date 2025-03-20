@@ -57,7 +57,7 @@ else: years = [str(y) for y in range(start_year, end_year+1)]
 
 for year in years:
 	start_dt = dt.datetime.strptime(year+experiment_launch_params['start_date'], '%Y%m%d%H')
-	end_dt = dt.datetime.strptime(year+experiment_launch_params['end_date'], '%Y%m%d')
+	end_dt = dt.datetime.strptime(year+experiment_launch_params['end_date'], '%Y%m%d%H')
 	delta = end_dt - start_dt
 	scenario_dir_year = os.path.join(orig, f'{year}/')
 	dates = [start_dt + dt.timedelta(days=d) for d in range(delta.days+1)]
@@ -77,7 +77,7 @@ for year in years:
 		
 		config['spinup_date'] = dt.datetime(date.year, spinup_month_and_day.month, spinup_month_and_day.day).strftime('%Y%m%d')
 		config['forecast_start'] = date.strftime('%Y%m%d%H')
-		config['forecast_end'] = (date + dt.timedelta(days=forecast_days)).strftime('%Y%m%d')
+		config['forecast_end'] = (date + dt.timedelta(days=forecast_days)).strftime('%Y%m%d%H')
 		config['data_dir'] = experiment_launch_params['data_dir']
 		config['weather_dataset_spinup'] = experiment_launch_params['weather_dataset_spinup']
 		config['weather_dataset_forecast'] = experiment_launch_params['weather_dataset_forecast']
