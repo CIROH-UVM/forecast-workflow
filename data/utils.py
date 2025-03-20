@@ -306,7 +306,7 @@ def generate_hours_list(num_hours, source, forecast_type='medium', archive=False
 
 	Args:
 	-- num_hours (int) [req]: how many hours of forecast data you want.
-	-- saource (str) [req]: string indicating the forecast source. Valid values are 'gfs', 'nwm', and 'archive'.
+	-- source (str) [req]: string indicating the forecast source. Valid values are 'gfs', 'nwm', and 'archive'.
 	-- forecast_type (str) [opt]: The type of NWM forecast to grab. Valid values are 'short', 'medium', or 'long'.
 
 	Returns:

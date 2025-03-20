@@ -214,6 +214,7 @@ def main():
 	scenarios = debug_params["scenarios"]
 	launch_start = debug_params["launch_start"]
 	launch_end = debug_params["launch_end"]
+	model_cycle = debug_params["model_cycle"]
 	file_string = debug_params["file_string"]
 	last_lines_to_read = debug_params["last_lines_to_read"]
 	log_name = debug_params["log_name"]
@@ -232,7 +233,8 @@ def main():
 	log_print(f"SCENARIOS: {scenarios}")
 	log_print(f"YEARS: {dir_years}")
 	log_print(f"FIRST DATE: {launch_start}")
-	log_print(f"LAST DATE: {launch_end}\n")
+	log_print(f"LAST DATE: {launch_end}")
+	log_print(f"MODEL CYCLE: {model_cycle}\n")
 
 	fail_dict = {}
 
@@ -254,7 +256,7 @@ def main():
 			for dr_yr in dir_years_list:
 				log_print(f"\t\t YEAR: {dr_yr}")
 				fail_dict[cq][scen][dr_yr] = {}
-				launch_start_date = dt.datetime.strptime(launch_start, "%m%d%H").replace(year=int(dr_yr))
+				launch_start_date = dt.datetime.strptime(launch_start, "%m%d").replace(year=int(dr_yr), hour=int(model_cycle))
 				launch_end_date = dt.datetime.strptime(launch_end, "%m%d").replace(year=int(dr_yr))
 				# log_print(launch_start_date)
 				date_range = [launch_start_date + dt.timedelta(days=x) for x in range((launch_end_date - launch_start_date).days + 1)]
