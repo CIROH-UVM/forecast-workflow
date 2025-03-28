@@ -1,6 +1,8 @@
+from bs4 import BeautifulSoup
 import datetime as dt
 import concurrent.futures
 import pandas as pd
+import requests
 import sh
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -648,6 +650,36 @@ def report_gaps(series):
 	if not gap_found:
 		print("No gaps found in the timeseries")
 
+def scrapeUrlsFromHttp(url, pattern=None):
+	'''
+	Fetch and list file URLs from an HTTP directory listing page.
+	
+	Args:
+	-- url (str): The URL of the directory listing page.
+	--pattern (str, optional): A substring to filter file URLs. Defaults to None.
+		
+	Returns:
+	A list of matching file URLs.
+	'''
+	try:
+		# Get page content
+		response = requests.get(url)
+		response.raise_for_status()  # Raise an error for bad status codes
+		
+		# Parse HTML content
+		soup = BeautifulSoup(response.text, "html.parser")
+		
+		# Find all links in the page
+		file_links = [url + a["href"] for a in soup.find_all("a", href=True) if not a["href"].startswith("?")]
+
+	except requests.RequestException as e:
+		print(f"Error fetching URL: {e}")
+		return []
+
+	if pattern:
+		file_links = [link for link in file_links if pattern in link]
+	return file_links
+
 def smash_to_dataframe(series_data):
 	'''
 	A quick helper function that smashes the nested series dictionary returned by a get_data() into a single df.
@@ -689,7 +721,7 @@ def strip_non_numeric_chars(raw_series):
 			corrected_series[i] = corrected_value
 	return corrected_series.astype(float)
 
-def validate_forecast_cycle(start_date, end_date, reference_date=None):
+def validate_forecast_times(start_date, end_date, reference_date=None):
 	'''
 	Validates and processes forecast dates to ensure compliance with model forecast cycles.
 	
