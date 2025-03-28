@@ -4,6 +4,7 @@ import data.utils as utils
 import numpy as np
 import os
 import pandas as pd
+import sh
 import tempfile as tf
 import xarray as xr
 
@@ -44,6 +45,106 @@ def get_forecast_File(Url, download_dir='.'):
 	utils.download_data(Url, FilePath)
 	
 	return FilePath
+
+def prepForDownloads(reference_date, member, download_dir):
+	'''
+	Prepares the directory structure, file name template, and reference date for downloading NWM forecast data, independent of the download method (GCS or NOMADs).
+	
+	Args:
+	-- reference_date (str, date, or datetime) [req]: the launch date and time of the forecast to download. Time should specify model cycle (ex.'2015010112')
+	-- member (str) [req]: The member type of NWM forecast to get (medium_range_mem1, long_range_mem3, short_range, etc).
+	-- download_dir (str) [req]: directory to store donwloaded data.
+
+	Returns:
+	reference_date (datetime): The parsed reference datetime object
+	netcdf_template (str): The file name template for the forecast files
+	nwm_date_dir (str): The precise directory where the forecast files will be stored. Copies the NWM dir structure.
+	'''
+	# parse the reference date
+	reference_date = utils.parse_to_datetime(reference_date)
+
+	# break up the member string for file name and path construction
+	mem_num = member.split('range')[-1]
+	mem_type = member.split('_')[0]
+
+	# define the forecast file name template that we want to look for - note that we are interested in channel_rt files as these contain streamflow data
+	netcdf_template = f'nwm.t{reference_date.strftime("%H")}z.{mem_type}_range.channel_rt'
+
+	# define the directory for storing NWM data. This directroy structure mimics the NWM GCS bucket structure
+	nwm_date_dir = os.path.join(download_dir, f'nwm/{reference_date.strftime("%Y")}/nwm.{reference_date.strftime("%Y%m%d")}/{mem_type}_range{mem_num}')
+
+	# print(f'TASK INITIATED: Download {hours} hours of {member} NWM hydrologic forecast for the following date and model cycle: {reference_date.strftime("%Y%m%d.t%Hz")}')
+	# if not os.path.exists(nwm_date_dir):
+	# 	os.makedirs(nwm_date_dir)
+
+	return reference_date, netcdf_template, nwm_date_dir
+
+def download_nwm(reference_date, member, hours='all', gcs=True, download_dir=tf.gettempdir(), num_threads=int(os.cpu_count()/2)):
+	'''
+	Downloads NWM forecast data from either the Google Cloud Storage (GCS) or NOMADS server. Designed to download one forecast product at a time
+	NWM GCS Bucket: https://console.cloud.google.com/storage/browser/national-water-model
+	NWM NOMADS server: https://nomads.ncep.noaa.gov/pub/data/nccf/com/nwm/prod/
+
+	Args:
+	-- reference_date (str, date, or datetime) [req]: the launch date and time of the forecast to download. Time should specify model cycle (ex.'2015010112')
+	-- member (str) [req]: The member type of NWM forecast to get (medium_range_mem1, long_range_mem3, short_range, etc).
+	-- hours (str or int) [opt]: the number of hours of forecast data to download. Default is 'all', which downloads all available files in the bucket.
+	-- gcs (bool) [opt]: Flag determining wether or not to use google buckets for nwm download as opposed to NOMADs site. Default is True
+	-- download_dir (str) [opt]: directory to store donwloaded data. Defaults to OS's default temp directory.
+	-- num_threads (int) [opt]: number of threads to use for downloads. Default is half of OS's available threads.
+	'''
+	# prepare variables for NWM downloads, which includes 1) parsing the refernce date to a datetime object
+	# 2) breaking up the member string for file name and path construction, and enables us to then 3) define the directory for storing NWM data
+	reference_date, netcdf_template, nwm_date_dir = prepForDownloads(reference_date, member, download_dir)
+
+	print(f'TASK INITIATED: Download {hours} hours of {member} NWM hydrologic forecast for the following date and model cycle: {reference_date.strftime("%Y%m%d.t%Hz")}')
+	if not os.path.exists(nwm_date_dir):
+		os.makedirs(nwm_date_dir)
+
+	if gcs:
+		forecast_page = os.path.join('gs://national-water-model/', f'nwm.{reference_date.strftime("%Y%m%d")}', member, f'{netcdf_template}*')
+	else: forecast_page = os.path.join('https://nomads.ncep.noaa.gov/pub/data/nccf/com/nwm/prod/', f'nwm.{reference_date.strftime("%Y%m%d")}', f'{member}/')
+	
+	print(f'Acquiring data from: {forecast_page}')
+
+	if gcs:
+		# run ls command using gsutil to get the list of files in the bucket that match our file name template
+		output = sh.gsutil(['ls', '-l', forecast_page])
+		# Split output into lines
+		lines = output.split("\n")
+		# Extract All GCS file paths (last column in each line)
+		all_server_paths = [line.split()[-1] for line in lines if line.strip() and not line.startswith("TOTAL:")]
+	else:
+		# scrape the forecast page for netcdf files based on the constructed filename template
+		all_server_paths = utils.scrapeUrlsFromHttp(forecast_page, pattern=netcdf_template)
+
+
+	# Filter the bucket paths to only include files that correspond with the number of hours of data requested
+	if hours == 'all':
+		# if all hours were requested, then just use all the files in the bucket
+		bucket_paths = all_server_paths
+	# otherwise filter by looking at the timestep number (fxxx) in the file name
+	else: bucket_paths = [file for file in all_server_paths if int(file.split('.')[-3].split('f')[-1]) <= hours]
+
+	# create local file paths where the downloaded data will be stored, mimicking the NWM GCS bucket structure
+	file_paths = [os.path.join(nwm_date_dir, os.path.basename(path)) for path in bucket_paths]
+
+	# zip the bucket paths and file paths together
+	all_files = list(zip(bucket_paths, file_paths))
+
+	download_list = []
+	for bucket_file, local_file in all_files:
+		# if the netcdf file isn't downloaded already, then download it
+		if not os.path.exists(local_file):
+			download_list.append((bucket_file, local_file, gcs))
+		else:
+			print(f'Skipping download; {os.path.basename(local_file)} found at: {local_file}')
+	if download_list:
+		utils.multithreaded_download(download_list, num_threads)
+		pass
+	print('TASK COMPLETE: NWM DOWNLOAD')
+	# return a list of just the filepaths that were downloaded
+	return [download_list[i][1] for i, _ in enumerate(download_list)]
 
 # Next we will define a function which will call these two function and download the data. 
 def download_nwm_threaded(date,
