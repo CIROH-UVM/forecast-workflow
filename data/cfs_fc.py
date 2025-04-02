@@ -365,7 +365,7 @@ def get_data(start_date,
 		- Attaches unit metadata to the extracted data.
 	'''
 	# Validate and process forecast dates
-	start_date, end_date, reference_date = utils.validate_forecast_cycle(start_date, end_date, reference_date)
+	start_date, end_date, reference_date = utils.validate_forecast_times(start_date, end_date, reference_date)
 
 	# Download data
 	if ncss:
