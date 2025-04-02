@@ -25,4 +25,4 @@ TEST=$4
 cd /netfiles/ciroh/<hindcast_dir>/<cq_dir>/$SCENARIO_DIR/
 
 # note that you must have an experiment-specific configuration file in your scenario directory
-python /users/n/b/nbeckage/ciroh/forecast-workflow/batch/launchExperiment.py experiment_config.json $START_YEAR $END_YEAR $TEST
+python /users/n/b/nbeckage/ciroh/repos/prod/forecast-workflow/batch/launchExperiment.py experiment_config.json $START_YEAR $END_YEAR $TEST
