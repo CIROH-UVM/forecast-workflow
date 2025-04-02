@@ -40,8 +40,12 @@ except IndexError:
 # load in the default run config file
 config = get_args.load_defaults()
 
+# file_dir is the directory in which launchExperiment.py is located
+file_dir = os.path.dirname(__file__)
+# now make the path to submitTEMPLATE.sh, which should be in the same dir as launchExperiment.py
+submit_template = os.path.join(file_dir, 'submitTEMPLATE.sh')
 # load in the default job script template
-with open('/users/n/b/nbeckage/ciroh/forecast-workflow/batch/submitTEMPLATE.sh') as f:
+with open(submit_template) as f:
 	src = Template(f.read())
 
 ### 6/11/24 - I think this is outdated - orig will be the scenario dir (same dir as experiemnt_config)
