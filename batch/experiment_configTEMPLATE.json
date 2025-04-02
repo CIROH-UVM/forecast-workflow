@@ -11,7 +11,7 @@
 	"hydrology_dataset_spinup" : "USGS_IV",
 	"hydrology_dataset_forecast" : "NOAA_NWM_PROD",
 	"nwm_forecast_member" : "<nwm_forecast_member>",
-	"data_dir" : "/netfiles/ciroh/hindcastData/",
+	"data_dir" : "/netfiles/ciroh/downloadedData/",
 	"aem3d_command_path" : "/users/n/b/nbeckage/ciroh/aem3d-1.1.2-535/aem3d_openmp.exe",
 	"cqVersion" : "<cqVersion>"
 }
