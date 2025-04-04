@@ -70,7 +70,7 @@ for year in years:
 		dates = random.sample(dates, test)
 	spinup_month_and_day = dt.datetime.strptime(experiment_launch_params['spinup_date'], "%m%d")
 	# get the length of the forecast in days (7 days, 30, etc)
-	forecast_days = int(experiment_launch_params['forecast_days'])
+	forecast_days = float(experiment_launch_params['forecast_days'])
 	for date in dates:
 		scenario_dir_date = os.path.join(scenario_dir_year,date.strftime('%Y%m%d.t%Hz'))
 		# if the run exists, skip it
@@ -96,8 +96,15 @@ for year in years:
 			json.dump(config, config_file, indent=2)
 			config_file.write('\n')
 
+		# read in the path to the forecast-workflow repo that you want to use for the runs
+		py_path = experiment_launch_params['forecast-workflow_path']
+		# check that the path is a directory
+		if not os.path.isdir(py_path):
+			raise OSError(f"py_path is not a directory: {py_path}")
+
 		# define the job params for the run
 		job_params = {'job_name':f'{experiment_launch_params["job_name_prefix"]}{date.strftime("%Y%m%d.t%Hz")}',
+					  'py_path':py_path,
 			  		  'run_dir':scenario_dir_date}
 		job_script = src.substitute(job_params)
 
