@@ -13,5 +13,6 @@
 	"nwm_forecast_member" : "<nwm_forecast_member>",
 	"data_dir" : "/netfiles/ciroh/downloadedData/",
 	"aem3d_command_path" : "/users/n/b/nbeckage/ciroh/aem3d-1.1.2-535/aem3d_openmp.exe",
+	"forecast-workflow_path" : "/users/n/b/nbeckage/ciroh/repos/prod/forecast-workflow",
 	"cqVersion" : "<cqVersion>"
 }

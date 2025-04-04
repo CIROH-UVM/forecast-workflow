@@ -27,7 +27,7 @@ source /users/n/b/nbeckage/miniconda3/etc/profile.d/conda.sh
 conda activate forecast
 
 # export PYTHONPATH=/users/p/c/pclemins/repos/forecast-workflow
-export PYTHONPATH=/users/n/b/nbeckage/ciroh/repos/prod/forecast-workflow
+export PYTHONPATH=$py_path
 
 cd $run_dir
 
