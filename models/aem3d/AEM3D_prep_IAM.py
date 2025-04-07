@@ -857,7 +857,7 @@ def femcRhumGapfill(femc_rh, start, end, allowed_gap_size=dt.timedelta(hours=2),
 	else: print("No Gaps detected in FEMC Relhum data")
 	return rh_processed
 
-def adjustFEMCLCD(whichbay, dataset, start_dt, end_dt, figure_name):
+def adjustFEMCLCD(whichbay, dataset, settings, start_dt, end_dt, figure_name):
 	# define a function to set relative humidity values to 100 if greater than 100
 	# seems to be a problem in observations prior to 6/6/2019 in colchesterReefFEMC/Z0080_CR_QAQC.csv
 	cap_rhum_at_100 = lambda x: 100 if x > 100 else x
@@ -876,6 +876,11 @@ def adjustFEMCLCD(whichbay, dataset, start_dt, end_dt, figure_name):
 			dataset[zone]['T2'] = remove_nas(dataset[zone]['T2'].rename('T2', inplace=True))
 
 		# wind speed adjustments
+		if settings['use_btv_wind']:
+			# mph to m/s, and then 1.9253 correction factor for BTV to Colchester Reef based on
+			#  2010-2020 means of each WSPEED dataset
+			dataset[zone]['WSPEED'] = dataset[zone]['WSPEED'] * 0.44704 * 1.9253		
+		
 		if zone == '403':
 			dataset[zone]['WSPEED'] = remove_nas(dataset[zone]['WSPEED']) * 0.75
 		else:
@@ -1021,15 +1026,31 @@ def genclimatefiles(whichbay, settings):
 	observedClimate = {}
 	##### GRABBING OBSERVATIONAL CLIMATE DATA #####
 	if settings['weather_dataset_spinup'] == 'NOAA_LCD+FEMC_CR':
+		btv_variables = {
+			'TCDC':'HourlySkyConditions',
+			'RAIN':'HourlyPrecipitation'}
+		femc_variables = {
+			'T2':'T2',
+			'SWDOWN':'SWDOWN',
+			'RH2':'RH2',
+			'WSPEED':'WSPEED',
+			'WDIR':'WDIR'}
+		if settings['use_btv_wind']:
+			btv_variables | {
+				'WSPEED': 'HourlyWindSpeed',
+				'WDIR'  : 'HourlyWindDirection'}
+			for key in ['WSPEED', 'WDIR']:
+				del femc_variables[key]
+		
 		observedClimateBTV = lcd_ob.get_data(start_date = adjusted_spinup,
 										end_date = settings['forecast_start'],
 										locations = {"401":"72617014742"},
-										variables = {'TCDC':'HourlySkyConditions',
-					   								 'RAIN':'HourlyPrecipitation'})
+										variables = btv_variables)
 		
 		observedClimateCR = femc_ob.get_data(start_date = adjusted_spinup,
 										end_date = settings['forecast_start'],
-										locations = {'401':'ColReefQAQC'})
+										locations = {'401':'ColReefQAQC'},
+										variables = femc_variables)
 		
 		###### FEMC+LCD DATA ADJUSTMENTS HERE ######
 		# make additional location dictionaries here rather than call for the same location multiple times in get_data()'s
@@ -1043,28 +1064,29 @@ def genclimatefiles(whichbay, settings):
 		# common code prefix for vermont stations: 726170
 		# try Franklin data grab - 7-day data grab might return empty json, so in that case, use BTV data
 		
-		# boolean switch - if true, we are using franklin aiport cloud data for the forecast period
-		fso_cloud_forecast = True
-		try:
-			# trying Franklin grab, and if that doesn't work...
-			logger.info("Trying to get Spinup Period cloud data from Franklin airport (72049400152)...")
-			observedClimateFSO = lcd_ob.get_data(start_date = adjusted_spinup,
-											end_date = settings['forecast_start'],
-											locations = {"401":"72049400152"},
-											variables = {'TCDC':'HourlySkyConditions'})
-		except Exception as e:
-			# use Burlington data
-			logger.warning("Franklin airport cloud data grab for Spinup Period Failed.")
-			logger.warning(e)
-			logger.warning("Getting Spinup Period cloud data from Burlington instead...")
-			fso_cloud_forecast = False
+		# boolean switch - if true, we are going to try downloading franklin aiport cloud data
+		#   as primary data to combine with BTV as the secondary source
+		if settings['use_franklin_cloudcover']:
+			try:
+				# trying Franklin grab, and if that doesn't work...
+				logger.info("Trying to get Spinup Period cloud data from Franklin airport (72049400152)...")
+				observedClimateFSO = lcd_ob.get_data(start_date = adjusted_spinup,
+												end_date = settings['forecast_start'],
+												locations = {"401":"72049400152"},
+												variables = {'TCDC':'HourlySkyConditions'})
+			except Exception as e:
+				# ...use Burlington data and bail on use_franklin_cloudcover
+				logger.warning("Franklin airport cloud data grab for Spinup Period Failed.")
+				logger.warning(e)
+				logger.warning("Getting Spinup Period cloud data from Burlington instead...")
+				settings['use_franklin_cloudcover'] = False
 
-		logger.info("Observed TCDC BTV:")
-		logger.info(observedClimateBTV['401']['TCDC'].info())
+			logger.info("Observed TCDC BTV:")
+			logger.info(observedClimateBTV['401']['TCDC'].info())
 
 		# only need to combine franklin and burlington cloud data if franklin data grab worked
 		# otherwise, no need to combine, will just use BTV cloud data
-		if fso_cloud_forecast:
+		if settings['use_franklin_cloudcover']:
 			# now overwrite cloud cover for 401 - combine franklin cloud cover with that from BTV to fill in data gaps
 			observedClimateBTV['401']['TCDC'] = utils.combine_timeseries(primary = observedClimateFSO['401']['TCDC'],
 																secondary = observedClimateBTV['401']['TCDC'],
@@ -1091,7 +1113,7 @@ def genclimatefiles(whichbay, settings):
 		observedClimate['300'] = observedlake['RL']
 
 		# have to pass the expected start and end dates for the observed climate Series for femcRhumGapfill()
-		observedClimate = adjustFEMCLCD(THEBAY, observedClimate, start_dt=adjusted_spinup, end_dt=settings['forecast_start'], figure_name='ObservedFEMCRelHumGapFilled.png')
+		observedClimate = adjustFEMCLCD(THEBAY, observedClimate, settings, start_dt=adjusted_spinup, end_dt=settings['forecast_start'], figure_name='ObservedFEMCRelHumGapFilled.png')
 
 	else:
 		raise ValueError(f"'{settings['weather_dataset_spinup']}' is not a valid observational weather dataset")
@@ -1181,7 +1203,7 @@ def genclimatefiles(whichbay, settings):
 		forecastClimate['300'] = forecastlake['RL']
 
 		# passing the expected start and end dates for the forecast climate series
-		forecastClimate = adjustFEMCLCD(THEBAY, forecastClimate, start_dt=settings['forecast_start'], end_dt=adjusted_end_date, figure_name='ForecastFEMCRelHumGapFilled.png')
+		forecastClimate = adjustFEMCLCD(THEBAY, forecastClimate, settings, start_dt=settings['forecast_start'], end_dt=adjusted_end_date, figure_name='ForecastFEMCRelHumGapFilled.png')
 
 	elif settings['weather_dataset_forecast'] == 'NOAA_GFS':
 		############## Use this bit to load forecast climate from .csvs previously created above
@@ -2007,7 +2029,8 @@ def AEM3D_prep_IAM(theBay, settings):
 
 	global FIG
 	global SUBPLOT_PACKAGES
-	make_figure(SUBPLOT_PACKAGES)
-	FIG.savefig('weatherVars.png')
+	if settings['generate_forcingdata_plots']:
+		make_figure(SUBPLOT_PACKAGES)
+		FIG.savefig('weatherVars.png')
 
 	return 0

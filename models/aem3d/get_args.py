@@ -15,9 +15,9 @@ settings json file, and call get_args():
 
 	settings = get_args(fpath)
 
-Now when you call AEM3D_prep_IAM.py, you can include args in the command-line call:
+Now when you call AEM3D_prep_worker.py, you can include args in the command-line call:
 
-python -m models.aem3d.AEM3D_prep_IAM --conf config.json
+python -m models.aem3d.AEM3D_prep_worker --conf config.json
 
 To add new arguments:
 	1. add arg and default value to default_settings.json
