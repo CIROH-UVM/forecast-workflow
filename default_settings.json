@@ -1,7 +1,7 @@
 {
+	"spinup_date" : "20230101",
 	"forecast_start" : "20230701",
 	"forecast_end" : "20230708",
-	"spinup_date" : "20230101",
 	"output_write_start_datetime" : "",
 	"output_write_iteration_hours" : 24,
 	"output_write_file_path" : "./restarts",
@@ -14,9 +14,12 @@
 	"hydrology_dataset_spinup" : "USGS_IV",
 	"hydrology_dataset_forecast" : "NOAA_NWM_PROD",
 	"nwm_forecast_member" : "medium_range_mem1",
+	"use_franklin_cloudcover": true,
+	"use_btv_wind": false,
 	"csv" : false,
-	"data_dir" : "/netfiles/ciroh/hindcastData/",
+	"data_dir" : "/netfiles/ciroh/downloadedData/",
 	"aem3d_input_dir" : "/netfiles/ciroh/models/aem3d/current/AEM3D-inputs",
 	"aem3d_command_path" : "/netfiles/ciroh/models/aem3d/aem3d-1.1.2-535/aem3d_openmp.exe",
-	"cqVersion" : "202406Calibration"
+	"cqVersion" : "202406Calibration",
+	"generate_forcingdata_plots" : true
 }
