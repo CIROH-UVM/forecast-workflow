@@ -1036,9 +1036,9 @@ def genclimatefiles(whichbay, settings):
 			'WSPEED':'WSPEED',
 			'WDIR':'WDIR'}
 		if settings['use_btv_wind']:
-			btv_variables | {
-				'WSPEED': 'HourlyWindSpeed',
-				'WDIR'  : 'HourlyWindDirection'}
+			btv_variables = btv_variables | {
+								'WSPEED': 'HourlyWindSpeed',
+								'WDIR'  : 'HourlyWindDirection'}
 			for key in ['WSPEED', 'WDIR']:
 				del femc_variables[key]
 		
