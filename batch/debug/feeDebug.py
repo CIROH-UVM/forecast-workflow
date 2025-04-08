@@ -273,8 +273,11 @@ def main():
 					outfile = [f for f in os.listdir(run_dir) if f.endswith(file_string)]
 					# the list above should have a length of exactly 1 (there should be one outfile)
 					# raise a warning if for some reason ther is more than 1 outfile
-					if len(outfile) != 1:
-						warnings.warn(f"Multiple outfiles detected: {outfile}")
+					if len(outfile) > 1:
+						warnings.warn(f"\t\t\t Multiple outfiles detected: {outfile}")
+					elif len(outfile) < 1:
+						log_print(f"\t\t\t NO OUTFILE DETECTED IN: {run_dir}")
+						continue
 					outfile = outfile[0]
 
 					# create full file path
