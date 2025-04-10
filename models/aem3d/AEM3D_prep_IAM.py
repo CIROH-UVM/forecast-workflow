@@ -861,7 +861,7 @@ def adjustFEMCLCD(whichbay, dataset, settings, start_dt, end_dt, figure_name):
 	# define a function to set relative humidity values to 100 if greater than 100
 	# seems to be a problem in observations prior to 6/6/2019 in colchesterReefFEMC/Z0080_CR_QAQC.csv
 	cap_rhum_at_100 = lambda x: 100 if x > 100 else x
-
+	
 	# BTV rain adjustment
 	dataset['403']['RAIN'] = remove_nas(dataset['403']['RAIN']) * 0.6096
 
@@ -1018,7 +1018,7 @@ def genclimatefiles(whichbay, settings):
 	# Move a day back so AEM3D is happy
 	adjusted_spinup = settings['spinup_date'] - dt.timedelta(days=1)
 	# Keep moving a day back until out of blackout region
-	while (adjusted_spinup.year in [2018, 2019, 2020, 2021] and adjusted_spinup.month == 12 and adjusted_spinup.day > 25):
+	while (adjusted_spinup.year in [2004, 2018, 2019, 2020, 2021] and adjusted_spinup.month == 12 and adjusted_spinup.day > 25):
 		adjusted_spinup = adjusted_spinup - dt.timedelta(days=1)
 	print(f"ADJUSTED SPINUP: {adjusted_spinup}")
 	#####
@@ -1066,7 +1066,10 @@ def genclimatefiles(whichbay, settings):
 		
 		# boolean switch - if true, we are going to try downloading franklin aiport cloud data
 		#   as primary data to combine with BTV as the secondary source
-		if settings['use_franklin_cloudcover']:
+		# we don't want to use the settings['use_franklin_cloudcover'] value itself, becasue we don't want to permanetly
+		#   change the settings dict if we fail to grab the data (which would happen if we used settings['use_franklin_cloudcover'] in the except block below)
+		use_fso_tcdc = settings['use_franklin_cloudcover']
+		if use_fso_tcdc:
 			try:
 				# trying Franklin grab, and if that doesn't work...
 				logger.info("Trying to get Spinup Period cloud data from Franklin airport (72049400152)...")
@@ -1079,14 +1082,14 @@ def genclimatefiles(whichbay, settings):
 				logger.warning("Franklin airport cloud data grab for Spinup Period Failed.")
 				logger.warning(e)
 				logger.warning("Getting Spinup Period cloud data from Burlington instead...")
-				settings['use_franklin_cloudcover'] = False
+				use_fso_tcdc = False
 
 			logger.info("Observed TCDC BTV:")
 			logger.info(observedClimateBTV['401']['TCDC'].info())
 
 		# only need to combine franklin and burlington cloud data if franklin data grab worked
 		# otherwise, no need to combine, will just use BTV cloud data
-		if settings['use_franklin_cloudcover']:
+		if use_fso_tcdc:
 			# now overwrite cloud cover for 401 - combine franklin cloud cover with that from BTV to fill in data gaps
 			observedClimateBTV['401']['TCDC'] = utils.combine_timeseries(primary = observedClimateFSO['401']['TCDC'],
 																secondary = observedClimateBTV['401']['TCDC'],
@@ -1155,28 +1158,30 @@ def genclimatefiles(whichbay, settings):
 		# common code prefix for vermont stations: 726170
 		# try Franklin data grab - 7-day data grab might return empty json, so in that case, use BTV data
 		
-		# boolean switch - if true, we are using franklin aiport cloud data for the forecast period
-		fso_cloud_forecast = True
-		try:
-			# trying Franklin grab, and if that doesn't work...
-			logger.info("Trying to get Forecast Period cloud data from Franklin airport (72049400152)...")
-			forecastClimateFSO = lcd_ob.get_data(start_date = settings['forecast_start'],
-									  	  end_date = adjusted_end_date,
-									  	  locations = {"401":"72049400152"},
-										  variables = {'TCDC':'HourlySkyConditions'})
-		except Exception as e:
-			# use Burlington data
-			logger.warning("Franklin airport cloud data grab for Forecast Period Failed.")
-			logger.warning(e)
-			logger.warning("Getting Forecast Period cloud data from Burlington instead...")
-			fso_cloud_forecast = False
-			
-		logger.info("forecast TCDC BTV:")
-		logger.info(forecastClimateBTV['401']['TCDC'].info())
+		# boolean switch - if true, we are using franklin aiport cloud data as a primary source, and using
+		# 	Burlington data to fill in gaps
+		use_fso_tcdc = settings['use_franklin_cloudcover']
+		if use_fso_tcdc:
+			try:
+				# trying Franklin grab, and if that doesn't work...
+				logger.info("Trying to get Forecast Period cloud data from Franklin airport (72049400152)...")
+				forecastClimateFSO = lcd_ob.get_data(start_date = settings['forecast_start'],
+											end_date = adjusted_end_date,
+											locations = {"401":"72049400152"},
+											variables = {'TCDC':'HourlySkyConditions'})
+			except Exception as e:
+				# use Burlington data
+				logger.warning("Franklin airport cloud data grab for Forecast Period Failed.")
+				logger.warning(e)
+				logger.warning("Getting Forecast Period cloud data from Burlington instead...")
+				use_fso_tcdc = False
+				
+			logger.info("forecast TCDC BTV:")
+			logger.info(forecastClimateBTV['401']['TCDC'].info())
 
 		# only need to combine franklin and burlington cloud data if franklin data grab worked
 		# otherwise, no need to combine, will just use BTV cloud data
-		if fso_cloud_forecast:
+		if use_fso_tcdc:
 			# now overwrite cloud cover for 401 - combine franklin cloud cover with that from BTV to fill in data gaps
 			forecastClimateBTV['401']['TCDC'] = utils.combine_timeseries(primary = forecastClimateFSO['401']['TCDC'],
 																secondary = forecastClimateBTV['401']['TCDC'],
