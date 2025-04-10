@@ -1,4 +1,5 @@
 from glob import glob
+import datetime as dt
 import data.utils as utils
 import numpy as np
 import os
@@ -25,19 +26,24 @@ Variables available in 'channel_rt' files:
 	- "nudge"
 '''
 
-def prepForDownloads(reference_date, member, download_dir):
+def prepForDownloads(
+	reference_date: str | dt.date | dt.datetime,
+	member: str,
+	download_dir: str
+) -> tuple[dt.datetime, str, str]:
 	'''
 	Prepares the directory structure, file name template, and reference date for downloading NWM forecast data, independent of the download method (GCS or NOMADs).
-	
+
 	Args:
-	-- reference_date (str, date, or datetime) [req]: the launch date and time of the forecast to download. Time should specify model cycle (ex.'2015010112')
-	-- member (str) [req]: The member type of NWM forecast to get (medium_range_mem1, long_range_mem3, short_range, etc).
-	-- download_dir (str) [req]: directory to store donwloaded data.
+	-- reference_date: The launch date and time of the forecast to download. Time should specify model cycle (e.g., '2015010112').
+	-- member: The member type of NWM forecast to get (e.g., medium_range_mem1, long_range_mem3, short_range, etc.).
+	-- download_dir: Directory to store downloaded data.
 
 	Returns:
-	reference_date (datetime): The parsed reference datetime object
-	netcdf_template (str): The file name template for the forecast files
-	nwm_date_dir (str): The precise directory where the forecast files will be stored. Copies the NWM dir structure.
+	tuple:
+		- reference_date: The parsed reference datetime object.
+		- netcdf_template: The file name template for the forecast files.
+		- nwm_date_dir: The precise directory where the forecast files will be stored. Mimics the NWM directory structure.
 	'''
 	# parse the reference date
 	reference_date = utils.parse_to_datetime(reference_date)
@@ -48,31 +54,40 @@ def prepForDownloads(reference_date, member, download_dir):
 	netcdf_template = f'nwm.t{reference_date.strftime("%H")}z.{mem_type}_range.channel_rt'
 	# if the member is short_range, which has no members, there is no member number
 	if member != 'short_range':
-		# but if there is a member number (medium and long range), then include JUST an underscore plus the integer for the fname template (i.e '_1')
-		netcdf_template = netcdf_template+'_'+member.split('range')[-1][-1]
+		# but if there is a member number (medium and long range), then include JUST an underscore plus the integer for the fname template (e.g., '_1')
+		netcdf_template = netcdf_template + '_' + member.split('range')[-1][-1]
 	
-	# define the directory for storing NWM data. This directroy structure mimics the NWM GCS bucket structure
+	# define the directory for storing NWM data. This directory structure mimics the NWM GCS bucket structure
 	dir_structure = f'nwm/{reference_date.strftime("%Y")}/nwm.{reference_date.strftime("%Y%m%d")}/{mem_type}_range'
 	if member != 'short_range':
-		dir_structure = dir_structure+member.split('range')[-1]
+		dir_structure = dir_structure + member.split('range')[-1]
 	nwm_date_dir = os.path.join(download_dir, dir_structure)
 	
 	return reference_date, netcdf_template, nwm_date_dir
 
-def download_nwm(reference_date, member, hours='all', gcs=True, download_dir=tf.gettempdir(), num_threads=int(os.cpu_count()/2)):
+def download_nwm(
+	reference_date: str | dt.date | dt.datetime,
+	member: str,
+	hours: str | int | list[int] = 'all',
+	gcs: bool = True,
+	download_dir: str = tf.gettempdir(),
+	num_threads: int = int(os.cpu_count() / 2)
+) -> list[str]:
 	'''
 	Downloads NWM forecast data from either the Google Cloud Storage (GCS) or NOMADS server. Designed to download one forecast product at a time
 	NWM GCS Bucket: https://console.cloud.google.com/storage/browser/national-water-model
 	NWM NOMADS server: https://nomads.ncep.noaa.gov/pub/data/nccf/com/nwm/prod/
 
 	Args:
-	-- reference_date (str, date, or datetime) [req]: the launch date and time of the forecast to download. Time should specify model cycle (ex.'2015010112')
-	-- member (str) [req]: The member type of NWM forecast to get (medium_range_mem1, long_range_mem3, short_range, etc).
-	-- hours (str, int, or list) [opt]: the number of hours of forecast data to download. Default is 'all', which downloads all available files in the bucket. A list of integers
-		indicating what hours to get is also acceptable (i.e. [12,14,16,...,20])
-	-- gcs (bool) [opt]: Flag determining wether or not to use google buckets for nwm download as opposed to NOMADs site. Default is True
-	-- download_dir (str) [opt]: directory to store downloaded data. Defaults to OS's default temp directory.
-	-- num_threads (int) [opt]: number of threads to use for downloads. Default is half of OS's available threads.
+	-- reference_date: The launch date and time of the forecast to download. Time should specify model cycle (e.g., '2015010112').
+	-- member: The member type of NWM forecast to get (e.g., medium_range_mem1, long_range_mem3, short_range, etc.).
+	-- hours: The number of hours of forecast data to download. Default is 'all', which downloads all available files in the bucket. A list of integers indicating what hours to get is also acceptable (e.g., [12, 14, 16, ..., 20]).
+	-- gcs: Flag determining whether or not to use Google buckets for NWM download as opposed to NOMADS site. Default is True.
+	-- download_dir: Directory to store downloaded data. Defaults to OS's default temp directory.
+	-- num_threads: Number of threads to use for downloads. Default is half of OS's available threads.
+
+	Returns:
+	list: A list of file paths for the downloaded files.
 	'''
 	# prepare variables for NWM downloads, which includes 1) parsing the refernce date to a datetime object
 	# 2) breaking up the member string for file name and path construction, and enables us to then 3) define the directory for storing NWM data
@@ -141,34 +156,33 @@ def download_nwm(reference_date, member, hours='all', gcs=True, download_dir=tf.
 	# return a list of just the filepaths that were downloaded
 	return [download_list[i][1] for i, _ in enumerate(download_list)]
 
-def process_nwm(start_ts,
-				end_ts,
-				locations,
-				variables,
-				nwm_data_dir,
-				fname_template,
-				format='dictionary',
-				end_date_exclusive=True,
-				num_threads = int(os.cpu_count()/2)):
+def process_nwm(
+	start_ts: str | dt.date | dt.datetime,
+	end_ts: str | dt.date | dt.datetime,
+	locations: dict | list,
+	variables: dict | list,
+	nwm_data_dir: str,
+	fname_template: str,
+	format: str = 'dictionary',
+	end_date_exclusive: bool = True,
+	num_threads: int = int(os.cpu_count() / 2)
+) -> dict | xr.Dataset:
 	'''
-	Loads and process NWM data froma a single forecast product and returns the data in a format specified by the user. Data can be selected by start and end time, location, and variable.
+	Loads and processes NWM data from a single forecast product and returns the data in a format specified by the user. Data can be selected by start and end time, location, and variable.
 
 	Args:
-	-- start_ts (str, date, or datetime) [req]: The start date (and time) for which to slice the forecast data
-	-- end_ts (str, date, or datetime) [req]: The end date (and time) for which to slice the forecast data
-	-- locations (dict or list) [req]: a dictionary or list of locations to pull out of the forecast files. When a dict is passed in the format {"user-name":"gauge_ID"},
-		then the function will use those user-defined names when returning data. Otherwise, default location IDs found in the dataset are used.
-	-- variables (dict or list) [req]: a dictionary or list of variables to pull out of the 'channel_rt' forecast files. When a dictionary is passed in the format ("user-name":"variable-name"),
-		then the function will use those user-defined names when returning data. Otherwise, default variable names found in the dataset are used. 
-	-- nwm_data_dir (str) [req]: the directory in which the NWM forecast files to process are located
-	-- fname_template (str) [req]: the generic filenmame for the specific netCDF's being loaded, up to the timestamp component of the file name, '.f###'. For instance,
-		for a medium_range_mem1 forecast launched at the t06z model cycle, the valid fname_template would be "nwm.t06z.medium_range.channel_rt_1"
-	-- format (str) [opt]: The format in which to return the data. Default is 'dictionary', which returns a nested dictionary of pandas series. Other valid option is 'xarray', which returns an xarray dataset.
-	-- end_date_exclusive (bool) [opt]: Whether to exclude the ending timestamp from the time series. Defaults to True.
-	-- num_threads (int) [req]: number of threds to use for reading netCDF files. Defauls to half of avaialbe CPU's to speed up processing
+	-- start_ts: The start date (and time) for which to slice the forecast data.
+	-- end_ts: The end date (and time) for which to slice the forecast data.
+	-- locations: A dictionary or list of locations to pull out of the forecast files. When a dict is passed in the format {"user-name":"gauge_ID"}, the function will use those user-defined names when returning data. Otherwise, default location IDs found in the dataset are used.
+	-- variables: A dictionary or list of variables to pull out of the 'channel_rt' forecast files. When a dictionary is passed in the format {"user-name":"variable-name"}, the function will use those user-defined names when returning data. Otherwise, default variable names found in the dataset are used.
+	-- nwm_data_dir: The directory in which the NWM forecast files to process are located.
+	-- fname_template: The generic filename for the specific netCDF files being loaded, up to the timestamp component of the file name, '.f###'. For instance, for a medium_range_mem1 forecast launched at the t06z model cycle, the valid fname_template would be "nwm.t06z.medium_range.channel_rt_1".
+	-- format: The format in which to return the data. Default is 'dictionary', which returns a nested dictionary of pandas series. Other valid option is 'xarray', which returns an xarray dataset.
+	-- end_date_exclusive: Whether to exclude the ending timestamp from the time series. Defaults to True.
+	-- num_threads: Number of threads to use for reading netCDF files. Defaults to half of available CPUs to speed up processing.
 
 	Returns:
-	a dictionary of the streamflow data in the format {reach_name:pd.Dataframe}
+	The processed NWM data in the requested format.
 	'''
 	# reconstructing the forecast member name based on the file name template
 	# using the file name tempate rather than the nwm_data_dir becasue unlike the directory names, the file name template must have the relevant information about the forecast product
@@ -282,39 +296,43 @@ def process_nwm(start_ts,
 		print('TASK COMPLETE: PROCESS NWM')
 		return nwm_data
 
-def get_data(start_date,
-			 end_date,
-			 member,
-			 locations,
-			 variables,
-			 reference_date=None,
-			 data_dir=tf.gettempdir(),
-			 format='dictionary',
-			 gcs=True,
-			 end_date_exclusive=True,
-			 dwnld_threads=int(os.cpu_count()/2),
-			 load_threads=int(os.cpu_count()/2)):
+def get_data(
+	start_date: str | dt.date | dt.datetime,
+	end_date: str | dt.date | dt.datetime,
+	member: str,
+	locations: dict | list,
+	variables: dict | list,
+	reference_date: str | dt.date | dt.datetime | None = None,
+	data_dir: str = tf.gettempdir(),
+	format: str = 'dictionary',
+	gcs: bool = True,
+	end_date_exclusive: bool = True,
+	dwnld_threads: int = int(os.cpu_count() / 2),
+	load_threads: int = int(os.cpu_count() / 2)
+) -> dict | xr.Dataset:
 	'''
-	A function to download and process NWM hydrology forecast data to return nested dictionary of pandas series fore each variable, for each location.
+	A function to download and process NWM hydrology forecast data to return nested dictionary of pandas series for each variable, for each location.
 
 	Args:
-	-- start_date (str, date, or datetime) [req]: The start date for which to retrieve data.
-	-- end_date (str, date, or datetime) [req]: The end date for which to retrieve data.
-	-- member (str) [req]: The member type of NWM forecast to get (medium_range_mem1, long_range_mem3, short_range, etc).
-	-- locations (dict) [req]: A dictionary mapping location names (or station IDs) to latitude-longitude tuples.
-	-- variables (dict) [req]: A dictionary mapping user-defined variable names to dataset-specific variable names.
-	-- reference_date (str, date, or datetime) [opt]: The forecast reference time, i.e., the date and time at which 
+	-- start_date: The start date for which to retrieve data.
+	-- end_date: The end date for which to retrieve data.
+	-- member: The member type of NWM forecast to get (medium_range_mem1, long_range_mem3, short_range, etc).
+	-- locations: A dictionary or list of locations to pull out of the forecast files. When a dict is passed in the format {"user-name":"gauge_ID"},
+		then the function will use those user-defined names when returning data. Otherwise, default location IDs found in the dataset are used.
+	-- variables: A dictionary or list of variables to pull out of the 'channel_rt' forecast files. When a dictionary is passed in the format ("user-name":"variable-name"),
+		then the function will use those user-defined names when returning data. Otherwise, default variable names found in the dataset are used. 
+	-- reference_date: The forecast reference time, i.e., the date and time at which 
 		the forecast was initialized. Defaults to start_date if None.
-	-- data_dir (str) [opt]: directory to store donwloaded data. Defaults to OS's default temp directory.
-	-- format (str) [opt]: The format in which to return the data. Default is 'dictionary', which returns a nested dictionary of pandas series. Other valid option is 'xarray', which returns an xarray dataset.
-	-- gcs (bool) [opt]: Flag determining wether or not to use google buckets for nwm download as opposed to NOMADs site. Default is True
-	-- end_date_exclusive (bool) [opt]: Whether to exclude the end date from the time series. Defaults to True.
-	-- dwnld_threads (int) [opt]: number of threads to use for downloads. Default is half of OS's available threads.
-	-- load_threads (int) [opt]: number of threads to use for reading data. Default is 2 for GFS, since file reads are already pretty fast.
+	-- data_dir: Directory to store downloaded data. Defaults to OS's default temp directory.
+	-- format: The format in which to return the data. Default is 'dictionary', which returns a nested dictionary of pandas series. Other valid option is 'xarray', which returns an xarray dataset.
+	-- gcs: Flag determining whether or not to use Google buckets for NWM download as opposed to NOMADs site. Default is True.
+	-- end_date_exclusive: Whether to exclude the end date from the time series. Defaults to True.
+	-- dwnld_threads: Number of threads to use for downloads. Default is half of OS's available threads.
+	-- load_threads: Number of threads to use for reading data. Default is half of OS's available threads.
 
 	Returns:
 	NWM timeseries for the given locations in a nested dict format where 1st-level keys are user-provided location names and 2nd-level keys
-	are variables names and values are the respective data in a Pandas Series object.
+	are variable names and values are the respective data in a Pandas Series object, or an xarray Dataset if format='xarray'.
 	'''
 	# Validate and process forecast dates
 	start_date, end_date, reference_date = utils.validate_forecast_times(start_date, end_date, reference_date)
