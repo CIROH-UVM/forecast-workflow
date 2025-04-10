@@ -266,7 +266,7 @@ def main():
 					# log_print(f"RUN_DIR: {run_dir}")
 					# skip to try the next run dir if the current one does not exist
 					if not os.path.exists(run_dir):
-						log_print('run dir does note exist')
+						log_print('run dir does not exist')
 						continue
 
 					# list the directory and filter to get just the outfile
@@ -277,6 +277,8 @@ def main():
 						warnings.warn(f"\t\t\t Multiple outfiles detected: {outfile}")
 					elif len(outfile) < 1:
 						log_print(f"\t\t\t NO OUTFILE DETECTED IN: {run_dir}")
+						log_print(f"\t\t REMOVING RUN DIR: {run_dir}")
+						shutil.rmtree(run_dir)
 						continue
 					outfile = outfile[0]
 
