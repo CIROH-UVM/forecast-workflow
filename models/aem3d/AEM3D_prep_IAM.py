@@ -398,11 +398,12 @@ def getflowfiles(whichbay, settings):
 	elif settings['hydrology_dataset_forecast'] == 'NOAA_NWM_PROD':
 		forecastHydro = nwm_fc.get_data(start_date = settings['forecast_start'],
 						end_date = settings['forecast_end'] + dt.timedelta(days=1),
+						member = settings['nwm_forecast_member'],
 						locations = nwm_reaches,
-						forecast_type = settings['nwm_forecast_member'],
+						variables = ['streamflow'],
 						data_dir = settings['data_dir'],
-						load_threads = 1,
-						google_buckets = True)
+						gcs=True,
+						load_threads = 1)
 		# calculate streamflow for Rock and Pike based off Missisquoi streamflow
 		forecastca = scaleRockandPikeQ(forecastHydro['MS']['streamflow'])
 		# update forecastHydro with Canadian data
@@ -623,13 +624,14 @@ def getdailyflows(whichbay, settings):
 		# get forecast streamflow from NWM
 		nwm_forecast = nwm_fc.get_data(start_date = settings['forecast_start'],
 									   end_date = adjusted_forecast_enddate,
+									   member = settings['nwm_forecast_member'],
 									   locations = {"MS":"166176984",
 													"JS":"4587092",
 													"ML":"4587100"},
-									   forecast_type = settings['nwm_forecast_member'],
+									   variables = ['streamflow'],
 									   data_dir = settings['data_dir'],
-									   load_threads = 1,
-									   google_buckets = True)
+									   gcs=True,
+									   load_threads = 1)
 		
 		#	approximate Rock and Pike forecast from scaled Missisquoi forecast
 		# TODO: Devise a better plan to reference the scaling factors than hardcoding them here
