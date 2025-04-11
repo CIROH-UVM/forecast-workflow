@@ -91,13 +91,27 @@ def get_timestamps(ds):
 		timestamps.append(ts)
 	return timestamps
 
-def prep_IAM_err(prep_err, err_report):
-	err_report['error'] = 'prep_IAM'
+def print_IAM_traceback(prep_err):
 	prnt = False
 	for i, line in enumerate(prep_err):
 		if "During handling of the above exception" in line: prnt = True
 		if prnt: log_print(f'\t\t\t\t {line}')
 		if "AEM3D_prep_worker - None" in line: prnt = False
+
+def prep_IAM_err(prep_err, err_report):
+	err_report['error'] = 'prep_IAM'
+	# switch to determine if we want to print the entire error traceback (true if we don't know the speciifc error)
+	print_traceback = True
+	for i, line in enumerate(prep_err):
+		# parsing NetCDF error (common for bad CFS downloads)
+		if "OSError: [Errno -51] NetCDF: Unknown file format" in line:
+			log_print(f'\t\t\t\t {line}')
+			err_report['err_type'] = "Bad netcdf file"
+			err_report['file'] = os.path.basename(line.split(':')[-1].strip().strip("'"))
+			# we parsed a specific error, so no need to print the entire traceback
+			print_traceback = False
+	# log_print(f'\t\t\t\t print_traceback: {print_traceback}')
+	if print_traceback: print_IAM_traceback(prep_err)
 	return err_report
 
 def slurm_error(slurm_err, err_report):
