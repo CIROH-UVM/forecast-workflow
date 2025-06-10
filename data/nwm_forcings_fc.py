@@ -8,6 +8,29 @@ import sh
 import tempfile as tf
 import xarray as xr
 
+'''
+This module provides functional tools to download and process NWM forecast forcings data from the NWM Google Cloud Storage (GCS) bucket.
+
+NWM GCS Bucket: https://console.cloud.google.com/storage/browser/national-water-model
+
+NOTE: This module provides support for aqcuiring medium and short range NWM forecast forcings data only. Forcings for other forecast projects
+are not supported at this time but may be added by request
+
+For avaiable forcings variables, see the NWM_FORCING_VARS dictionary below.
+'''
+
+# all variables included in the NWM forecast forcings files
+# keys are the 'long_name' attributes of the variables as described in the netCDF files
+# values are the actual data variable names used in the NWM forcing netCDF files
+NWM_FORCING_VARS = {'10-m U-component of wind':'U2D',
+					'10-m V-component of wind':'V2D',
+					'Surface downward long-wave radiation flux':'LWDOWN',
+					'Surface Precipitation Rate':'RAINRATE',
+					'2-m Air Temperature':'T2D',
+					'2-m Specific Humidity':'Q2D',
+					'Surface Pressure':'PSFC',
+					'Surface downward short-wave radiation flux':'SWDOWN'}
+
 def prepForDownloads(
 	reference_date: str | dt.date | dt.datetime,
 	member: str,
