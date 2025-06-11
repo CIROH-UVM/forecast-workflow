@@ -16,23 +16,25 @@ def datetimeToOrdinal(date):
 	ordinaldate = yearday + str(fracsec)[1:6].ljust(5,'0')  # add the percentage seconds since noon
 	return ordinaldate
 
-def ordinalToDatetime(ordinaldate):
-    # Split the ordinal date into year, day of year, and fraction of the day
-    year = int(ordinaldate[:4])  # First 4 characters are the year
-    day_of_year = int(ordinaldate[4:7])  # Next 3 characters are the day of the year
-    fraction_of_day = float('0' + ordinaldate[7:])  # Remaining part is the fraction of the day
+def ordinalToDatetime(ordinaldate, msec_resolution = False):
+	# Split the ordinal date into year, day of year, and fraction of the day
+	year = int(ordinaldate[:4])  # First 4 characters are the year
+	day_of_year = int(ordinaldate[4:7])  # Next 3 characters are the day of the year
+	fraction_of_day = float('0' + ordinaldate[7:])  # Remaining part is the fraction of the day
 
-    # Convert year and day of year into a date
-    base_date = dt.datetime(year, 1, 1) + dt.timedelta(days=day_of_year - 1)
+	# Convert year and day of year into a date
+	base_date = dt.datetime(year, 1, 1) + dt.timedelta(days=day_of_year - 1)
 
-    # Calculate total seconds in the day and multiply by the fraction of the day
-    total_seconds_in_day = 86400  # 24 * 3600 seconds in a day
-    seconds_since_midnight = fraction_of_day * total_seconds_in_day
+	# Calculate total seconds in the day and multiply by the fraction of the day
+	total_seconds_in_day = 86400  # 24 * 3600 seconds in a day
+	seconds_since_midnight = fraction_of_day * total_seconds_in_day
+	if not msec_resolution:
+		seconds_since_midnight = round(seconds_since_midnight)	
 
-    # Add the seconds to the base_date
-    final_datetime = base_date + dt.timedelta(seconds=seconds_since_midnight)
+	# Add the seconds to the base_date
+	final_datetime = base_date + dt.timedelta(microseconds=(seconds_since_midnight * 1e6))
 
-    return final_datetime
+	return final_datetime
 
 def index_to_ordinal_date(pandas_data):
 	return pandas_data.rename(index=datetimeToOrdinal)
