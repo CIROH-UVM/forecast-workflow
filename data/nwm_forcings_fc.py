@@ -1,13 +1,14 @@
-from glob import glob
 import datetime as dt
 import data.utils as utils
 import numpy as np
 import os
+import pyproj
 import re
+import rioxarray
 import sh
 import tempfile as tf
 import xarray as xr
-import rioxarray
+from glob import glob
 
 '''
 This module provides functional tools to download and process NWM forecast forcings data from the NWM Google Cloud Storage (GCS) bucket.
@@ -177,7 +178,7 @@ def subset_by_bbox(ds: xr.Dataset, bbox: dict) -> xr.Dataset:
 
 def subset_by_points(ds: xr.Dataset, points: list[tuple[float, float]]) -> xr.Dataset:
 	'''
-	Extracts data from a NWM forcings dataset at specified geographic points.
+	Filters the NWM forcings dataset to only include the geospatial coordinates requested
 
 	Args:
 	-- ds: The dataset to subset.
@@ -187,12 +188,15 @@ def subset_by_points(ds: xr.Dataset, points: list[tuple[float, float]]) -> xr.Da
 	xr.Dataset: Dataset containing data at the nearest grid cell to each requested point.
 		Note: Exact coordinate matches are not guaranteed; the nearest available grid points are used.
 	'''
-	# EPSG:4326 (World Geodetic System 1984)
-	# dataset is reporjected to classic lat/lon coordinates, with negative longitude values (-180 (west) to 180 (east))
-	ds_reproj = ds.rio.reproject("EPSG:4326")
-	lats, lons = [pair[0] for pair in points], [pair[1] for pair in points]
-	# return the reprojected dataset with the selected coordinates
-	return ds_reproj.sel(x=lons, y=lats, method='nearest')
+	# pull the CRS WKT string from the datset
+	nwm_forcings_crs_wkt = ds['crs'].attrs['crs_wkt']
+	# Create a Transformer to reproject from the NWM forcings CRS to WGS 1984
+	wgs_to_nwm = pyproj.Transformer.from_crs('EPSG:4326', nwm_forcings_crs_wkt, always_xy=True)
+	# Transform points - note that the resultant lcc_corners tuples will be in the order (x, y) (derived from (lon, lat))
+	proj_points = [wgs_to_nwm.transform(lon, lat) for (lat, lon) in points]
+	x, y = [pair[0] for pair in proj_points], [pair[1] for pair in proj_points]
+	# now select the x and y coordinates from the dataset
+	return ds.sel(x=x, y=y, method='nearest')
 
 def validate_locations(locations: dict | None) -> str | None:
 	'''
@@ -291,7 +295,6 @@ def process_nwm_forcings(
 
 	Returns:
 	xr.Dataset or dict: If locations is None or a bounding box, returns an xarray.Dataset. If locations specifies points, returns a nested dictionary where 1st-level keys are points, 2nd-level keys are variables, and 2nd-level values are pandas.Series
-
 	'''
 	# reconstructing the forcing member name based on the file name template
 	# using the file name tempate rather than the nwm_data_dir becasue unlike the directory names, the file name template must have the relevant information about the forcings product
@@ -361,6 +364,8 @@ def process_nwm_forcings(
 		ds = ds.drop_vars(drop_vars)
 
 		### Location Subsetting ###
+		# subsetting by location really before concatenating all of the timeslices really speeds up the concatenation
+		# One might argue that logically it makes more since to do the location subsetting at the end, but making the dataset lighter before concatenation I'd say is more consequential
 		match loc_method:
 			case 'bbox':
 				# print a log message only during the first loop iteration... no need to repeat it for every timeslice
@@ -404,5 +409,39 @@ def process_nwm_forcings(
 		# if the user provided a dictionary of custom variable names to use, then ;et's rename the vars in the dataset
 		ds = ds.rename({v:k for k,v in variables.items()})
 
+	# reassigning so we can return one variable no matter the location method
+	nwm_forcings_data = ds
+
+	# point data extraction and nested dictionary creation
+	if loc_method == 'points':
+		# create a transformer to convert coords in the forcings CRS to WGS 1984
+		nwm_to_wgs = pyproj.Transformer.from_crs(ds['crs'].attrs['crs_wkt'], 'EPSG:4326', always_xy=True)
+		# make coordinate pairs of the x,y coordinates in the dataset (order is seeminly preserved this way)
+		nearest_xy = [(x, y) for x, y in zip(ds['x'].values, ds['y'].values)]
+
+		# get a dictionary of units
+		var_units = {var : ds.data_vars[var].units for var in ds.data_vars}
+		nwm_forcings_data = {}
+		# iterate through the requested coords and the nearest xy grid coords
+		for requested_coords, xy_coords in zip(locations['points'], nearest_xy):
+			# print(requested_coords, xy_coords)
+			nwm_forcings_data[requested_coords] = {}
+			# print(f"x = {xy_coords[0]}, y = {xy_coords[1]}")
+			# select the data for the given point location
+			point_ds = ds.sel(x=xy_coords[0], y=xy_coords[1])
+			for var in point_ds.data_vars:
+				# convert each variable into a series
+				nwm_forcings_data[requested_coords][var] = point_ds[var].to_pandas()
+
+		# add unit info to series' names
+		utils.add_units(nwm_forcings_data, var_units)
+
+		# now convert the dataset's nearest x,y coordinates into lat,lon. These are the lat,lon coords in the dataset that are nearest to the requested lat,lon points
+		nearest_xy_to_wgs = [nwm_to_wgs.transform(x, y) for (x, y) in nearest_xy]
+		# create a dictionary where the keys are the user-requested lat,lon coords, and values are the nearest la,lon values in the dataset
+		req_to_act_coords = {requested_coord : (lat, lon) for requested_coord, (lon, lat) in zip(locations['points'], nearest_xy_to_wgs)}
+		# this list comp will add the actual grid coords to the dictionary for each requested point 
+		[nwm_forcings_data[requested].update(grid_coords=nearest) for requested, nearest in req_to_act_coords.items()]
+
 	print('TASK COMPLETE: PROCESS NWM FORCINGS DATA')
-	return ds
+	return nwm_forcings_data
