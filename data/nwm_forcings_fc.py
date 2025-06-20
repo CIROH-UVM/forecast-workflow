@@ -53,8 +53,6 @@ def prepForDownloads(
 		- netcdf_template: The file name template for the forecast forcings files.
 		- nwm_date_dir: The precise directory where the forecast forcings will be stored. Mimics the NWM Google Bucket directory structure.
 	'''
-	reference_date = utils.parse_to_datetime(reference_date)
-
 	# define the forecast file name template that we want to look for - note that we are interested in channel_rt files as these contain streamflow data
 	netcdf_template = f'nwm.t{reference_date.strftime("%H")}z.{member}.forcing'
 
@@ -388,7 +386,8 @@ def process_nwm_forcings(
 		timeslices.append(ds)
 	
 	print("Concatenating timeslices...")
-	# concatenate all of the timeslices into a single dataset
+	# concatenate all of the timeslices into a single dataset - the time this command takes increases proportioanlly to the spatial extent requested.
+	# i.e. the larger the bounding box, the longer it takes to concatenate.
 	ds = xr.concat(timeslices, dim='time')
 	print("Concatenation complete.")
 
@@ -445,3 +444,53 @@ def process_nwm_forcings(
 
 	print('TASK COMPLETE: PROCESS NWM FORCINGS DATA')
 	return nwm_forcings_data
+
+def get_data(
+	start_date: str | dt.date | dt.datetime,
+	end_date: str | dt.date | dt.datetime,
+	member: str,
+	locations: dict | None = None,
+	variables: dict | list | str = 'all',
+	reference_date: str | dt.date | dt.datetime | None = None,
+	data_dir: str = tf.gettempdir(),
+	end_date_exclusive: bool = True,
+	dwnld_threads: int = int(os.cpu_count() / 2),
+	load_threads: int = int(os.cpu_count() / 2)
+) -> dict | xr.Dataset:
+	'''
+	A function to download and process NWM forcings data.
+
+	Args:
+	-- start_date: The start date for which to retrieve data.
+	-- end_date: The end date for which to retrieve data.
+	-- member: The member type of NWM forecast to get forcings for. Currently accepts 'medium_range' or 'short_range' only. More forcings can be added in the future.
+	-- locations: A dictionary containing either bounding box information or a list of points to extract from the gridded forcings dataset. Default value of None does not spatially subset the data. See validate_locations() for more details.
+		Note that the bounding box must be in latitude, longitude (WGS 1984), but the dataset is NOT reprojected and will maintain its orginal CRS.
+	-- variables: A dictionary or list of variables to pull out of the forcing files. When a dictionary is passed in the format {"user-name":"variable-name"}, the function will use those user-defined names when returning data. Otherwise, the variable names found in the dataset are used. Default value 'all' keeps all variables
+	-- reference_date: The forecast reference time, i.e., the date and time at which 
+		the forecast for which you want forcings for was initialized. Defaults to start_date if None.
+	-- data_dir: Directory to store downloaded data. Defaults to OS's default temp directory.
+	-- end_date_exclusive: Whether to exclude the end date from the time series. Defaults to True.
+	-- dwnld_threads: Number of threads to use for downloads. Default is half of OS's available threads.
+	-- load_threads: Number of threads to use for reading data. Default is half of OS's available threads.
+
+	Returns:
+	xr.Dataset or dict: If locations is None or a bounding box, returns an xarray.Dataset. If locations specifies points, returns a nested dictionary where 1st-level keys are points, 2nd-level keys are variables, and 2nd-level values are pandas.Series
+	'''
+	# Validate and process forecast dates
+	start_date, end_date, reference_date = utils.validate_forecast_times(start_date, end_date, reference_date)
+
+	reference_date, template, nwm_data_dir = prepForDownloads(reference_date, member, data_dir)
+
+	# Calculate which forecast timesteps to download based on reference_date, start_date, and end_date
+	# this allows for a precise selection of data from any given forecast
+	ref_to_end_hours = int((end_date - reference_date).total_seconds() / 3600)
+	ref_to_start_hours = int((start_date - reference_date).total_seconds() / 3600)
+	num_hours = list(range(ref_to_start_hours, ref_to_end_hours+1))
+
+	print(nwm_data_dir)
+	downloaded_list = download_nwm_forcings(reference_date, member, hours=num_hours, download_dir=nwm_data_dir, num_threads=dwnld_threads)
+
+	forcings_data = process_nwm_forcings(start_ts=start_date, end_ts=end_date, nwm_data_dir=nwm_data_dir, fname_template=template, locations=locations, variables=variables, end_date_exclusive=end_date_exclusive, num_threads=load_threads)
+
+	return forcings_data
