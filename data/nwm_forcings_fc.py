@@ -1,8 +1,10 @@
 import datetime as dt
 import data.utils as utils
 from functools import partial
+import math
 import numpy as np
 import os
+import psutil
 import pyproj
 import re
 import rioxarray
@@ -490,3 +492,32 @@ def get_data(
 	forcings_data = process_nwm_forcings(start_ts=start_date, end_ts=end_date, nwm_date_dir=nwm_date_dir, member=member, reference_date=reference_date, locations=locations, variables=variables, end_date_exclusive=end_date_exclusive)
 
 	return forcings_data
+
+def estimate_chunk_sizes_auto(total_y: int,
+							  total_x: int,
+							  num_variables: int,
+							  bytes_per_element: int = 8,
+							  memory_fraction: float = 0.05):
+	'''
+	Estimate optimal chunk sizes for xarray/dask dataset loading based on available system memory.
+
+	Args:
+	-- total_y (int): Total number of grid points in the y-dimension.
+	-- total_x (int): Total number of grid points in the x-dimension.
+	-- num_variables (int): Number of variables to be loaded per chunk.
+	-- bytes_per_element (int, optional): Number of bytes per array element (default: 8 for float64).
+	-- memory_fraction (float, optional): Fraction of available system memory to use for a single chunk (default: 0.05).
+
+	Returns:
+	dict: Dictionary specifying chunk sizes for 'time', 'y', and 'x' dimensions.
+	'''
+	available_bytes = psutil.virtual_memory().available
+	target_bytes = memory_fraction * available_bytes
+
+	chunk_pixels = target_bytes // (num_variables * bytes_per_element)
+	side_len = int(math.sqrt(chunk_pixels))
+
+	chunk_y = min(side_len, total_y)
+	chunk_x = min(side_len, total_x)
+
+	return {'time': 1, 'y': chunk_y, 'x': chunk_x}
