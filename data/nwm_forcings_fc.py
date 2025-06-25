@@ -1,5 +1,6 @@
 import datetime as dt
 import data.utils as utils
+from functools import partial
 import numpy as np
 import os
 import pyproj
@@ -266,15 +267,63 @@ def parse_variables(variables: dict | list) -> dict:
 
 	return variables
 
+def preprocess_forcings_datasets(ds, variables, locations):
+	'''
+	Preprocesses the NWM forcings dataset before loading it into memory. This function is used as a preprocess function for xarray's open_mfdataset.
+
+	Args:
+	-- ds: The xarray dataset to preprocess.
+	-- variables: A dictionary or list of variables to pull out of the forcing files. When a dictionary is passed in the format {"user-name":"variable-name"}, the function will use those user-defined names when returning data. Otherwise, the variable names found in the dataset are used. Default value 'all' keeps all variables
+	-- locations: A dictionary containing either bounding box information or a list of points to extract from the gridded forcings dataset. Default value of None does not spatially subset the data. See validate_locations() for more details.
+		Note that the bounding box must be in latitude, longitude (WGS 1984), but the dataset is NOT reprojected and will maintain its orginal CRS.
+
+	returns:
+	xr.Dataset: The preprocessed xarray dataset with only the specified variables and locations.
+	'''
+	# parse variables arg
+	variables = parse_variables(variables)
+	# validate locations arg and determine which method to use for subsetting
+	loc_method = validate_locations(locations)
+
+	### Variable Selection ###
+	# writing the CRS first so that rioxarray can use it later for clipping
+	# The CRS is initally stored as a data varaiable and consequently will get dropped when we drop the other variables unless we write it to the dataset's coordinates
+	ds = ds.rio.write_crs(ds['crs'].attrs['esri_pe_string'])
+	vars_to_extract = [var for var in variables.values()]
+	# list of variable names we want to drop
+	drop_vars = list(set(ds.data_vars) - set(vars_to_extract))
+	# drop variables that we don't want
+	ds = ds.drop_vars(drop_vars)
+	### Rename Dataset Variables if Applicable ###
+	if any([k != v for k,v in variables.items()]):
+		# if the user provided a dictionary of custom variable names to use, then ;et's rename the vars in the dataset
+		ds = ds.rename({v:k for k,v in variables.items()})
+
+	### Location Subsetting ###
+	# subsetting by location really before concatenating all of the timeslices really speeds up the concatenation
+	# One might argue that logically it makes more since to do the location subsetting at the end, but making the dataset lighter before concatenation I'd say is more consequential
+	match loc_method:
+		case 'bbox':
+			# if a bounding box is specified, then subset the data by the bounding box
+			ds = subset_by_bbox(ds, locations['bbox'])
+		case 'points':
+			# if a list of points is specified, then subset the data by the points
+			ds = subset_by_points(ds, locations['points'])
+		case None:
+			# if no locations are specified, then do not subset the data
+			pass
+
+	return ds
+
 def process_nwm_forcings(
 	start_ts: str | dt.date | dt.datetime,
 	end_ts: str | dt.date | dt.datetime,
-	nwm_data_dir: str,
-	fname_template: str,
+	nwm_date_dir: str,
+	member: str,
+	reference_date: str | dt.date | dt.datetime | None = None,
 	locations: dict | None = None,
 	variables: dict | list | str = 'all',
-	end_date_exclusive: bool = True,
-	num_threads: int = int(os.cpu_count() / 2)
+	end_date_exclusive: bool = True
 ) -> dict | xr.Dataset:
 	'''
 	Loads and processes NWM forcing data. Slices the dataset by location, time, and variables of interest.
@@ -282,113 +331,65 @@ def process_nwm_forcings(
 	Args:
 	-- start_ts: The start date (and time) for which to slice the forecast data.
 	-- end_ts: The end date (and time) for which to slice the forecast data.
-	-- nwm_data_dir: The directory in which the NWM forcing files to process are located.
-	-- fname_template: The generic filename for the specific netCDF files being loaded, up to the timestamp component of the file name, '.f###'. For instance, for forcing_medium_range, the valid fname_template would be "nwm.t00z.medium_range.forcing".
+	-- nwm_date_dir: The directory in which the NWM forcing files to process are located.
+	-- member: The NWM forecast member for which you to get forcings for (Currently accepts 'medium_range', 'short_range', 'analysis_assim', and 'analysis_assim_extend').
+	-- reference_date: The forecast reference time, i.e., the date and time at which 
+		the forecast for which you want forcings for was initialized. Defaults to start_date if None.
 	-- locations: A dictionary containing either bounding box information or a list of points to extract from the gridded forcings dataset. Default value of None does not spatially subset the data. See validate_locations() for more details.
 		Note that the bounding box must be in latitude, longitude (WGS 1984), but the dataset is NOT reprojected and will maintain its orginal CRS.
 	-- variables: A dictionary or list of variables to pull out of the forcing files. When a dictionary is passed in the format {"user-name":"variable-name"}, the function will use those user-defined names when returning data. Otherwise, the variable names found in the dataset are used. Default value 'all' keeps all variables
 	-- end_date_exclusive: Whether to exclude the ending timestamp from the time series. Defaults to True.
-	-- num_threads: Number of threads to use for reading netCDF files. Defaults to half of available CPUs to speed up processing.
 
 	Returns:
 	xr.Dataset or dict: If locations is None or a bounding box, returns an xarray.Dataset. If locations specifies points, returns a nested dictionary where 1st-level keys are points, 2nd-level keys are variables, and 2nd-level values are pandas.Series
 	'''
-	# reconstructing the forcing member name based on the file name template
-	# using the file name tempate rather than the nwm_data_dir becasue unlike the directory names, the file name template must have the relevant information about the forcings product
-	fname_template_parts = fname_template.split('.')
-	member = fname_template_parts[-2]
-	cycle = fname_template_parts[1]
-
-	print(f'TASK INITIATED: Process {member} {cycle} NWM forecast forcing data located at: {nwm_data_dir}')
-
 	##### PARSE AND VALIDATE INPUTS #####
 	# print(fname_template)
 	# ensure start and end ts are datetime objects
 	start_ts = utils.parse_to_datetime(start_ts)
 	end_ts = utils.parse_to_datetime(end_ts)
+	# parse reference_date; this method sets it to equal start_ts if reference_date is None
+	reference_date = utils.validate_ref_date(start_ts, reference_date)
 
+	netcdf_template, _ = prepForDownloads(reference_date, member, nwm_date_dir)
+
+	print(f'TASK INITIATED: Process {member} {reference_date.strftime("%Y%m%d.t%Hz")} NWM forecast forcing data located at: {nwm_date_dir}')
+
+	# Calculate which forecast timesteps to download based on reference_date, start_date, and end_date
+	# this allows for a precise selection of data from any given forecast
+	timesteps = utils.calculate_timesteps(start_ts, end_ts, reference_date, exclude_end=end_date_exclusive)
 	# parse variables arg
 	variables = parse_variables(variables)
 	# validate locations arg and determine which method to use for subsetting
 	loc_method = validate_locations(locations)
 
 	# Get all of the filenames from download_base_path - in chronological order
-	download_files = sorted(glob(os.path.join(nwm_data_dir, f'{fname_template}.f[0-9][0-9][0-9].conus.nc')))
-	# print(download_files)
+	all_files = sorted(glob(os.path.join(nwm_date_dir, f'{netcdf_template}.*.conus.nc')))
+	files_to_load = [file for file in all_files if int(re.search(r'\d+', file.split('.')[-3]).group()) in timesteps]
 
 	##### LOADING NETCDF FILES #####
-	# load the NWM data with multithreading
-	# dataset_list will be in the same order as file list submitted, download_files
+	# preload the variables and locations arguments into the preprocessing function
+	preprocess_ds = partial(preprocess_forcings_datasets, variables=variables, locations=locations)
+
 	print("Loading data...")
-	dataset_dict = utils.multithreaded_loading(xr.open_dataset, download_files, num_threads)
+	# open all the necessary files into one dataset using xarray's open_mfdataset and the preprocess function
+	ds = xr.open_mfdataset(files_to_load, combine='by_coords', preprocess=preprocess_ds, chunks='auto', parallel=True, decode_times=True, engine='netcdf4')
 	print("Loading complete.")
 
+	# some log messages to help the user understand how each dataset dimension is being sliced
+	# time
 	print(f"Slicing data to get timestamps from {start_ts.strftime('%m-%d-%Y %H:%M:%S')} to {end_ts.strftime('%m-%d-%Y %H:%M:%S')}")
-	timeslices = []
-
+	# variables
 	vars_to_extract = [var for var in variables.values()]
 	print(f"Extracing the following variables: {vars_to_extract}")
-
-	# boolean flag to help us print a lcoation subsetting message ONLY once in the following loop
-	loc_message = True
-
-	##### TIME SLICING, VARIABLE SELECTION, & LOCATION SUBSETTING #####
-	# iterate through every netcdf file (i.e. forecast timeslice)
-	for i, ds in enumerate(dataset_dict.values()):
-		# print(i)
-		
-		### Time Slicing ###
-		# we expect each file to be a singular timeslice of a forecast and so therfore should have exactly one timestamp
-		if len(ds.time.values) != 1:
-			raise ValueError(f"Multiple time steps found in dataset. Expected only one time step. Found {ds.time.values}")
-		# if the timestamp comes before the start date, then skip it
-		if ds.time.values[0] < np.datetime64(start_ts.replace(tzinfo=None)):
-			continue
-		# if end_date_exclusive is true, then exclude the end date as well
-		if end_date_exclusive:
-			if ds.time.values[0] >= np.datetime64(end_ts.replace(tzinfo=None)):
-				continue
-		elif ds.time.values[0] > np.datetime64(end_ts.replace(tzinfo=None)):
-			continue
-
-		### Variable Selection ###
-		# writing the CRS first so that rioxarray can use it later for clipping
-		# The CRS is initally stored as a data varaiable and consequently will get dropped when we drop the other variables unless we write it to the dataset's coordinates
-		ds = ds.rio.write_crs(ds['crs'].attrs['esri_pe_string'])
-		# list of variable names we want to drop
-		drop_vars = list(set(ds.data_vars) - set(vars_to_extract))
-		# drop variables that we don't want
-		ds = ds.drop_vars(drop_vars)
-
-		### Location Subsetting ###
-		# subsetting by location really before concatenating all of the timeslices really speeds up the concatenation
-		# One might argue that logically it makes more since to do the location subsetting at the end, but making the dataset lighter before concatenation I'd say is more consequential
-		match loc_method:
-			case 'bbox':
-				# print a log message only during the first loop iteration... no need to repeat it for every timeslice
-				if loc_message:
-					print(f"Subsetting forcings grid by bounding box: {locations['bbox']}")
-					loc_message = False
-				# if a bounding box is specified, then subset the data by the bounding box
-				ds = subset_by_bbox(ds, locations['bbox'])
-			case 'points':
-				# if a list of points is specified, then subset the data by the points
-				if loc_message:
-					print(f"Extracting the following points from the forcings grid: {locations['points']}")
-					loc_message = False
-				ds = subset_by_points(ds, locations['points'])
-			case None:
-				# if no locations are specified, then do not subset the data
-				pass
-		
-		# print(f"Time step addded to concat list: {ds.time.values[0]}")
-		timeslices.append(ds)
-	
-	print("Concatenating timeslices...")
-	# concatenate all of the timeslices into a single dataset - the time this command takes increases proportioanlly to the spatial extent requested.
-	# i.e. the larger the bounding box, the longer it takes to concatenate.
-	ds = xr.concat(timeslices, dim='time')
-	print("Concatenation complete.")
+	# locations
+	match loc_method:
+		case 'bbox':
+			print(f"Subsetting forcings grid by bounding box: {locations['bbox']}")
+		case 'points':
+			print(f"Extracting the following points from the forcings grid: {locations['points']}")
+		case None:
+			print("Locations not specified; data for the entire CONUS will be returned.")
 
 	### Adding UTC Time Zone ###
 	# saving attributes for later restoration
@@ -400,12 +401,7 @@ def process_nwm_forcings(
 	ds = ds.set_index(time='timeutc', reference_time='reference_timeutc')
 	# now we just restore the original attributes
 	ds.coords['time'].attrs = time_attrs
-	ds.coords['reference_time'].attrs = reftime_attrs
-
-	### Rename Dataset Variables if Applicable ###
-	if any([k != v for k,v in variables.items()]):
-		# if the user provided a dictionary of custom variable names to use, then ;et's rename the vars in the dataset
-		ds = ds.rename({v:k for k,v in variables.items()})
+	ds.coords['reference_time'].attrs = reftime_attrs 
 
 	# reassigning so we can return one variable no matter the location method
 	nwm_forcings_data = ds
@@ -453,8 +449,7 @@ def get_data(
 	reference_date: str | dt.date | dt.datetime | None = None,
 	data_dir: str = tf.gettempdir(),
 	end_date_exclusive: bool = True,
-	dwnld_threads: int = int(os.cpu_count() / 2),
-	load_threads: int = int(os.cpu_count() / 2)
+	dwnld_threads: int = int(os.cpu_count() / 2)
 ) -> dict | xr.Dataset:
 	'''
 	A function to download and process NWM forcings data.
@@ -462,7 +457,8 @@ def get_data(
 	Args:
 	-- start_date: The start date for which to retrieve data.
 	-- end_date: The end date for which to retrieve data.
-	-- member: The member type of NWM forecast to get forcings for. Currently accepts 'medium_range' or 'short_range' only. More forcings can be added in the future.
+	-- member: The NWM forecast member for which you to get forcings for (Currently accepts 'medium_range', 'short_range', 'analysis_assim', and 'analysis_assim_extend').	-- locations: A dictionary containing either bounding box information or a list of points to extract from the gridded forcings dataset. Default value of None does not spatially subset the data. See validate_locations() for more details.
+		Note that the bounding box must be in latitude, longitude (WGS 1984), but the dataset is NOT reprojected and will maintain its orginal CRS.
 	-- locations: A dictionary containing either bounding box information or a list of points to extract from the gridded forcings dataset. Default value of None does not spatially subset the data. See validate_locations() for more details.
 		Note that the bounding box must be in latitude, longitude (WGS 1984), but the dataset is NOT reprojected and will maintain its orginal CRS.
 	-- variables: A dictionary or list of variables to pull out of the forcing files. When a dictionary is passed in the format {"user-name":"variable-name"}, the function will use those user-defined names when returning data. Otherwise, the variable names found in the dataset are used. Default value 'all' keeps all variables
@@ -471,25 +467,26 @@ def get_data(
 	-- data_dir: Directory to store downloaded data. Defaults to OS's default temp directory.
 	-- end_date_exclusive: Whether to exclude the end date from the time series. Defaults to True.
 	-- dwnld_threads: Number of threads to use for downloads. Default is half of OS's available threads.
-	-- load_threads: Number of threads to use for reading data. Default is half of OS's available threads.
 
 	Returns:
 	xr.Dataset or dict: If locations is None or a bounding box, returns an xarray.Dataset. If locations specifies points, returns a nested dictionary where 1st-level keys are points, 2nd-level keys are variables, and 2nd-level values are pandas.Series
 	'''
-	# Validate and process forecast dates
-	start_date, end_date, reference_date = utils.validate_forecast_times(start_date, end_date, reference_date)
+	##### PARSE AND VALIDATE INPUTS #####
+	# ensure start and end ts are datetime objects
+	start_date = utils.parse_to_datetime(start_date)
+	end_date = utils.parse_to_datetime(end_date)
+	# parse reference_date; this method sets it to equal start_ts if reference_date is None
+	reference_date = utils.validate_ref_date(start_date, reference_date)
 
-	reference_date, template, nwm_data_dir = prepForDownloads(reference_date, member, data_dir)
+	_, nwm_date_dir = prepForDownloads(reference_date, member, data_dir)
 
 	# Calculate which forecast timesteps to download based on reference_date, start_date, and end_date
 	# this allows for a precise selection of data from any given forecast
-	ref_to_end_hours = int((end_date - reference_date).total_seconds() / 3600)
-	ref_to_start_hours = int((start_date - reference_date).total_seconds() / 3600)
-	num_hours = list(range(ref_to_start_hours, ref_to_end_hours+1))
+	timesteps = utils.calculate_timesteps(start_date, end_date, reference_date, exclude_end=end_date_exclusive)
 
-	print(nwm_data_dir)
-	downloaded_list = download_nwm_forcings(reference_date, member, hours=num_hours, download_dir=nwm_data_dir, num_threads=dwnld_threads)
+	# print(nwm_date_dir)
+	downloaded_list = download_nwm_forcings(reference_date, member, hours=timesteps, download_dir=data_dir, num_threads=dwnld_threads)
 
-	forcings_data = process_nwm_forcings(start_ts=start_date, end_ts=end_date, nwm_data_dir=nwm_data_dir, fname_template=template, locations=locations, variables=variables, end_date_exclusive=end_date_exclusive, num_threads=load_threads)
+	forcings_data = process_nwm_forcings(start_ts=start_date, end_ts=end_date, nwm_date_dir=nwm_date_dir, member=member, reference_date=reference_date, locations=locations, variables=variables, end_date_exclusive=end_date_exclusive)
 
 	return forcings_data
