@@ -1,12 +1,12 @@
 from bs4 import BeautifulSoup
 import datetime as dt
 import concurrent.futures
-import pandas as pd
-import requests
-import sh
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
+import pandas as pd
+import requests
+import sh
 '''
 A module containing helper and utility functions for the data acquisiton modules
 '''
@@ -164,6 +164,25 @@ def combine_timeseries(primary, secondary, interval):
 
     # Convert the final dataframe back to a series
     return combined_df.squeeze()
+
+def calculate_timesteps(start: dt.datetime, end: dt.datetime, ref: dt.datetime, interval: int = 1, exclude_end: bool = False):
+	'''Calculate the forcast/forcings hourly timesteps for a timespan given the forcast/forcing reference time.
+	Args:
+	-- start (dt.datetime): The start time.
+	-- end (dt.datetime): The end time.
+	-- ref (dt.datetime): The reference time.
+	-- interval (int): The interval in hours between timesteps. Default is 1 hour.
+	-- exclude_end (bool): If True, the end time will not be included in the list of timesteps. Default is False.
+	
+	Returns:
+	list: A list of timesteps in hours from the reference time to the start and end
+	'''
+	ref_to_end_hours = int((end - ref).total_seconds() / 3600)
+	ref_to_start_hours = int((start - ref).total_seconds() / 3600)
+	if exclude_end:
+		timesteps = list(range(ref_to_start_hours, ref_to_end_hours, interval))
+	else: timesteps = list(range(ref_to_start_hours, ref_to_end_hours+1, interval))
+	return timesteps
 
 def complete_dt_index(tsindx, start_t=None, end_t=None, gap_dur=None, **kwargs):
 	'''
@@ -721,6 +740,16 @@ def strip_non_numeric_chars(raw_series):
 			corrected_series[i] = corrected_value
 	return corrected_series.astype(float)
 
+def validate_ref_date(start_date: dt.datetime, reference_date: dt.datetime | None=None):
+	# if no reference time is passed, set it to start date
+	if reference_date is None:
+		reference_date = start_date
+		print(f'Forecast reference time and cycle inferred from start_date: {reference_date}')
+	# if reference time was passed, parse it
+	else: reference_date = parse_to_datetime(reference_date)
+
+	return reference_date
+
 def validate_forecast_times(start_date, end_date, reference_date=None):
 	'''
 	Validates and processes forecast dates to ensure compliance with model forecast cycles.
@@ -736,13 +765,7 @@ def validate_forecast_times(start_date, end_date, reference_date=None):
 	'''
 	start_date = parse_to_datetime(start_date)
 	end_date = parse_to_datetime(end_date)
-	
-	# if no reference time is passed, set it to start date
-	if reference_date is None:
-		reference_date = start_date
-		print(f'Forecast reference time and cycle inferred from start_date: {reference_date}')
-	# if reference time was passed, parse it
-	else: reference_date = parse_to_datetime(reference_date)
+	reference_date = validate_ref_date(start_date, reference_date)
 	
 	# if the reference time does not have a valid forecast cycle, raise error
 	if reference_date.hour not in [0, 6, 12, 18]:
