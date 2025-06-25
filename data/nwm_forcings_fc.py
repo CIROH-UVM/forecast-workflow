@@ -39,7 +39,7 @@ def prepForDownloads(
 	download_dir: str
 ) -> tuple[dt.datetime, str, str]:
 	'''
-	Prepares the directory structure, file name template, and reference date for downloading NWM forcing data from the NWM Google Bucket:
+	Prepares the directory structure and file name template for downloading NWM forcing data from the NWM Google Bucket:
 	https://console.cloud.google.com/storage/browser/national-water-model
 
 	Args:
@@ -49,7 +49,6 @@ def prepForDownloads(
 
 	Returns:
 	tuple:
-		- reference_date: The parsed reference datetime object.
 		- netcdf_template: The file name template for the forecast forcings files.
 		- nwm_date_dir: The precise directory where the forecast forcings will be stored. Mimics the NWM Google Bucket directory structure.
 	'''
@@ -61,7 +60,7 @@ def prepForDownloads(
 
 	nwm_date_dir = os.path.join(download_dir, dir_structure)
 
-	return reference_date, netcdf_template, nwm_date_dir
+	return netcdf_template, nwm_date_dir
 
 def download_nwm_forcings(
 	reference_date: str | dt.date | dt.datetime,
@@ -76,7 +75,7 @@ def download_nwm_forcings(
 
 	Args:
 	-- reference_date: The launch date and time of the forecast to get forcings for. Time should specify model cycle (e.g., '2015010112').
-	-- member: The NWM forecast member for which you to get forcings for (Currently accepts 'medium_range', 'short_range').
+	-- member: The NWM forecast member for which you to get forcings for (Currently accepts 'medium_range', 'short_range', 'analysis_assim', and 'analysis_assim_extend').
 	-- hours: The number of hours of forcing data to download. Default is 'all', which downloads all available files in the bucket. A list of integers indicating what hours to get is also acceptable (e.g., [12, 14, 16, ..., 20]).
 	-- download_dir: Directory to store downloaded data. Defaults to OS's default temp directory.
 	-- num_threads: Number of threads to use for downloads. Default is half of OS's available threads.
@@ -86,7 +85,7 @@ def download_nwm_forcings(
 	'''
 	# prepare variables for NWM forcings downloads, which includes 1) parsing the refernce date to a datetime object
 	# 2) breaking up the member string for file name and path construction, and enables us to then 3) define the directory for storing NWM data
-	reference_date, netcdf_template, nwm_date_dir = prepForDownloads(reference_date, member, download_dir)
+	netcdf_template, nwm_date_dir = prepForDownloads(reference_date, member, download_dir)
 
 	print(f'TASK INITIATED: Download {member} NWM forcings for the following date and model cycle: {reference_date.strftime("%Y%m%d.t%Hz")}')
 	if not os.path.exists(nwm_date_dir):
@@ -111,16 +110,16 @@ def download_nwm_forcings(
 		bucket_paths = all_server_paths
 	# if a list of hours to get was passed, then only filter those files that are in the hours list
 	elif isinstance(hours, list):
-		bucket_paths = [file for file in all_server_paths if int(file.split('.')[-3].split('f')[-1]) in hours]
+		bucket_paths = [file for file in all_server_paths if int(re.search(r'\d+', file.split('.')[-3]).group()) in hours]
 	# if hours is passed as an int, get all the files up to and including hours
 	elif isinstance(hours, int):
-		bucket_paths = [file for file in all_server_paths if int(file.split('.')[-3].split('f')[-1]) <= hours]
+		bucket_paths = [file for file in all_server_paths if int(re.search(r'\d+', file.split('.')[-3]).group()) <= hours]
 	else: raise TypeError(f"'hours' argument must be an int, list of ints, or 'all':{hours}")
 
 	# print(bucket_paths)
 	# report what forecast timesteps are being selected
-	first_ts = re.search(r'\.f(\d{3})\.', bucket_paths[0]).group(1)
-	last_ts = re.search(r'\.f(\d{3})\.', bucket_paths[-1]).group(1)
+	first_ts = bucket_paths[0].split('.')[-3]
+	last_ts = bucket_paths[-1].split('.')[-3]
 	print(f"Seeking the following forcings timesteps: {first_ts} to {last_ts}")
 
 	# create local file paths where the downloaded data will be stored, mimicking the NWM GCS bucket structure
