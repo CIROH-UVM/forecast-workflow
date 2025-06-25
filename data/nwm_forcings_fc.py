@@ -409,7 +409,7 @@ def process_nwm_forcings(
 	nwm_forcings_data = ds
 
 	# point data extraction and nested dictionary creation
-	if loc_method == 'points':
+	if loc_method == 'points' and member not in ['analysis_assim', 'analysis_assim_extend']:
 		# create a transformer to convert coords in the forcings CRS to WGS 1984
 		nwm_to_wgs = pyproj.Transformer.from_crs(ds['crs'].attrs['crs_wkt'], 'EPSG:4326', always_xy=True)
 		# make coordinate pairs of the x,y coordinates in the dataset (order is seeminly preserved this way)
