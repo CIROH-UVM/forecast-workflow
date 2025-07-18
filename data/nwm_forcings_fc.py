@@ -176,24 +176,25 @@ def subset_by_bbox(ds: xr.Dataset, bbox: dict) -> xr.Dataset:
 
 	return clipped_ds
 
-def subset_by_points(ds: xr.Dataset, points: list[tuple[float, float]]) -> xr.Dataset:
+def subset_by_points(ds: xr.Dataset, points: dict, crs: str) -> xr.Dataset:
 	'''
 	Filters the NWM forcings dataset to only include the geospatial coordinates requested
 
 	Args:
 	-- ds: The dataset to subset.
 	-- points: List of (latitude, longitude) pairs in WGS84 (EPSG:4326) coordinates.
+	-- crs: The name of the dataset coordinate that contains the CRS information for the dataset
 
 	Returns:
 	xr.Dataset: Dataset containing data at the nearest grid cell to each requested point.
 		Note: Exact coordinate matches are not guaranteed; the nearest available grid points are used.
 	'''
 	# pull the CRS WKT string from the datset
-	nwm_forcings_crs_wkt = ds['crs'].attrs['crs_wkt']
+	nwm_forcings_crs_wkt = ds[crs].attrs['crs_wkt']
 	# Create a Transformer to reproject from the NWM forcings CRS to WGS 1984
 	wgs_to_nwm = pyproj.Transformer.from_crs('EPSG:4326', nwm_forcings_crs_wkt, always_xy=True)
 	# Transform points - note that the resultant lcc_corners tuples will be in the order (x, y) (derived from (lon, lat))
-	proj_points = [wgs_to_nwm.transform(lon, lat) for (lat, lon) in points]
+	proj_points = [wgs_to_nwm.transform(lon, lat) for (lat, lon) in points.values()]
 	x, y = [pair[0] for pair in proj_points], [pair[1] for pair in proj_points]
 	# now select the x and y coordinates from the dataset
 	return ds.sel(x=x, y=y, method='nearest')
@@ -290,7 +291,12 @@ def preprocess_forcings_datasets(ds, variables, locations):
 	### Variable Selection ###
 	# writing the CRS first so that rioxarray can use it later for clipping
 	# The CRS is initally stored as a data varaiable and consequently will get dropped when we drop the other variables unless we write it to the dataset's coordinates
-	ds = ds.rio.write_crs(ds['crs'].attrs['esri_pe_string'])
+	# it appears that the CRS variable name can be either 'crs' or 'ProjectionCoordinateSystem' depending on the forcings dataset, so we check for both
+	if 'crs' in ds.data_vars:
+		crs_varname = 'crs'
+	elif 'ProjectionCoordinateSystem' in ds.data_vars: crs_varname = 'ProjectionCoordinateSystem'
+	# print(ds.data_vars)
+	ds = ds.rio.write_crs(ds[crs_varname].attrs['esri_pe_string'])
 	vars_to_extract = [var for var in variables.values()]
 	# list of variable names we want to drop
 	drop_vars = list(set(ds.data_vars) - set(vars_to_extract))
@@ -310,7 +316,7 @@ def preprocess_forcings_datasets(ds, variables, locations):
 			ds = subset_by_bbox(ds, locations['bbox'])
 		case 'points':
 			# if a list of points is specified, then subset the data by the points
-			ds = subset_by_points(ds, locations['points'])
+			ds = subset_by_points(ds, locations['points'], crs=crs_varname)
 		case None:
 			# if no locations are specified, then do not subset the data
 			pass
@@ -410,8 +416,11 @@ def process_nwm_forcings(
 
 	# point data extraction and nested dictionary creation
 	if loc_method == 'points' and member not in ['analysis_assim', 'analysis_assim_extend']:
+		if 'crs' in ds.coords:
+			crs_name = 'crs'
+		elif 'ProjectionCoordinateSystem' in ds.coords: crs_name = 'ProjectionCoordinateSystem'
 		# create a transformer to convert coords in the forcings CRS to WGS 1984
-		nwm_to_wgs = pyproj.Transformer.from_crs(ds['crs'].attrs['crs_wkt'], 'EPSG:4326', always_xy=True)
+		nwm_to_wgs = pyproj.Transformer.from_crs(ds[crs_name].attrs['crs_wkt'], 'EPSG:4326', always_xy=True)
 		# make coordinate pairs of the x,y coordinates in the dataset (order is seeminly preserved this way)
 		nearest_xy = [(x, y) for x, y in zip(ds['x'].values, ds['y'].values)]
 
