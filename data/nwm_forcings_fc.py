@@ -182,7 +182,7 @@ def subset_by_points(ds: xr.Dataset, points: dict, crs: str) -> xr.Dataset:
 
 	Args:
 	-- ds: The dataset to subset.
-	-- points: List of (latitude, longitude) pairs in WGS84 (EPSG:4326) coordinates.
+	-- points: dictionary where keys are location names and values are (latitude, longitude) tuples in WGS84 (EPSG:4326) coordinates.
 	-- crs: The name of the dataset coordinate that contains the CRS information for the dataset
 
 	Returns:
@@ -205,7 +205,7 @@ def validate_locations(locations: dict | None) -> str | None:
 
 	Args:
 	-- locations: A nested dictionary containing a single 1st-level key, either 'bbox' or 'points' for subsetting the data (see examples below). Or None if no subsetting is required.
-		{'points' : [(45.21, -75.89), (42.34, -72.68)]}
+		{'points' : {'site_01' : (45.21, -75.89), 'site_02' : (42.34, -72.68)}}
 		{'bbox' : {'min_lat' : 42.34, 'max_lat' : 45.21, 'min_lon' : -75.89, 'max_lon' : -72.68}}
 
 	Raises:
@@ -222,24 +222,26 @@ def validate_locations(locations: dict | None) -> str | None:
 		return None
 
 	# if locations is not None, then it must be a dictionary with either 'bbox' or 'points' as keys
-	elif not isinstance(locations,  (dict)):
+	elif not isinstance(locations,  dict):
 		raise TypeError(f"Expected 'locations' to be a dictionary or None, but got type: {type(locations)}")
 
 	#  we don't want to allow both 'bbox' and 'points' to be specified at the same time, so we check for that
 	elif 'bbox' in locations and 'points' in locations:
 		raise ValueError("Only one of 'bbox' or 'points' can be specified in 'locations'. Please choose one to subset forcing data with.")
 
+	# but we also want to enforce the first-level key of locations to be either 'points' or 'bbox'
+	elif 'bbox' not in locations and 'points' not in locations:
+		raise ValueError("First-level of locations dictionary must specify either 'points' or 'bbox'")
+	
 	# if a bounding box is specified, check that it has the required keys and subset
 	elif 'bbox' in locations:
 		# subset the data by the bounding box
 		# ds = subset_by_bbox(ds, locations['bbox'])
 		return 'bbox'
-	# if a list of points is specified, check that it is a list of tuples and subset
+	# if a dict of points is specified, check that it is a dict of tuples and subset
 	elif 'points' in locations:
-		if not isinstance(locations['points'], list) or not all(isinstance(point, tuple) and len(point) == 2 for point in locations['points']):
-			raise TypeError("'points' argument must be a list of tuples with (lat, lon) pairs.")
-		# subset the data by the points
-		# ds = subset_by_points(ds, locations['points'])
+		if not isinstance(locations['points'], dict) or not all(isinstance(point, tuple) and len(point) == 2 for point in locations['points'].values()):
+			raise TypeError("'points' value must be a dict of names : tuples with (lat, lon) pairs.")
 		return 'points'
 	
 def parse_variables(variables: dict | list) -> dict:
@@ -277,7 +279,7 @@ def preprocess_forcings_datasets(ds, variables, locations):
 	Args:
 	-- ds: The xarray dataset to preprocess.
 	-- variables: A dictionary or list of variables to pull out of the forcing files. When a dictionary is passed in the format {"user-name":"variable-name"}, the function will use those user-defined names when returning data. Otherwise, the variable names found in the dataset are used. Default value 'all' keeps all variables
-	-- locations: A dictionary containing either bounding box information or a list of points to extract from the gridded forcings dataset. Default value of None does not spatially subset the data. See validate_locations() for more details.
+	-- locations: A dictionary containing either bounding box information or a dict of points to extract from the gridded forcings dataset. Default value of None does not spatially subset the data. See validate_locations() for more details.
 		Note that the bounding box must be in latitude, longitude (WGS 1984), but the dataset is NOT reprojected and will maintain its orginal CRS.
 
 	returns:
@@ -343,13 +345,13 @@ def process_nwm_forcings(
 	-- member: The NWM forecast member for which you to get forcings for (Currently accepts 'medium_range', 'short_range', 'analysis_assim', and 'analysis_assim_extend').
 	-- reference_date: The forecast reference time, i.e., the date and time at which 
 		the forecast for which you want forcings for was initialized. Defaults to start_date if None.
-	-- locations: A dictionary containing either bounding box information or a list of points to extract from the gridded forcings dataset. Default value of None does not spatially subset the data. See validate_locations() for more details.
+	-- locations: A dictionary containing either bounding box information or a dict of points to extract from the gridded forcings dataset. Default value of None does not spatially subset the data. See validate_locations() for more details.
 		Note that the bounding box must be in latitude, longitude (WGS 1984), but the dataset is NOT reprojected and will maintain its orginal CRS.
 	-- variables: A dictionary or list of variables to pull out of the forcing files. When a dictionary is passed in the format {"user-name":"variable-name"}, the function will use those user-defined names when returning data. Otherwise, the variable names found in the dataset are used. Default value 'all' keeps all variables
 	-- end_date_exclusive: Whether to exclude the ending timestamp from the time series. Defaults to True.
 
 	Returns:
-	xr.Dataset or dict: If locations is None or a bounding box, returns an xarray.Dataset. If locations specifies points, returns a nested dictionary where 1st-level keys are points, 2nd-level keys are variables, and 2nd-level values are pandas.Series
+	xr.Dataset or dict: If locations is None or a bounding box, returns an xarray.Dataset. If locations specifies points, returns a nested dictionary where 1st-level keys are point/site names, 2nd-level keys are variables, and 2nd-level values are pandas.Series
 	'''
 	##### PARSE AND VALIDATE INPUTS #####
 	# print(fname_template)
@@ -426,17 +428,20 @@ def process_nwm_forcings(
 
 		# get a dictionary of units
 		var_units = {var : ds.data_vars[var].units for var in ds.data_vars}
+
 		nwm_forcings_data = {}
 		# iterate through the requested coords and the nearest xy grid coords
-		for requested_coords, xy_coords in zip(locations['points'], nearest_xy):
+		for (loc_name, requested_coords), xy_coords in zip(locations['points'].items(), nearest_xy):
 			# print(requested_coords, xy_coords)
-			nwm_forcings_data[requested_coords] = {}
+			nwm_forcings_data[loc_name] = {}
 			# print(f"x = {xy_coords[0]}, y = {xy_coords[1]}")
 			# select the data for the given point location
 			point_ds = ds.sel(x=xy_coords[0], y=xy_coords[1])
+			print(f"\tFor location: {loc_name}")
 			for var in point_ds.data_vars:
+				print(f"\t\textracting variable: {var}")
 				# convert each variable into a series
-				nwm_forcings_data[requested_coords][var] = point_ds[var].to_pandas()
+				nwm_forcings_data[loc_name][var] = point_ds[var].to_pandas()
 
 		# add unit info to series' names
 		utils.add_units(nwm_forcings_data, var_units)
@@ -444,7 +449,7 @@ def process_nwm_forcings(
 		# now convert the dataset's nearest x,y coordinates into lat,lon. These are the lat,lon coords in the dataset that are nearest to the requested lat,lon points
 		nearest_xy_to_wgs = [nwm_to_wgs.transform(x, y) for (x, y) in nearest_xy]
 		# create a dictionary where the keys are the user-requested lat,lon coords, and values are the nearest la,lon values in the dataset
-		req_to_act_coords = {requested_coord : (lat, lon) for requested_coord, (lon, lat) in zip(locations['points'], nearest_xy_to_wgs)}
+		req_to_act_coords = {requested_coord : (lat, lon) for requested_coord, (lon, lat) in zip(locations['points'].values(), nearest_xy_to_wgs)}
 		# this list comp will add the actual grid coords to the dictionary for each requested point 
 		[nwm_forcings_data[requested].update(grid_coords=nearest) for requested, nearest in req_to_act_coords.items()]
 
@@ -470,7 +475,7 @@ def get_data(
 	-- end_date: The end date for which to retrieve data.
 	-- member: The NWM forecast member for which you to get forcings for (Currently accepts 'medium_range', 'short_range', 'analysis_assim', and 'analysis_assim_extend').	-- locations: A dictionary containing either bounding box information or a list of points to extract from the gridded forcings dataset. Default value of None does not spatially subset the data. See validate_locations() for more details.
 		Note that the bounding box must be in latitude, longitude (WGS 1984), but the dataset is NOT reprojected and will maintain its orginal CRS.
-	-- locations: A dictionary containing either bounding box information or a list of points to extract from the gridded forcings dataset. Default value of None does not spatially subset the data. See validate_locations() for more details.
+	-- locations: A dictionary containing either bounding box information or a dict of points to extract from the gridded forcings dataset. Default value of None does not spatially subset the data. See validate_locations() for more details.
 		Note that the bounding box must be in latitude, longitude (WGS 1984), but the dataset is NOT reprojected and will maintain its orginal CRS.
 	-- variables: A dictionary or list of variables to pull out of the forcing files. When a dictionary is passed in the format {"user-name":"variable-name"}, the function will use those user-defined names when returning data. Otherwise, the variable names found in the dataset are used. Default value 'all' keeps all variables
 	-- reference_date: The forecast reference time, i.e., the date and time at which 
