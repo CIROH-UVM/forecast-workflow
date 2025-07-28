@@ -447,11 +447,11 @@ def process_nwm_forcings(
 		utils.add_units(nwm_forcings_data, var_units)
 
 		# now convert the dataset's nearest x,y coordinates into lat,lon. These are the lat,lon coords in the dataset that are nearest to the requested lat,lon points
-		nearest_xy_to_wgs = [nwm_to_wgs.transform(x, y) for (x, y) in nearest_xy]
+		nearest_xy_in_wgs = [nwm_to_wgs.transform(x, y) for (x, y) in nearest_xy]
 		# create a dictionary where the keys are the user-requested lat,lon coords, and values are the nearest la,lon values in the dataset
-		req_to_act_coords = {requested_coord : (lat, lon) for requested_coord, (lon, lat) in zip(locations['points'].values(), nearest_xy_to_wgs)}
+		real_coords_for_locs = {locname : (lat, lon) for locname, (lon, lat) in zip(locations['points'].keys(), nearest_xy_in_wgs)}
 		# this list comp will add the actual grid coords to the dictionary for each requested point 
-		[nwm_forcings_data[requested].update(grid_coords=nearest) for requested, nearest in req_to_act_coords.items()]
+		[nwm_forcings_data[locname].update(grid_coords=nearest) for locname, nearest in real_coords_for_locs.items()]
 
 	print('TASK COMPLETE: PROCESS NWM FORCINGS DATA')
 	return nwm_forcings_data
