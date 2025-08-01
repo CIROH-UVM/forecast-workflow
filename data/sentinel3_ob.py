@@ -256,11 +256,12 @@ class CIFilesDownloadProcess:
 
         # Import data and create xarray dask array labelled by timestamps from files
         time_var = xr.Variable('time', self.time_index_from_filenames(mosaic_list, string_slice=slice(1, 8)))
-        chunks = {'x': 1452, 'y': 1839, 'band': 1}
-        concat_arrays = xr.concat([riox.open_rasterio(i, chunks=chunks) for i in mosaic_list], dim=time_var)
-
+        #chunks = {'x': 1452, 'y': 1839, 'band': 1}
+        concat_arrays = xr.concat([riox.open_rasterio(i) for i in mosaic_list], dim=time_var)
+        
         # Convert to dataset and set band names
         concat_ds = concat_arrays.to_dataset(dim='band')
+        concat_ds = concat_ds.rename({1: 'DN'})
         #concat_ds = concat_ds.rename({1: 'blue', 2: 'green', 3: 'red', 4: 'nir'})
         concat_ds = concat_ds.sortby('time')
         return concat_ds
