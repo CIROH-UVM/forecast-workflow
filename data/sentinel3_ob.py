@@ -16,6 +16,9 @@ import glob
 import xarray as xr
 import rioxarray as riox
 
+import contextily as cx
+import matplotlib.pyplot as plt
+import matplotlib.colors as mc
 
 class CIFilesDownloadProcess:
     def __init__ (self, app_key, start_date, end_date, output_dir, cropbox, 
@@ -262,7 +265,8 @@ class CIFilesDownloadProcess:
         # Convert to dataset and set band names
         concat_ds = concat_arrays.to_dataset(dim='band')
         concat_ds = concat_ds.rename({1: 'DN'})
-        #concat_ds = concat_ds.rename({1: 'blue', 2: 'green', 3: 'red', 4: 'nir'})
+        print("Set Coordinate Reference System to Epsg4326")
+        concat_ds.rio.write_crs('epsg:4326', inplace=True)
         concat_ds = concat_ds.sortby('time')
         return concat_ds
 
@@ -273,7 +277,7 @@ def get_data(start_date,
 			output_dir,
             locations={'8_2'},
             remove_temp = True,
-            convert_to_ci = True, 
+            convert_to_ci = False, 
             areaid = "8_2",
 			variables={'streamflow':'Débit (m³/s)'},
 			service='iv'):
@@ -283,16 +287,12 @@ def get_data(start_date,
     Args:
     -- start_date (str, date, or datetime) [req]: the start date for which to grab Canadian Instantaneous data
     -- end_date (str, date, or datetime) [req]: the end date for which to grab Canadian Instantaneous data
-	-- locations (str): Area/Tile ID specifying the CONUS Tile to download data for (defaults to '8_2' which includes the Lake Champlain region)
-	-- variables (dict) [req]: a dictionary of variables to download, where keys are user-defined variable names and values are dataset-specific variable names.
 	-- service (str) [opt]: what frequency of data to get. Default is 'iv', or instantaneous data (15-min frequency). Other option is 'dv', which returns daily data. For more info, see https://www.cehq.gouv.qc.ca/hydrometrie/historique_donnees/fiche_station.asp?NoStation=030425
     -- app_key (str): string containing the app key for authentication.
-    -- start_date (str): Start date for downloading Cyanobacterial Index (CI) files in 'YYYY-MM-DD' format.
-    -- end_date (str)                : End date for downloading CI files in 'YYYY-MM-DD' format.
     -- output_dir (str)              : Directory where output files will be saved.
     -- cropbox (lat,lon,lat,lon)       : corners of the area to crop the geotiff with
     -- areaid(str)                     : string designating the tileid/areaid for the tiles to download, i.e. "8_2" for Champlain Valley
-    -- convert_to_ci (bool, optional): Flag indicating whether to convert Digital Number (DN) values to CI values. Defaults to True.
+    -- convert_to_ci (bool, optional): Flag indicating whether to convert Digital Number (DN) values to CI values. Defaults to False.
     -- remove_temp (bool, optional)  : Flag indicating whether to remove temporary files after processing. Defaults to True.
 
         Attributes:
@@ -300,7 +300,6 @@ def get_data(start_date,
             start_date (str): Start date for downloading CI files.
             end_date (str): End date for downloading CI files.
             output_dir (Path): Path object for the output directory.
-            ci_python_script_path (str): Path to the Python script for downloading CI files.
             temp_dir (Path): Path object for the temporary directory.
             urls_file (Path): Path object for the file storing the list of URLs to download.
             geotiff_path (Path): Path object for the directory storing downloaded GeoTIFF files.
@@ -311,8 +310,7 @@ def get_data(start_date,
             remove_temp (bool): Indicates whether to remove temporary files after processing.	
  
 	Returns:
-	Sentinel 3 sattelite  observed data for the specified Tile ID in a nested dict format where 1st-level keys are user-provided location names and 2nd-level keys
-	are variables names and values are the respective data in a Pandas Series object.
+	Sentinel 3 satellite  observed data for the specified Tile ID in an xarray dataset where time slices represent each downloaded Tile for variable "DN"
 	"""
     start_date = parse_to_datetime(start_date)
     end_date = parse_to_datetime(end_date)
@@ -350,3 +348,31 @@ def get_data(start_date,
         
         
     return sentinel3_data
+
+def plot (da, cmap=None, base=True, title=None, **kwargs) :
+        """ Plot a Sentinel3 DN for a time slice (2 dimensional array)
+                If no colormap (cmap) passed, build a custom color map for DN encoding
+                If base=True, display a basemap using CRS from passed dataset
+                If title=None, let plot function build default title from data context
+        """
+            
+        if (cmap == None) :
+            # build custom colormap for DN encoding
+            new_colors = plt.colormaps['coolwarm'](np.linspace(0, 1, plt.colormaps['coolwarm'].N)) 
+            DN_cmap = mc.ListedColormap(new_colors) # new listed color colormap
+            DN_cmap.colors[254] = (1,1,1,1) # ground value grey
+            DN_cmap.colors[255] = (0,0,0,1) # no-data/cloud value black
+        else : 
+            DN_cmap = cmap
+        
+        fig, axs = plt.subplots()
+        
+        # Plot without including the data identified as ground (254)
+        # It does include pixels identified as no-data/clouds (255)
+        da.where(da.values!=254).plot(ax=axs,cmap=DN_cmap)
+            
+        if (base) :
+            cx.add_basemap(axs, crs=da.rio.crs)
+        if (title != None) :   
+            plt.title(title)
+        return(axs)
