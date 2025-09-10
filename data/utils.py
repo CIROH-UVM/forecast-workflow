@@ -575,6 +575,9 @@ def plot_nested_dict(data, **kwargs):
 			- interval (int): interval for x-axis tick marks, whether the scale be days, hours, etc (forwarded to plot_ts() in single-variable cases only)
 			- labels (list): list of labels to use for each series, respectively, in plt.plot()
 			- colors (list): list of colors to use for each series, respectively, in plt.plot()
+			- figsize (tuple): dimensions of the subplots, in inches (width, height). Default is (10, 8).
+			- nrows (int): number of rows to make in the subplot figure. Default value is the number of variables.
+			- ncols (int): number of columns to make in the subplot figure. Default value is 1.
 	"""
 	# Get the list of variables from the first category
 	locations = list(data.keys())
@@ -584,7 +587,11 @@ def plot_nested_dict(data, **kwargs):
 
 	# if there's more than 1 variable to plot, we need to make subplots
 	if n > 1:
-		fig, axes = plt.subplots(n, 1, figsize=(10, n*4))  # Create subplots
+		figsize = kwargs.pop('figdims', (10, 8))
+		# determine number of rows and columsn for the figure object
+		nrows = kwargs.pop('nrows', n)
+		ncols = kwargs.pop('ncols', 1)
+		fig, axes = plt.subplots(nrows, ncols, figsize=figsize)  # Create subplots
 		# check to see if colors (list) was passed. If not, set to None
 		colors = kwargs.pop('colors', None)
 		if colors is None:
