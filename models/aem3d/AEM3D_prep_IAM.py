@@ -70,7 +70,11 @@ def add_plot(labelled_data, ylabel, title, fc_start, fc_end, row, col, axis):
 		# if there is no time component to the index...
 		if all(d.time() == dt.time(0) for d in data.index) and not data.index.empty:
 			# add a time component
-			data.index = data.index.map(lambda x: x.replace(hour=12)).tz_localize('UTC')
+			data.index = data.index.map(lambda x: x.replace(hour=12))
+			if data.index.tz is None:
+				data.index = data.index.tz_localize('UTC')
+			elif data.index is not dt.timezone.utc:
+				data.index = data.index.tz_convert('UTC')
 		# print("data.index AFTER")
 		# print(data.index)
 		time_sliced_data = data[data.index <= (fc_end + dt.timedelta(days=1))]
