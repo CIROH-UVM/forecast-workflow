@@ -14,7 +14,7 @@ def get_daily(id):
 	try:
 		df = pd.read_csv(locurl, delimiter=r'\s{2,}', index_col= 'Date', header=19, encoding='ISO-8859-1', parse_dates=True, engine='python')
 		print(f'Getting data from {locurl}')
-	except HTTPError as e:
+	except Exception as e:
 		print(f"{e}. {locurl}")
 	return df
 
@@ -23,9 +23,9 @@ def get_instantaneous(id, yearlist):
 	for year in yearlist :
 		locurl = 'https://www.cehq.gouv.qc.ca/depot/historique_donnees_instantanees/'+id+'_Q_'+str(year)+'.txt'
 		try:
-			new_year = pd.read_csv(locurl, delimiter=r'\s{2,}', index_col= 'Date', header=15, encoding='ISO-8859-1', parse_dates=True, engine='python')
+			new_year = pd.read_csv(locurl, delimiter=r'\s{2,}', index_col= 'Date', header=16, encoding='ISO-8859-1', parse_dates=True, engine='python')
 			print(f'Getting data from {locurl}')
-		except HTTPError as e:
+		except Exception as e:
 			print(f"{e}. {locurl}")
 			continue
 		df = pd.concat([df,new_year])
