@@ -217,7 +217,7 @@ def lcdRequest(startDate, endDate, var_list, station_id, units='standard'):
 	returnValue = None
 	# note that 'T00:00:00Z' is added to startDate (and similar appendage) to endDate in order to grab data for UTC time
 	while(returnValue is None):
-		requeststring = 'https://www.ncei.noaa.gov/access/services/data/v1/'+\
+		requeststring = 'https://www.ncei.noaa.gov/access/services/data/v1'+\
 								'?dataset=local-climatological-data'+\
 								'&stations='+\
 									station_id+\
