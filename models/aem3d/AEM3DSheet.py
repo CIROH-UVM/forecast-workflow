@@ -90,6 +90,76 @@ class AEM3DSheet:
 		interpda = interpda.rio.write_crs(meshda.rio.crs)
 	
 		return interpda
+
+	def interpolate_stack(da_stack: xr.DataArray, cellsize=50, interpmethod="nearest") -> xr.DataArray:
+		'''
+		Interpolates a stack of AEM3D rectilinear spatial grids to uniform grids. Performs exactly the same as AEM3DSheet.interpolate(),
+		except this function efficiently interpolates every grid in a stack as opposed to a single grid, and is xarray compatible in that
+		it perserves meta data like dataset attributes.
+
+		Args:
+		-- da_stack: the stack of AEM3D TCHLA time slices; each 'slice' is a 2D grid of the lake representing TCHLA data at one time stamp
+		-- cellsize: size in meters of each regular grid cell
+		-- interpmethod: method for interpolation forwarded to scipy.interpolate.RegularGridInterpolator()
+
+		Returns:
+		An xarray DataArray with interpolated regular spatial grids
+		'''
+
+		# extract data for interpolation from the original data array
+		values = da_stack.values
+		x = da_stack['x'].values
+		y = da_stack['y'].values
+	
+		# Determine output grid
+		xreg = np.arange(int(cellsize/2), int(x[-1]), cellsize)
+		yreg = np.arange(int(-cellsize/2), int(y[-1]), -cellsize)
+		xx, yy = np.meshgrid(xreg, yreg)
+		points = np.column_stack([yy.ravel(), xx.ravel()])
+
+		# Loop over each 2D slice in the stack
+		grid_list = []
+		for i in range(values.shape[0]):
+			interpolator = rgi(
+				points=[y, x],
+				values=values[i],
+				method=interpmethod,
+				bounds_error=False,
+				fill_value=np.nan
+			)
+			interp_vals = interpolator(points)
+			interp_grid = interp_vals.reshape(len(yreg), len(xreg))
+			grid_list.append(interp_grid)
+
+		# Stack along axis 0
+		interp_data = np.stack(grid_list, axis=0)
+
+		# create the new interpolated data array
+		interp_da = xr.DataArray(interp_data, coords={'x': xreg, 'y': yreg, 'date':da_stack['date'].values}, dims=('date', 'y', 'x'), name=da_stack.name)
+
+		### add metadata back to interpolated data array from original data arrray
+		# add date attributes back
+		interp_da['date'].attrs = da_stack['date'].attrs
+
+		# recompute min and max values for x and y, use original values for the other attributes
+		x_attrs = {'MinValue' : da_stack['x'].values.min(), 'MaxValue' : da_stack['x'].values.max()}
+		x_attrs = x_attrs | {k:v for k, v in da_stack['x'].attrs.items() if k not in ['MinValue', 'MaxValue']}
+		y_attrs = {'MinValue' : da_stack['y'].values.min(), 'MaxValue' : da_stack['y'].values.max()}
+		y_attrs = y_attrs | {k:v for k, v in da_stack['y'].attrs.items() if k not in ['MinValue', 'MaxValue']}
+
+		# now add x and y attributes back
+		interp_da['x'].attrs = x_attrs
+		interp_da['y'].attrs = y_attrs
+		
+		# add whole dataset attributes (except min and max, since they will be different)
+		interp_da.attrs = {k:v for k, v in da_stack.attrs.items() if k not in ['MinValue', 'MaxValue']}
+
+		# add the original CRS back to the interpolated datasest
+		interp_da = interp_da.rio.set_spatial_dims(x_dim='x', y_dim='y')
+		interp_da = interp_da.rio.write_crs(da_stack.rio.crs)
+
+		return interp_da
+
 	
 	def reproject(da, crs):
 		targetcrs = rasterio.crs.CRS.from_string(crs)
