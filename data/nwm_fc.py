@@ -49,18 +49,24 @@ def prepForDownloads(
 	reference_date = utils.parse_to_datetime(reference_date)
 
 	# break up the member string for file name and path construction
-	mem_type = member.split('_')[0]
+	mem_type = member
+	mem_num = ""
+	# For medium_range and long_range members, there is a member number to account for
+	if member.split('_')[-1].startswith('mem'):
+		mem_type = "_".join(member.split('_')[0:-1])
+		mem_num = member.split('_')[-1][-1]
+	
 	# define the forecast file name template that we want to look for - note that we are interested in channel_rt files as these contain streamflow data
-	netcdf_template = f'nwm.t{reference_date.strftime("%H")}z.{mem_type}_range.channel_rt'
-	# if the member is short_range, which has no members, there is no member number
-	if member != 'short_range':
+	netcdf_template = f'nwm.t{reference_date.strftime("%H")}z.{mem_type}.channel_rt'
+	# if the member type doesn't have members (i.e. short_range, analysis_assim), there is no member number
+	if mem_num != "":
 		# but if there is a member number (medium and long range), then include JUST an underscore plus the integer for the fname template (e.g., '_1')
-		netcdf_template = netcdf_template + '_' + member.split('range')[-1][-1]
+		netcdf_template = netcdf_template + '_' + mem_num
 	
 	# define the directory for storing NWM data. This directory structure mimics the NWM GCS bucket structure
-	dir_structure = f'nwm/{reference_date.strftime("%Y")}/nwm.{reference_date.strftime("%Y%m%d")}/{mem_type}_range'
-	if member != 'short_range':
-		dir_structure = dir_structure + member.split('range')[-1]
+	dir_structure = f'nwm/{reference_date.strftime("%Y")}/nwm.{reference_date.strftime("%Y%m%d")}/{mem_type}'
+	if mem_num != "":
+		dir_structure = dir_structure + "_mem" + mem_num
 	nwm_date_dir = os.path.join(download_dir, dir_structure)
 	
 	return reference_date, netcdf_template, nwm_date_dir
@@ -132,9 +138,10 @@ def download_nwm(
 
 	# print(bucket_paths)
 	# report what forecast timesteps are being selected
-	first_ts = re.search(r'\.f(\d{3})\.', bucket_paths[0]).group(1)
-	last_ts = re.search(r'\.f(\d{3})\.', bucket_paths[-1]).group(1)
-	print(f"Seeking the following forecast timesteps: {first_ts} to {last_ts}")
+	if member not in ['analysis_assim']:
+		first_ts = re.search(r'\.f(\d{3})\.', bucket_paths[0]).group(1)
+		last_ts = re.search(r'\.f(\d{3})\.', bucket_paths[-1]).group(1)
+		print(f"Seeking the following forecast timesteps: {first_ts} to {last_ts}")
 
 	# create local file paths where the downloaded data will be stored, mimicking the NWM GCS bucket structure
 	file_paths = [os.path.join(nwm_date_dir, os.path.basename(path)) for path in bucket_paths]
@@ -197,7 +204,10 @@ def process_nwm(
 	end_ts = utils.parse_to_datetime(end_ts)
 	
 	# Get the filenames from download_base_path - in chronological order
-	download_files = sorted(glob(os.path.join(nwm_data_dir, f'{fname_template}.f[0-9][0-9][0-9].conus.nc')))
+	if 'analysis_assim' in fname_template:
+		download_files = sorted(glob(os.path.join(nwm_data_dir, f'{fname_template}.tm[0-9][0-9].conus.nc')), reverse=True)
+	else:
+		download_files = sorted(glob(os.path.join(nwm_data_dir, f'{fname_template}.f[0-9][0-9][0-9].conus.nc')))
 	# print(download_files)
 	
 	# load the NWM data with multithreading
@@ -296,6 +306,12 @@ def process_nwm(
 		print('TASK COMPLETE: PROCESS NWM')
 		return nwm_data
 
+# Lots of TODO with these defaults to make things optional:
+# - start_date default = '' or None means start_date = start of data series
+# - end_date default = '' or None means end_date = end of data series
+# - member default = None means umm... pick something?  Or... maybe we need to change this to the first parameter and require it
+# - locations default = None means get ALL locations
+# - variables default = None means get ALL variables
 def get_data(
 	start_date: str | dt.date | dt.datetime,
 	end_date: str | dt.date | dt.datetime,
@@ -335,16 +351,21 @@ def get_data(
 	are variable names and values are the respective data in a Pandas Series object, or an xarray Dataset if format='xarray'.
 	'''
 	# Validate and process forecast dates
-	start_date, end_date, reference_date = utils.validate_forecast_times(start_date, end_date, reference_date)
+	# TODO? Validate analysis_assim... but with only 3 time samples, maybe just skip...
+	if member != "analysis_assim":
+		start_date, end_date, reference_date = utils.validate_forecast_times(start_date, end_date, reference_date)
 
 	reference_date, netcdf_template, nwm_date_dir = prepForDownloads(reference_date, member, data_dir)
 	# print(netcdf_template)
 
 	# Calculate which forecast timesteps to download based on reference_date, start_date, and end_date
 	# this allows for a precise selection of data from any given forecast
-	ref_to_end_hours = int((end_date - reference_date).total_seconds() / 3600)
-	ref_to_start_hours = int((start_date - reference_date).total_seconds() / 3600)
-	num_hours = list(range(ref_to_start_hours, ref_to_end_hours+1))
+	if member == "analysis_assim":
+		num_hours = "all"
+	else:
+		ref_to_end_hours = int((end_date - reference_date).total_seconds() / 3600)
+		ref_to_start_hours = int((start_date - reference_date).total_seconds() / 3600)
+		num_hours = list(range(ref_to_start_hours, ref_to_end_hours+1))
 
 	# now download the data
 	downloaded_list = download_nwm(reference_date, member, hours=num_hours, gcs=gcs, download_dir=data_dir, num_threads=dwnld_threads)
