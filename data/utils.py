@@ -775,10 +775,35 @@ def validate_forecast_times(start_date, end_date, reference_date=None):
 	reference_date = validate_ref_date(start_date, reference_date)
 	
 	# if the reference time does not have a valid forecast cycle, raise error
-	if reference_date.hour not in [0, 6, 12, 18]:
+	if reference_date.hour not in list(range(0, 24)):
 		raise ValueError(f'Invalid forecast reference time: {reference_date}. Reference time hour indicates forecast cycle and must be 0, 6, 12, or 18')
 	# if start date is before reference time, raise an error. With reference time passed, start date is used to slice forecast timeseries
 	if start_date < reference_date:
 		raise ValueError(f'Forecast start date: {start_date} comes before forecast reference time: {reference_date}')
+	
+	return start_date, end_date, reference_date
+
+def validate_analysis_assim_times(start_date, end_date, reference_date):
+	'''
+	Validates and processes analysis & assimilation datetimes to ensure compliance with NWM products.
+	
+	Args:
+	-- start_date (str, date, or datetime) [req]: The start date for which to slice data.
+	-- end_date (str, date, or datetime) [req]: The end date for which to slice data.
+	-- reference_date (str, date, or datetime) [opt]: The analysis & assim product reference time, i.e. the date and time cycle at which the corresponding forecast product was launched.
+
+	Returns:
+	-- tuple (datetime, datetime, datetime): Processed start_date, end_date, and reference_date.
+	'''
+	start_date = parse_to_datetime(start_date)
+	end_date = parse_to_datetime(end_date)
+	reference_date = parse_to_datetime(reference_date)
+	
+	# if the reference time does not have a valid forecast cycle, raise error
+	if reference_date.hour not in list[int](range(0, 24)):
+		raise ValueError(f'Invalid forecast reference time: {reference_date}. Reference time hour indicates analysis assimilation time and must be between 0 and 23')
+	# if start date is after end date, raise an error. With reference time passed, start date is used to slice forecast timeseries
+	if start_date > end_date:
+		raise ValueError(f'Analysis & Assimilation start date: {start_date} comes after end date: {end_date}')
 	
 	return start_date, end_date, reference_date

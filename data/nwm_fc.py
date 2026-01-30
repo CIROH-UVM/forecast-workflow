@@ -332,13 +332,12 @@ def get_data(
 	Args:
 	-- start_date: The start date for which to retrieve data.
 	-- end_date: The end date for which to retrieve data.
-	-- member: The member type of NWM forecast to get (medium_range_mem1, long_range_mem3, short_range, etc).
+	-- member: The member type of NWM forecast to get (medium_range_mem1, long_range_mem3, short_range, analysis_assim, etc).
 	-- locations: A dictionary or list of locations to pull out of the forecast files. When a dict is passed in the format {"user-name":"gauge_ID"},
 		then the function will use those user-defined names when returning data. Otherwise, default location IDs found in the dataset are used.
 	-- variables: A dictionary or list of variables to pull out of the 'channel_rt' forecast files. When a dictionary is passed in the format ("user-name":"variable-name"),
 		then the function will use those user-defined names when returning data. Otherwise, default variable names found in the dataset are used. 
-	-- reference_date: The forecast reference time, i.e., the date and time at which 
-		the forecast was initialized. Defaults to start_date if None.
+	-- reference_date: The forecast reference time, i.e., the date and time at which the forecast was initialized. Defaults to start_date if None.
 	-- data_dir: Directory to store downloaded data. Defaults to OS's default temp directory.
 	-- format: The format in which to return the data. Default is 'dictionary', which returns a nested dictionary of pandas series. Other valid option is 'xarray', which returns an xarray dataset.
 	-- gcs: Flag determining whether or not to use Google buckets for NWM download as opposed to NOMADs site. Default is True.
@@ -350,13 +349,17 @@ def get_data(
 	NWM timeseries for the given locations in a nested dict format where 1st-level keys are user-provided location names and 2nd-level keys
 	are variable names and values are the respective data in a Pandas Series object, or an xarray Dataset if format='xarray'.
 	'''
-	# Validate and process forecast dates
-	# TODO? Validate analysis_assim... but with only 3 time samples, maybe just skip...
-	if member != "analysis_assim":
-		start_date, end_date, reference_date = utils.validate_forecast_times(start_date, end_date, reference_date)
+	# Validate and process date & times
+	# for analysis assimilation data, the reference date is the date and time of the corresponding short-range forecast launch
+	# so start and end dates for analysis assimilation data must come BEFORE the reference date, unlike forecast products
+	# for all other forecast members, the reference date is the date and time of the forecast launch
+	if member == "analysis_assim":
+		if reference_date is None:
+			raise ValueError("Reference date is required for analysis assimilation data")
+		start_date, end_date, reference_date = utils.validate_analysis_assim_times(start_date, end_date, reference_date)
+	else: start_date, end_date, reference_date = utils.validate_forecast_times(start_date, end_date, reference_date)
 
 	reference_date, netcdf_template, nwm_date_dir = prepForDownloads(reference_date, member, data_dir)
-	# print(netcdf_template)
 
 	# Calculate which forecast timesteps to download based on reference_date, start_date, and end_date
 	# this allows for a precise selection of data from any given forecast
