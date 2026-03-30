@@ -1825,8 +1825,8 @@ def gensalinefile(theBay):
 	#
 	#   Salinity data time series
 	#
-	generate_file_from_template('salinity.template.txt',
-								'Inflows_Salinity.dat',
+	generate_file_from_template('Inflows_WQ_Salinity.template',
+								'Inflows_WQ_Salinity.dat',
 								theBay,
 								{'source_id_list': '  '.join(theBay.sourcelist),
 								 'firstdate': theBay.FirstDate,
@@ -1838,8 +1838,8 @@ def genboundaryfile(theBay):
 	#
 	#   P boundary condition data time series
 	#
-	generate_file_from_template('bc_p.template.txt',
-								'OpenBC_P.dat',
+	generate_file_from_template('OpenBC_WQ_P.template',
+								'OpenBC_WQ_P.dat',
 								theBay,
 								{'firstdate': theBay.FirstDate,
 								 'lastdate': theBay.LastDate
@@ -1943,7 +1943,7 @@ def gencntlfile(theBay, settings):
 		output_start_iter = iterations + 1 	# set output start after max sim iterations
 
 	
-	with open(os.path.join(theBay.template_dir, 'aem3dcntl.template.txt'), 'r') as file:
+	with open(os.path.join(theBay.template_dir, 'run_aem3d.template.txt'), 'r') as file:
 		template = Template(file.read())
 
 	# control file is written to runtime directory

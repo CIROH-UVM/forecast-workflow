@@ -100,8 +100,8 @@ def gencarbonfile(theBay):
 	#
 	#   Carbon data time series
 	#
-	generate_file_from_template('wq_c.template.txt',
-								'WQ_C.dat',
+	generate_file_from_template('Inflows_WQ_C.template',
+								'Inflows_WQ_C.dat',
 								theBay,
 								{'source_id_list': '  '.join(theBay.sourcelist),
 								 'firstdate': theBay.FirstDate,
@@ -115,8 +115,8 @@ def gensilicafile(theBay):
 	#     constant value for all sources
 	#     set start and stop dates in template that has all sources
 	#
-	generate_file_from_template('wq_si.template.txt',
-								'WQ_Si.dat',
+	generate_file_from_template('Inflows_WQ_Si.template',
+								'Inflows_WQ_Si.dat',
 								theBay,
 								{'source_id_list': '  '.join(theBay.sourcelist),
 								 'firstdate': theBay.FirstDate,
