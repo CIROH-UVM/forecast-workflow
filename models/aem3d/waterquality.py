@@ -251,7 +251,7 @@ def genwqfiles (theBay, settings):
 		# 	print(phosdf[phosdf.isna().any(axis=1)])
 		# 	raise Exception(f"NA's detected in phos df for bs_name: {bs_name}")
 
-		#TODO: Implement BREE2021Seg
+		#TODO: Implement BREE2021Seg and 202504TakisSeg?
 		#TODO: Move all this junk to THEBAY, choose cqVersion at THEBAY creation
 		# 8/19/2024 - cqVersion is now a attribute of THEBAY object and is determined by SETTINGS
 		cqVersion = THEBAY.cqVersion
@@ -268,6 +268,7 @@ def genwqfiles (theBay, settings):
 			#   Same for ALL ILS inputs!!
 			zTP = (flows['MS']['streamflow'] - 159.78) / 132.64
 			phosdf['TP'] =  ( 0.011001 * np.power(zTP,2) + 0.073104 * zTP + 0.091528 ) * p_redux
+
 		elif cqVersion == 'islesRF':
 			rf_tp_dir = os.path.join(rf_models_dir, "TP")
 			Q_features = add_features(pd.DataFrame(Q))
@@ -287,6 +288,20 @@ def genwqfiles (theBay, settings):
 				rf_tp = joblib.load(os.path.join(rf_tp_dir, 'jewett_TP.joblib'))
 				phosdf['TP'] = rf_tp.predict(Q_features)
 	
+		elif cqVersion == "202504TakisQuad":
+			if bs_name.startswith('MissisquoiRiver'):
+				phosdf['TP'] = np.power(10, ( 1.6229 + -0.6984 * logQ +  0.3791 * logQ * logQ)) * p_redux / 1000
+			elif bs_name.startswith('RockRiver'):
+				phosdf['TP'] = np.power(10, ( 2.1545 +  0.2724 * logQ +  0.1432 * logQ * logQ)) * p_redux / 1000
+			elif bs_name.startswith('PikeRiver'):
+				phosdf['TP'] = np.power(10, ( 1.4172 +  0.3411 * logQ +  0.0910 * logQ * logQ)) * p_redux / 1000
+			elif bs_name.startswith('MillRiver'):
+				phosdf['TP'] = np.power(10, ( 1.8273 +  0.3875 * logQ +  0.1095 * logQ * logQ)) * p_redux / 1000
+			elif bs_name.startswith('JewettStevens'):
+				phosdf['TP'] = np.power(10, ( 2.4060 +  0.3866 * logQ +  0.1513 * logQ * logQ)) * p_redux / 1000
+			else:
+				raise Exception(f'CQ Equation for baysource={bs_name} not found for cqVersion={cqVersion}') 			
+		
 		elif cqVersion == '202406Calibration':
 			if bs_name.startswith('MissisquoiRiver'):
 				zTP = (Q - 159.78) / 132.64
@@ -296,30 +311,30 @@ def genwqfiles (theBay, settings):
 			elif bs_name.startswith('PikeRiver'):
 				phosdf['TP'] = 0.016 + 0.0016*Q - 0.0000015*(Q*Q) * p_redux
 			# 2024 Calibration used VT DEC data for Mill and JS
-			#   For now, these are the BREE2021Quad Equations
-			#   But, we should switch to Takis' new 2024 equations ASAP
+			#   Switched from BREE2021Quad Equations to 202504TakisQuad on 4/11/2026 by Patrick C
 			elif bs_name.startswith('MillRiver'):
-				phosdf['TP'] = np.power(10, (1.7935 + 0.4052 * logQ + 0.1221 * logQ * logQ)) * p_redux / 1000
+				phosdf['TP'] = np.power(10, ( 1.8273 +  0.3875 * logQ +  0.1095 * logQ * logQ)) * p_redux / 1000
 			elif bs_name.startswith('JewettStevens'):
-				phosdf['TP'] = np.power(10, (2.2845 + 0.5185 * logQ + 0.1995 * logQ * logQ)) * p_redux / 1000
+				phosdf['TP'] = np.power(10, ( 2.4060 +  0.3866 * logQ +  0.1513 * logQ * logQ)) * p_redux / 1000
 			else:
 				raise Exception(f'CQ Equation for baysource={bs_name} not found for cqVersion={cqVersion}') 
 			
 		elif cqVersion == 'BREE2021Quad':
 			# Takis' new quadratic CQ equations by stream derived from historical data
-			# TODO Fix these to use Q from above instead of raw flowdf[]
-			if (
+			if(
 			bs_name.startswith('MissisquoiRiver') or 
 			bs_name.startswith('RockRiver') or
 			bs_name.startswith('PikeRiver')
 			):
 				phosdf['TP'] = np.power(10, (1.6884 - 0.7758 * logQ + 0.3952 * logQ * logQ)) * p_redux / 1000
-			elif bs_name.startswith('JewettStevens'):
-				phosdf['TP'] = np.power(10, (2.2845 + 0.5185 * logQ + 0.1995 * logQ * logQ)) * p_redux / 1000
 			elif bs_name.startswith('MillRiver'):
 				phosdf['TP'] = np.power(10, (1.7935 + 0.4052 * logQ + 0.1221 * logQ * logQ)) * p_redux / 1000
+			elif bs_name.startswith('JewettStevens'):
+				phosdf['TP'] = np.power(10, (2.2845 + 0.5185 * logQ + 0.1995 * logQ * logQ)) * p_redux / 1000
+
 			else:
 				raise Exception(f'CQ Equation for baysource={bs_name} not found for cqVersion={cqVersion}')
+
 		elif cqVersion.startswith("READ_CSV"):
 			### NOTE: NutrientForcings class NOT implmented -- that will require restructuring a lot of genwqfiles()
 			tpForcings = NutrForcings(start_date=ordinalToDatetime(THEBAY.FirstDate),
@@ -358,7 +373,11 @@ def genwqfiles (theBay, settings):
 			raise e        
 
 		# for other phosphorus concentrations, islesRF should use the same formulas as 202406Calibration
-		if cqVersion == '202406Calibration' or cqVersion == 'islesRF':
+		if(
+		cqVersion == "202504TakisQuad" or
+		cqVersion == '202406Calibration' or
+		cqVersion == 'islesRF'
+		):
 			if bs_name.startswith('MissisquoiRiver'):
 				phosdf['PO4'] = 0.01401 * np.power(phosdf['TP'],0.319)
 				phosdf['DOPL'] = 0.03268 * np.power(phosdf['TP'],0.319)
@@ -430,20 +449,7 @@ def genwqfiles (theBay, settings):
 		#nitdf['ordinaldate'] = flowdf['ordinaldate']
 		nitdf['ordinaldate'] = flows[THEBAY.sourcemap[baysource]['wshed']]['streamflow'].index.to_series().apply(datetimeToOrdinal) # ordinal dates index
 
-		if cqVersion == '202406Calibration':
-			if bs_name.startswith('PikeRiver'):
-				nitdf['TN'] = 0.95 + 0.004*Q + 0.7*np.power(2.72, (-Q/11))
-			elif bs_name.startswith('RockRiver'):
-				nitdf['TN'] = 2.0 + 0.021*Q + 1.45*np.power(2.72, (-(Q+0.9)/1.6))
-			elif (
-			bs_name.startswith('MissisquoiRiver') or
-			bs_name.startswith('JewettStevens') or
-			bs_name.startswith('MillRiver')
-			):
-				zTN = (Q - 166.3734) / 138.1476
-				nitdf['TN'] = 0.00407 * (zTN*zTN)  + 0.12853 * zTN + 0.75675            
-		
-		elif cqVersion == 'islesRF':
+		if cqVersion == 'islesRF':
 			rf_tn_dir = os.path.join(rf_models_dir, "TN")
 			if bs_name.startswith('MissisquoiRiver'):
 				rf_tn = joblib.load(os.path.join(rf_tn_dir, 'missisquoi_TN.joblib'))
@@ -460,6 +466,33 @@ def genwqfiles (theBay, settings):
 			elif bs_name.startswith('JewettStevens'):
 				rf_tn = joblib.load(os.path.join(rf_tn_dir, 'jewett_TN.joblib'))
 				nitdf['TN'] = rf_tn.predict(Q_features)
+		
+		elif cqVersion == "202504TakisQuad":
+			if bs_name.startswith('MissisquoiRiver'):
+				phosdf['TN'] = np.power(10, (-0.30901 +  0.00485 * logQ +  0.03854 * logQ * logQ)) * p_redux / 1000
+			elif bs_name.startswith('RockRiver'):
+				phosdf['TN'] = np.power(10, ( 0.29419 +  0.15548 * logQ + -0.00616 * logQ * logQ)) * p_redux / 1000
+			elif bs_name.startswith('PikeRiver'):
+				phosdf['TN'] = np.power(10, (-0.08346 +  0.64793 * logQ + -0.20651 * logQ * logQ)) * p_redux / 1000
+			elif bs_name.startswith('MillRiver'):
+				phosdf['TN'] = np.power(10, (-0.03505 +  0.15320 * logQ +  0.02576 * logQ * logQ)) * p_redux / 1000
+			elif bs_name.startswith('JewettStevens'):
+				phosdf['TN'] = np.power(10, ( 0.52674 +  0.06028 * logQ + -0.03018 * logQ * logQ)) * p_redux / 1000
+			else:
+				raise Exception(f'CQ Equation for baysource={bs_name} not found for cqVersion={cqVersion}') 
+		
+		elif cqVersion == '202406Calibration':
+			if bs_name.startswith('PikeRiver'):
+				nitdf['TN'] = 0.95 + 0.004*Q + 0.7*np.power(2.72, (-Q/11))
+			elif bs_name.startswith('RockRiver'):
+				nitdf['TN'] = 2.0 + 0.021*Q + 1.45*np.power(2.72, (-(Q+0.9)/1.6))
+			elif(
+			bs_name.startswith('MissisquoiRiver') or
+			bs_name.startswith('JewettStevens') or
+			bs_name.startswith('MillRiver')
+			):
+				zTN = (Q - 166.3734) / 138.1476
+				nitdf['TN'] = 0.00407 * (zTN*zTN)  + 0.12853 * zTN + 0.75675            
 
 		elif cqVersion.startswith("READ_CSV"):
 			tn_csv_dir = os.path.join(settings["data_dir"], cqVersion.split(":")[-1], "TN")
@@ -483,7 +516,12 @@ def genwqfiles (theBay, settings):
 			nitdf['TN'] = 0.00407 * (zTN*zTN)  + 0.12853 * zTN + 0.75675
 			
 		# islesRf and READ_CSV (for Peter's CSVs) should use the same equations as 202406Calibration for all other nitrogren species
-		if cqVersion == '202406Calibration' or cqVersion == 'islesRF' or cqVersion.startswith("READ_CSV"):
+		if(
+		cqVersion == "202504TakisQuad" or
+		cqVersion == '202406Calibration' or
+		cqVersion == 'islesRF' or
+		cqVersion.startswith("READ_CSV")
+		):
 			# using the same equations for nitrogen species for every trib
 			nitdf['NH4'] = 0.1 * nitdf['TN']
 			nitdf['NO3'] = 0.3 * nitdf['TN']
