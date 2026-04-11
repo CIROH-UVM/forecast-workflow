@@ -321,7 +321,7 @@ def genwqfiles (theBay, settings):
 			
 		elif cqVersion == 'BREE2021Quad':
 			# Takis' new quadratic CQ equations by stream derived from historical data
-			if (
+			if(
 			bs_name.startswith('MissisquoiRiver') or 
 			bs_name.startswith('RockRiver') or
 			bs_name.startswith('PikeRiver')
@@ -373,7 +373,11 @@ def genwqfiles (theBay, settings):
 			raise e        
 
 		# for other phosphorus concentrations, islesRF should use the same formulas as 202406Calibration
-		if cqVersion == '202406Calibration' or cqVersion == 'islesRF':
+		if(
+		cqVersion == "202504TakisQuad" or
+		cqVersion == '202406Calibration' or
+		cqVersion == 'islesRF'
+		):
 			if bs_name.startswith('MissisquoiRiver'):
 				phosdf['PO4'] = 0.01401 * np.power(phosdf['TP'],0.319)
 				phosdf['DOPL'] = 0.03268 * np.power(phosdf['TP'],0.319)
@@ -482,7 +486,7 @@ def genwqfiles (theBay, settings):
 				nitdf['TN'] = 0.95 + 0.004*Q + 0.7*np.power(2.72, (-Q/11))
 			elif bs_name.startswith('RockRiver'):
 				nitdf['TN'] = 2.0 + 0.021*Q + 1.45*np.power(2.72, (-(Q+0.9)/1.6))
-			elif (
+			elif(
 			bs_name.startswith('MissisquoiRiver') or
 			bs_name.startswith('JewettStevens') or
 			bs_name.startswith('MillRiver')
@@ -512,7 +516,12 @@ def genwqfiles (theBay, settings):
 			nitdf['TN'] = 0.00407 * (zTN*zTN)  + 0.12853 * zTN + 0.75675
 			
 		# islesRf and READ_CSV (for Peter's CSVs) should use the same equations as 202406Calibration for all other nitrogren species
-		if cqVersion == '202406Calibration' or cqVersion == 'islesRF' or cqVersion.startswith("READ_CSV"):
+		if(
+		cqVersion == "202504TakisQuad" or
+		cqVersion == '202406Calibration' or
+		cqVersion == 'islesRF' or
+		cqVersion.startswith("READ_CSV")
+		):
 			# using the same equations for nitrogen species for every trib
 			nitdf['NH4'] = 0.1 * nitdf['TN']
 			nitdf['NO3'] = 0.3 * nitdf['TN']
