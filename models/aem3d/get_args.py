@@ -87,7 +87,7 @@ def check_values(settings_dict, defaults=False):
 			raise ValueError(f"file '{settings_dict['aem3d_command_path']}' not found")
 	
 	# Define valid CQ versions:
-	valid_cqVersions = ['BREE2021Quad', '202406Calibration', 'Clelia', 'islesRF']
+	valid_cqVersions = ['BREE2021Quad', '202406Calibration', 'Clelia', 'islesRF', '202504TakisQuad']
 	# validate
 	if settings_dict['cqVersion'] not in valid_cqVersions and not settings_dict['cqVersion'].startswith("READ_CSV"):
 		raise ValueError(f"'{settings_dict['cqVersion']}' is not a valid CQ version. Valid versions are: {valid_cqVersions}")
