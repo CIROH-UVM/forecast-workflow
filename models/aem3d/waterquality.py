@@ -469,15 +469,15 @@ def genwqfiles (theBay, settings):
 		
 		elif cqVersion == "202504TakisQuad":
 			if bs_name.startswith('MissisquoiRiver'):
-				phosdf['TN'] = np.power(10, (-0.30901 +  0.00485 * logQ +  0.03854 * logQ * logQ)) * p_redux / 1000
+				nitdf['TN'] = np.power(10, (-0.30901 +  0.00485 * logQ +  0.03854 * logQ * logQ)) * p_redux / 1000
 			elif bs_name.startswith('RockRiver'):
-				phosdf['TN'] = np.power(10, ( 0.29419 +  0.15548 * logQ + -0.00616 * logQ * logQ)) * p_redux / 1000
+				nitdf['TN'] = np.power(10, ( 0.29419 +  0.15548 * logQ + -0.00616 * logQ * logQ)) * p_redux / 1000
 			elif bs_name.startswith('PikeRiver'):
-				phosdf['TN'] = np.power(10, (-0.08346 +  0.64793 * logQ + -0.20651 * logQ * logQ)) * p_redux / 1000
+				nitdf['TN'] = np.power(10, (-0.08346 +  0.64793 * logQ + -0.20651 * logQ * logQ)) * p_redux / 1000
 			elif bs_name.startswith('MillRiver'):
-				phosdf['TN'] = np.power(10, (-0.03505 +  0.15320 * logQ +  0.02576 * logQ * logQ)) * p_redux / 1000
+				nitdf['TN'] = np.power(10, (-0.03505 +  0.15320 * logQ +  0.02576 * logQ * logQ)) * p_redux / 1000
 			elif bs_name.startswith('JewettStevens'):
-				phosdf['TN'] = np.power(10, ( 0.52674 +  0.06028 * logQ + -0.03018 * logQ * logQ)) * p_redux / 1000
+				nitdf['TN'] = np.power(10, ( 0.52674 +  0.06028 * logQ + -0.03018 * logQ * logQ)) * p_redux / 1000
 			else:
 				raise Exception(f'CQ Equation for baysource={bs_name} not found for cqVersion={cqVersion}') 
 		
