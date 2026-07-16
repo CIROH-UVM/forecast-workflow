@@ -491,7 +491,7 @@ def plot_ts(series_list, scale='auto', **kwargs):
 	Args:
 	-- series_list (list) [req]: a list of Pandas.Series to plot
 	-- scale (str) [opt]: determines the x-axis tick mark scale. Options are:
-	 	- 'years'
+		- 'years'
 		- 'months'
 		- 'weeks'
 		- 'days'
@@ -501,12 +501,14 @@ def plot_ts(series_list, scale='auto', **kwargs):
 		- interval (int): interval for x-axis tick marks, whether the scale be days, hours, etc
 		- labels (list): list of labels to use for each series, respectively, in plt.plot()
 		- colors (list): list of colors to use for each series, respectively, in plt.plot()
+		- figsize (tuple): dimensions of the subplots, in inches (width, height). Default is (10, 16).
 		- title (str): a custom title for the plot
 	
 	Returns:
 	the figure object created. 
 	""" 
-	fig, ax = plt.subplots(figsize=(10, 6))
+	fig_size = kwargs.pop('figsize', (10, 6))
+	fig, ax = plt.subplots(figsize=fig_size)
 	
 	# Extract label from kwargs if it exists
 	interval = kwargs.pop('interval', 1)
@@ -575,7 +577,7 @@ def plot_nested_dict(data, **kwargs):
 			- interval (int): interval for x-axis tick marks, whether the scale be days, hours, etc (forwarded to plot_ts() in single-variable cases only)
 			- labels (list): list of labels to use for each series, respectively, in plt.plot()
 			- colors (list): list of colors to use for each series, respectively, in plt.plot()
-			- figsize (tuple): dimensions of the subplots, in inches (width, height). Default is (10, 8).
+			- figsize (tuple): dimensions of the subplots, in inches (width, height). Default is (10, 16).
 			- nrows (int): number of rows to make in the subplot figure. Default value is the number of variables.
 			- ncols (int): number of columns to make in the subplot figure. Default value is 1.
 	"""
@@ -587,10 +589,13 @@ def plot_nested_dict(data, **kwargs):
 
 	# if there's more than 1 variable to plot, we need to make subplots
 	if n > 1:
-		figsize = kwargs.pop('figdims', (10, 8))
+		figsize = kwargs.pop('figsize', (10, 16))
 		# determine number of rows and columsn for the figure object
 		nrows = kwargs.pop('nrows', n)
 		ncols = kwargs.pop('ncols', 1)
+		# the number of subplots to make (ncols * nrows) must be equal to the number of variables
+		if ncols * nrows != n:
+			raise ValueError(f"Product of nrows and ncols if passed must equal the number of variables to be plotted")
 		fig, axes = plt.subplots(nrows, ncols, figsize=figsize)  # Create subplots
 		# check to see if colors (list) was passed. If not, set to None
 		colors = kwargs.pop('colors', None)
@@ -598,15 +603,42 @@ def plot_nested_dict(data, **kwargs):
 			# define a color map
 			cmap = plt.get_cmap("tab10") # 'Set1', 'Set2'
 			colors = [cmap(i) for i in range(len(locations))]
-		for i, var in enumerate(variables):
-			for j, loc in enumerate(locations):
-				series = data[loc][var]
-				axes[i].plot(series.index, series.values, label=loc, color=colors[j])
-				axes[i].set_title(var)
-				axes[i].set_xlabel('Datetime')
-				axes[i].set_ylabel(series.name)
-				axes[i].legend()
-				axes[i].grid()
+		var_idx = 0
+		for i in range(nrows):
+			if ncols == 1:
+				for c, loc in enumerate(locations):
+					var = variables[var_idx]
+					# print(f"plotting {var} for {loc}")
+					# print(f"subplot location: {i}")
+					series = data[loc][var]
+					axes[i].plot(series.index, series.values, label=loc, color=colors[c])
+					axes[i].set_title(var)
+					axes[i].set_xlabel('Datetime', fontsize=8)
+					axes[i].tick_params(axis='both', labelsize=6)
+					axes[i].set_ylabel(series.name, fontsize=8)
+					axes[i].legend()
+					axes[i].grid()
+				var_idx = var_idx+1
+			else:
+				for j in range(ncols):
+					for c, loc in enumerate(locations):
+						var = variables[var_idx]
+						# print(f"plotting {var} for {loc}")
+						# print(f"subplot location: {i,j}")
+						series = data[loc][var]
+						try:
+							# In the `plot_nested_dict` function, the `axes` variable is being used to store the subplot axes when creating multiple subplots within a single figure. It is a multidimensional array of subplot axes objects that are created using `plt.subplots(nrows, ncols, figsize=figsize)`.
+							axes[i,j].plot(series.index, series.values, label=loc, color=colors[c])
+							axes[i,j].set_title(var)
+							axes[i,j].set_xlabel('Datetime', fontsize=8)
+							axes[i,j].tick_params(axis='both', labelsize=6)
+							axes[i,j].set_ylabel(series.name, fontsize=8)
+							axes[i,j].legend()
+							axes[i,j].grid()
+						except Exception as e:
+							# raise(e)
+							return axes
+					var_idx = var_idx+1
 
 		plt.tight_layout()  # Adjust layout to prevent overlap
 		return fig
