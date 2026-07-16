@@ -188,7 +188,7 @@ class AEM3DSheet:
 		else:
 			daslice.plot(ax=axs, **kwargs)
 		if (base):
-			cx.add_basemap(axs, crs=targetcrs)
+			cx.add_basemap(axs, crs=targetcrs, url=cx.providers.OpenStreetMap.Mapnik)
 		
 		plt.title(title)
 		return(axs)
