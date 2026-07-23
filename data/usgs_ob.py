@@ -17,14 +17,13 @@ def USGSgetvars_function(id, variables, start, end, service='iv'):
 
 	Args:
 	-- id (str) [req]: station ID to get data for
-	-- variables (dictionary) : {'column name' : 'usgs var code'}
-	-- paramter (str) [req]: parameter code of data to get
+	-- variables (dict) [req]: a dictionary mapping user-defined variable names to USGS parameter codes, i.e. {'column name' : 'usgs var code'}.
 	-- start (datetime) [req]: start datetime
 	-- end (datetime) [req]: end datetime
 	-- service (str) [opt]: what USGS service to get data from. Default is instanteous values service. For more options, see https://waterservices.usgs.gov/docs/
 
 	Returns:
-	A dataframe of USGS streamflow data indexed by timestamp
+	A dictionary mapping each variable name to a Pandas Series of that variable's data, indexed by timestamp and named "{var} ({unit})".
 	"""
 	# daily values service does not accept timezones, but instantaneous values service does
 	if service == 'dv':

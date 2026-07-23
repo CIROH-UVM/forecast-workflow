@@ -307,11 +307,13 @@ def process_ncss(ds, variables, locations):
 
 def remap_to_cfs_coords(locations):
 	'''
-	Given a standard location dictionary, will  return a tuple containing two paired lists of -90 - 90 latitudes and 0-360 longitudes
-	
+	Remaps a standard location dictionary's longitudes from the -180-180 convention to the 0-360 convention that CFS uses.
+
+	Args:
+	-- locations (dict) [req]: a dictionary mapping location names to (lat, lon) tuples, with longitudes on the -180-180 scale.
+
 	Returns:
-	--lats: list of latitudes
-	--lons: corresponding list of longitudes
+	A dictionary mapping the same location names to (lat, lon) tuples, with longitudes remapped to the 0-360 scale. Latitudes are unchanged.
 	'''
 	# function to convert longitude on the -180 to 180 scale to 0 to 360 (Higher longitude makes east side of boundary box, lower value is west boundary)
 	map_function = lambda lon: 360 + lon if (lon < 0) else lon

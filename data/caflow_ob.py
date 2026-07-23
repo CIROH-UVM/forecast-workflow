@@ -10,6 +10,15 @@ from urllib.error import HTTPError
 # 	030425 : Rock
 
 def get_daily(id):
+	"""
+	Downloads Canadian daily streamflow observation data for a single station from the CEHQ (Centre d'expertise hydrique du Québec) historical data archive.
+
+	Args:
+	-- id (str) [req]: CEHQ station ID (e.g., '030424' for Pike, '030425' for Rock).
+
+	Returns:
+	A pandas DataFrame of daily streamflow records for the station, indexed by date, with columns matching the raw CEHQ file (including 'Débit (m³/s)').
+	"""
 	locurl = 'https://www.cehq.gouv.qc.ca/depot/historique_donnees/fichier/'+id+'_Q.txt'
 	try:
 		df = pd.read_csv(locurl, delimiter=r'\s{2,}', index_col= 'Date', header=19, encoding='ISO-8859-1', parse_dates=True, engine='python')
@@ -19,6 +28,16 @@ def get_daily(id):
 	return df
 
 def get_instantaneous(id, yearlist):
+	"""
+	Downloads and concatenates Canadian instantaneous (15-minute frequency) streamflow observation data for a single station across one or more years from the CEHQ historical data archive.
+
+	Args:
+	-- id (str) [req]: CEHQ station ID (e.g., '030424' for Pike, '030425' for Rock).
+	-- yearlist (list of int) [req]: years to download instantaneous data for. Years with a failed request are skipped.
+
+	Returns:
+	A pandas DataFrame of concatenated instantaneous streamflow records across all requested years, indexed by date/time.
+	"""
 	df = pd.DataFrame()
 	for year in yearlist :
 		locurl = 'https://www.cehq.gouv.qc.ca/depot/historique_donnees_instantanees/'+id+'_Q_'+str(year)+'.txt'

@@ -34,6 +34,15 @@ Var-specific processing functions:
 
 '''
 def splitsky ( instring ) :
+	"""
+	Extracts the sky cover code (e.g., 'CLR', 'SCT', 'OVC') from a raw LCD 'HourlySkyConditions' string, keeping the layer nearest the last ':' separator.
+
+	Args:
+	-- instring: the raw sky condition string to parse (e.g., 'FEW:02 007 SCT:04 015 OVC:08 021').
+
+	Returns:
+	The extracted sky cover code as a string, or a blank space (' ') if no valid code is found (including obscured-sky 'X' observations, which are discarded).
+	"""
 	thestring = str(instring)
 	tokens = thestring.split(':')   # looking for at least one cover code marker :
 	if len(tokens) > 1 :
@@ -46,11 +55,29 @@ def splitsky ( instring ) :
 	return token
 
 def sky2prop (theskycode) :
+  """
+  Converts an LCD sky cover code into a fractional sky cover proportion (0.0 = clear, 1.0 = fully overcast).
+
+  Args:
+  -- theskycode (str) [req]: sky cover code as returned by splitsky() (one of 'CLR', 'FEW', 'SCT', 'BKN', 'OVC', 'VV', or ' ').
+
+  Returns:
+  The corresponding sky cover fraction as a float.
+  """
   skypropmap = {'CLR': 0.000, 'FEW': 0.250, 'SCT': 0.5000, 'BKN': 0.875, 'OVC': 1.000, 'VV': 1.000, ' ': 1.000}
   theprop = skypropmap[str(theskycode)]
   return theprop
 
 def process_clouds(cloud_series):
+	"""
+	Converts a raw 'HourlySkyConditions' series into a series of fractional sky cover values, dropping entries that don't resolve to a valid sky code.
+
+	Args:
+	-- cloud_series (Pandas Series) [req]: raw 'HourlySkyConditions' values to process.
+
+	Returns:
+	A pandas Series of fractional sky cover values (see sky2prop()), with unresolved entries removed.
+	"""
 	cloud_series = cloud_series.apply(splitsky)
 	# Remove those that don't convert to skycode... junk entries
 	cloud_series = cloud_series[cloud_series != ' ']
@@ -58,6 +85,15 @@ def process_clouds(cloud_series):
 	return cloud_series
 
 def leavenotrace (precip) :
+	"""
+	Cleans a single raw LCD precipitation value: converts trace amounts ('T') to 0.00 and flags malformed multi-decimal values as NaN.
+
+	Args:
+	-- precip: the raw precipitation value to clean.
+
+	Returns:
+	The cleaned precipitation value as a string ('0.00' for trace, 'NaN' for malformed multi-decimal values, or the original value with any 's' suspect-value marker stripped).
+	"""
 	if str(precip) == 'T' :
 		return '0.00'
 	# Some suspect values (marked with s) contain junk data with 2 decimal points
@@ -69,6 +105,18 @@ def leavenotrace (precip) :
 		return str(precip).replace('s', '')
 
 def process_rain(precip_df, user_name):
+	"""
+	Cleans the 'HourlyPrecipitation' column of a raw LCD dataframe and adds it under a user-defined column name with units attached.
+
+	Args:
+	-- precip_df (Pandas DataFrame) [req]: raw LCD dataframe containing a 'HourlyPrecipitation' column.
+	-- user_name (str) [req]: column name to store the cleaned precipitation values under.
+
+	Returns:
+	The dataframe with a new float column named user_name (trace/malformed values cleaned via leavenotrace()), rows with NaN in a 'RAIN' column dropped, and a 'Units' column set to 'inches'.
+
+	Note: not currently called elsewhere in this module (get_data() cleans precipitation inline); the NaN filter is hardcoded to a 'RAIN' column rather than user_name.
+	"""
 	# First replace 'T's for trace precip with 0.0
 	#  leavenotrace also removes 's' notations on some precip values
 	#  Also, convert to float
@@ -113,8 +161,13 @@ Regardless, the general procedure for cleaning the raw data returned by the API 
 '''
 def clean_raw_df(raw_df):
 	'''
-	1. Remove duplicate values in the 'DATE' column
-	2. Set the index of the df to the 'DATE' column as UTC datetime timestamps, rename to 'time'
+	Deduplicates and re-indexes a raw LCD dataframe: removes duplicate 'DATE' entries (preferring FM-16 over FM-15 over FM-12 over SOD reports) and sets the index to the 'DATE' column as UTC datetime timestamps, renamed to 'time'.
+
+	Args:
+	-- raw_df (Pandas DataFrame) [req]: the raw LCD dataframe returned by lcdRequest(), containing 'DATE' and 'REPORT_TYPE' columns.
+
+	Returns:
+	A copy of the dataframe with duplicate timestamps removed and indexed by a UTC 'time' DatetimeIndex.
 	'''
 	# all of the duplicated Dates
 	all_dup_rows = raw_df.loc[raw_df['DATE'].duplicated(keep=False)]
@@ -211,6 +264,19 @@ def scrubSpecialChars(raw_series, inplace=False):
 # 	return pd.DataFrame(data={colToKeep: df[colToKeep].to_numpy(), 'Units':df['Units'].to_numpy()}, index=pd.DatetimeIndex(data=pd.to_datetime(df[index]), name='time')).tz_localize('UTC')
 
 def lcdRequest(startDate, endDate, var_list, station_id, units='standard'):
+	"""
+	Sends a request to the NOAA Local Climatological Data (LCD) API for the given station, variables, date range, and unit system, retrying until a valid JSON response is received.
+
+	Args:
+	-- startDate (datetime) [req]: start date for the data request (time is ignored; UTC midnight is used).
+	-- endDate (datetime) [req]: end date for the data request (exclusive; the request covers through 23:59 UTC of the day before).
+	-- var_list (list of str) [req]: LCD-specific variable names to request (e.g., 'HourlyPrecipitation').
+	-- station_id (str) [req]: LCD station ID to request data for.
+	-- units (str) [opt]: unit system for the request, 'standard' or 'metric'. Defaults to 'standard'.
+
+	Returns:
+	A pandas DataFrame of the raw JSON response from the LCD API, with one row per report and columns for each requested field plus metadata fields like 'DATE' and 'REPORT_TYPE'.
+	"""
 	# join all requested variables by a comma for the API call
 	varstring = (',').join(var_list)
 	# put this in loop since this fails frequently
