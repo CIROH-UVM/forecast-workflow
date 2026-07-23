@@ -111,11 +111,12 @@ def process_gfs_data(date,
 					 gfs_data_dir,
 					 num_threads):
 	"""
-	Will load NWM data and return a dictionary of timestamped streamflow data (pd.DataFrame) for each staion name in location_dict
+	Loads the downloaded GFS NetCDF files and returns a dictionary of timestamped meteorological data (pd.DataFrame) for each station name in location_dict.
 
 	Args:
 	-- date (datetime) [req]: datetime object representing the forecast date.
 	-- location_dict (dict) [req]: a dictionary (stationID/name:IDValue/latlong tuple) of locations to load meterological data for.
+	-- variables_dict (dict) [req]: a dictionary mapping user-defined variable names to GFS dataset variable names.
 	-- gfs_data_dir (str) [req]: the directroy in which all of the GFS grib2 files are stored.
 	-- num_threads (int) [req]: number of threds to use for reading grib2 files
 
@@ -196,7 +197,7 @@ def get_data(forecast_datetime,
 	-- end_datetime (str, date, or datetime) [req]: the end date and time for the forecast. GFS forecasts 16-days out for a given start date.
 	-- locations (dict) [req]: a dictionary (stationID/name:IDValue/latlong tuple) of locations to download forecast data for.
 	-- data_dir (str) [opt]: directory to store donwloaded data. Defaults to OS's default temp directory.
-	-- dwnld_threads (int) [opt]: number of threads to use for downloads. Default is half of OS's available threads.
+	-- dnwld_threads (int) [opt]: number of threads to use for downloads. Default is half of OS's available threads.
 	-- load_threads (int) [opt]: number of threads to use for reading data. Default is 2 for GFS, since file reads are already pretty fast.
 	-- useTCDCInstant (bool) [opt]: wether to use instantaneous var for cloud cover or rolling average value.
 

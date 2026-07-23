@@ -100,12 +100,31 @@ def append_timestamp(sta_dict, loc_dict, loc_dfs):
 			sta_dict[stationID] = df_to_append
 
 def dict_to_csv(loc_dict={}, location_dataframes={}):
+	"""
+	Writes each station's processed GFS dataframe out to a CSV file named by station coordinates.
+
+	Args:
+	-- loc_dict (dict) [opt]: dictionary mapping station ID/name to a (lat, long) coordinate tuple.
+	-- location_dataframes (dict) [opt]: dictionary mapping station ID/name to its processed GFS dataframe.
+	"""
 	for station in loc_dict:
 		location = loc_dict[station]
 		filename = f"{station}_{location[0]}_{location[1]}.csv"
 		location_dataframes[station].to_csv(filename)
 
 def execute(cmd):
+	"""
+	Runs a shell command as a subprocess and yields its stdout line by line as it's produced.
+
+	Args:
+	-- cmd (list of str) [req]: the command and arguments to execute, as passed to subprocess.Popen.
+
+	Yields:
+	Each line of stdout produced by the command, as it becomes available.
+
+	Raises:
+	subprocess.CalledProcessError: if the command exits with a non-zero return code.
+	"""
 	popen = sp.Popen(cmd, stdout=sp.PIPE, universal_newlines=True)
 	for stdout_line in iter(popen.stdout.readline, ""):
 		yield stdout_line
@@ -114,8 +133,17 @@ def execute(cmd):
 	if return_code:
 		raise sp.CalledProcessError(return_code, cmd)
 		
-# pulls just the desired lat/long pairs out of the datasets and isolat
 def isolate_loc_rows(ds, loc_dict):
+	"""
+	Selects and concatenates the grid cells corresponding to each requested lat/long pair out of a GFS xarray Dataset.
+
+	Args:
+	-- ds (xarray.Dataset) [req]: the GFS dataset to select from, indexed by 'latitude' and 'longitude'.
+	-- loc_dict (dict) [req]: dictionary mapping station ID/name to a (lat, long) coordinate tuple.
+
+	Returns:
+	An xarray.Dataset containing only the requested locations, concatenated along the 'latitude' dimension.
+	"""
 	# initialize empty list to store ds for each station in loc_dict
 	station_ds_list = []
 	for coords in loc_dict.values():
@@ -127,8 +155,16 @@ def isolate_loc_rows(ds, loc_dict):
 	concat_stations_ds = xr.concat(station_ds_list, dim="latitude")
 	return concat_stations_ds
 
-### In-place function that transforms the longitude indices from 0-360 t0 -180-180
 def remap_longs(ds):
+	"""
+	Remaps a dataset's longitude coordinate from the GFS's native 0-360 convention to the standard -180-180 convention.
+
+	Args:
+	-- ds (xarray.Dataset) [req]: the dataset whose 'longitude' coordinate should be remapped.
+
+	Returns:
+	A copy of the dataset with 'longitude' coordinate values remapped to the -180-180 range.
+	"""
 	map_function = lambda lon: (lon - 360) if (lon > 180) else lon
 	vector_fcn = np.vectorize(map_function)
 	longitudes = ds.coords["longitude"].values
@@ -147,9 +183,8 @@ def download_gfs(dates=dt.datetime.today().strftime("%Y%m%d"),
 	Args:
 	-- dates (list of strs) [opt]: list of dates to download gribs for. Default is just the current date
 	-- hours (list of strs) [opt]: list of forecast hours to download gribs for. Default is 7 day forecast, or 168 hours
-	-- log (logger) [required]: logger track info and download progress
 	-- grib_data_dir (str) [opt]: directory in which to store gfs grib files
-	
+
 	"""
 	print(f'TASK INITIATED: Download {int(hours[-1])}-hour GFS forecasts for the following dates: {dates}')
 	for d in dates:
@@ -223,7 +258,7 @@ def get_data(forecast_datetime,
 	-- end_datetime (str, date, or datetime) [req]: the end date and time for the forecast. GFS forecasts 16-days out for a given start date.
 	-- locations (dict) [req]: a dictionary (stationID/name:IDValue/latlong tuple) of locations to download forecast data for.
 	-- data_dir (str) [opt]: directory to store donwloaded data. Defaults to OS's default temp directory.
-	-- dwnld_threads (int) [opt]: number of threads to use for downloads. Default is half of OS's available threads.
+	-- dnwld_threads (int) [opt]: number of threads to use for downloads. Default is half of OS's available threads.
 	-- load_threads (int) [opt]: number of threads to use for reading data. Default is 2 for GFS, since file reads are already pretty fast.
 	-- return_type (string) [opt]: string indicating which format to return data in. Default is "dict", which will return data in a nested dict format:
 									{locationID1:{

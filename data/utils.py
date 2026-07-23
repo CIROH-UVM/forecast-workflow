@@ -570,8 +570,8 @@ def plot_nested_dict(data, **kwargs):
 	"""
 	Makes a figure with n subplots, where n is the number of vaiables in each location dict. Must have the same variables for each location
 
-	Parameters:
-		-- data (dict): A nested dictionary where the outer keys are categories 
+	Args:
+		-- data (dict): A nested dictionary where the outer keys are categories
 						and the inner keys are variables with their corresponding values.
 		-- kwargs [opt]: various kwargs to pass to matpllotlib plotting functions. 
 			- interval (int): interval for x-axis tick marks, whether the scale be days, hours, etc (forwarded to plot_ts() in single-variable cases only)
@@ -780,6 +780,16 @@ def strip_non_numeric_chars(raw_series):
 	return corrected_series.astype(float)
 
 def validate_ref_date(start_date: dt.datetime, reference_date: dt.datetime | None=None):
+	'''
+	Resolves the forecast reference date: returns start_date if no reference_date is given, otherwise parses and returns the provided reference_date.
+
+	Args:
+	-- start_date (dt.datetime) [req]: the forecast start date, used as the reference date when reference_date is None.
+	-- reference_date (dt.datetime or None) [opt]: the forecast reference time. Defaults to None, in which case start_date is used.
+
+	Returns:
+	A datetime object representing the resolved forecast reference date.
+	'''
 	# if no reference time is passed, set it to start date
 	if reference_date is None:
 		reference_date = start_date

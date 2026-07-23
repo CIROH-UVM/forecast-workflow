@@ -21,7 +21,15 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mc
 
 class CIFilesDownloadProcess:
-    def __init__ (self, app_key, start_date, end_date, output_dir, cropbox, 
+    """
+    Orchestrates the Cyanobacterial Index (CI) tile pipeline: fetching tile URLs from NASA's
+    Ocean Color CyAN portal, downloading the GeoTIFF tiles, reprojecting them to WGS84, cropping
+    them to an area of interest, and (optionally) converting Digital Number (DN) values to CI values.
+
+    Instances hold the configuration (app key, date range, output/temp directories, crop box, area ID)
+    and expose one method per pipeline stage; get_data() drives them in sequence.
+    """
+    def __init__ (self, app_key, start_date, end_date, output_dir, cropbox,
                  areaid, convert_to_ci=False, remove_temp=True):
         """
         
@@ -197,10 +205,13 @@ class CIFilesDownloadProcess:
     @staticmethod
     def dn_to_ci(input_file, output_file):
         """
-        Transforms DN values to CI values.
+        Transforms a GeoTIFF's Digital Number (DN) values to Cyanobacterial Index (CI) values and writes the result.
 
-        For DN to CI Formula See - https://oceancolor.gsfc.nasa.gov/about/projects/cyan/
-        
+        For the DN to CI formula, see: https://oceancolor.gsfc.nasa.gov/about/projects/cyan/
+
+        Args:
+            input_file (str or Path): path to the source DN GeoTIFF.
+            output_file (str or Path): path to write the converted CI GeoTIFF to.
         """
         with rasterio.open(input_file) as src:
             dn_img = src.read(1)
@@ -241,16 +252,32 @@ class CIFilesDownloadProcess:
             
     def time_index_from_filenames(self, filenames, string_slice=slice(0, 10)):
         '''
-        Helper function to generate a Pandas datetimeindex object
-            from dates contained in a file path string
+        Generates a Pandas DatetimeIndex from the dates encoded in a list of file path strings.
+
+        Args:
+            filenames (list of str): file paths whose basenames contain a date in '%Y%j' (year + day-of-year) format.
+            string_slice (slice, optional): the slice of each basename that holds the date string. Defaults to slice(0, 10).
+
+        Returns:
+            A pandas DatetimeIndex parsed from the extracted date strings.
         '''
-    
+
         date_strings = [os.path.basename(i)[string_slice] for i in filenames]
-    
+
         return pd.to_datetime(date_strings,format='%Y%j')
 
 
     def tif_to_ds(self):
+        '''
+        Loads the cropped DN GeoTIFFs into a single time-stacked xarray Dataset.
+
+        Reads every GeoTIFF in the crop directory, stacks them along a 'time' dimension (labeled from
+        the dates in each filename), renames the raster band to 'DN', sets the CRS to EPSG:4326, and
+        sorts by time.
+
+        Returns:
+            An xarray Dataset with a 'DN' variable stacked along a 'time' dimension, in the EPSG:4326 CRS.
+        '''
         # Get file paths and obtain list of dates from file
         print("Load Downloaded TIF Files into Dataset")
         mosaic_files = sorted(list(self.crop_dir_path.glob('*.tif')))
@@ -282,36 +309,24 @@ def get_data(start_date,
 			variables={'streamflow':'Débit (m³/s)'},
 			service='iv'):
     """
-    A function to download and process Sentinel 3 observational cyano index image data
+    Downloads and processes Sentinel-3 observational Cyanobacterial Index (CI) image data, returning a time-stacked xarray Dataset of Digital Number (DN) rasters for the requested area and date range.
 
     Args:
-    -- start_date (str, date, or datetime) [req]: the start date for which to grab Canadian Instantaneous data
-    -- end_date (str, date, or datetime) [req]: the end date for which to grab Canadian Instantaneous data
-	-- service (str) [opt]: what frequency of data to get. Default is 'iv', or instantaneous data (15-min frequency). Other option is 'dv', which returns daily data. For more info, see https://www.cehq.gouv.qc.ca/hydrometrie/historique_donnees/fiche_station.asp?NoStation=030425
-    -- app_key (str): string containing the app key for authentication.
-    -- output_dir (str)              : Directory where output files will be saved.
-    -- cropbox (lat,lon,lat,lon)       : corners of the area to crop the geotiff with
-    -- areaid(str)                     : string designating the tileid/areaid for the tiles to download, i.e. "8_2" for Champlain Valley
-    -- convert_to_ci (bool, optional): Flag indicating whether to convert Digital Number (DN) values to CI values. Defaults to False.
-    -- remove_temp (bool, optional)  : Flag indicating whether to remove temporary files after processing. Defaults to True.
+    -- start_date (str, date, or datetime) [req]: the start date for which to grab CI tiles.
+    -- end_date (str, date, or datetime) [req]: the end date for which to grab CI tiles.
+    -- appkey (str) [req]: the NASA Ocean Color app key for authentication.
+    -- cropbox (tuple) [req]: (lat, lon, lat, lon) corners of the area to crop each GeoTIFF to.
+    -- output_dir (str) [req]: directory where output files (and intermediate temp files) will be saved.
+    -- remove_temp (bool) [opt]: whether to remove temporary files after processing. Defaults to True.
+    -- convert_to_ci (bool) [opt]: whether to convert Digital Number (DN) values to CI values. Defaults to False (conversion currently produces problematic results and is not recommended).
+    -- areaid (str) [opt]: the tile/area ID to download, i.e. "8_2" for the Champlain Valley. Defaults to "8_2".
 
-        Attributes:
-            app_key (str): The app key for authentication.
-            start_date (str): Start date for downloading CI files.
-            end_date (str): End date for downloading CI files.
-            output_dir (Path): Path object for the output directory.
-            temp_dir (Path): Path object for the temporary directory.
-            urls_file (Path): Path object for the file storing the list of URLs to download.
-            geotiff_path (Path): Path object for the directory storing downloaded GeoTIFF files.
-            projected_path (Path): Path object for the directory storing reprojected GeoTIFF files.
-            crop_dir_path (Path): Path object for the directory storing cropped DN GeoTIFF files.
-            ci_output_path (Path, optional): Path object for the directory storing converted CI GeoTIFF files if `convert_to_ci` is True.
-            convert_to_ci (bool): Indicates whether to convert DN to CI values.
-            remove_temp (bool): Indicates whether to remove temporary files after processing.	
- 
-	Returns:
-	Sentinel 3 satellite  observed data for the specified Tile ID in an xarray dataset where time slices represent each downloaded Tile for variable "DN"
-	"""
+    Note:
+    The `locations`, `variables`, and `service` parameters are accepted but not currently used; the area downloaded is controlled entirely by `areaid` and `cropbox`.
+
+    Returns:
+    An xarray Dataset for the specified tile/area, where each time slice represents a downloaded tile, holding the variable "DN".
+    """
     start_date = parse_to_datetime(start_date)
     end_date = parse_to_datetime(end_date)
     yearlist = list(range(start_date.year, end_date.year+1)) # the list of all years data is requested for
@@ -350,10 +365,17 @@ def get_data(start_date,
     return sentinel3_data
 
 def plot (da, cmap=None, base=True, title=None, **kwargs) :
-        """ Plot a Sentinel3 DN for a time slice (2 dimensional array)
-                If no colormap (cmap) passed, build a custom color map for DN encoding
-                If base=True, display a basemap using CRS from passed dataset
-                If title=None, let plot function build default title from data context
+        """
+        Plots a Sentinel-3 DN time slice (a 2-dimensional array).
+
+        Args:
+            da (xarray.DataArray) [req]: a single time slice (2D) of DN data to plot.
+            cmap (matplotlib colormap) [opt]: colormap to use. If None, a custom DN-encoding colormap is built (ground value 254 white, no-data/cloud value 255 black). Defaults to None.
+            base (bool) [opt]: whether to display a basemap using the CRS from the passed dataset. Defaults to True.
+            title (str) [opt]: plot title. If None, no title is set. Defaults to None.
+
+        Returns:
+            The matplotlib Axes object for the plot.
         """
             
         if (cmap == None) :

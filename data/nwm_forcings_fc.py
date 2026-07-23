@@ -473,8 +473,7 @@ def get_data(
 	Args:
 	-- start_date: The start date for which to retrieve data.
 	-- end_date: The end date for which to retrieve data.
-	-- member: The NWM forecast member for which you to get forcings for (Currently accepts 'medium_range', 'short_range', 'analysis_assim', and 'analysis_assim_extend').	-- locations: A dictionary containing either bounding box information or a list of points to extract from the gridded forcings dataset. Default value of None does not spatially subset the data. See validate_locations() for more details.
-		Note that the bounding box must be in latitude, longitude (WGS 1984), but the dataset is NOT reprojected and will maintain its orginal CRS.
+	-- member: The NWM forecast member for which you to get forcings for (Currently accepts 'medium_range', 'short_range', 'analysis_assim', and 'analysis_assim_extend').
 	-- locations: A dictionary containing either bounding box information or a dict of points to extract from the gridded forcings dataset. Default value of None does not spatially subset the data. See validate_locations() for more details.
 		Note that the bounding box must be in latitude, longitude (WGS 1984), but the dataset is NOT reprojected and will maintain its orginal CRS.
 	-- variables: A dictionary or list of variables to pull out of the forcing files. When a dictionary is passed in the format {"user-name":"variable-name"}, the function will use those user-defined names when returning data. Otherwise, the variable names found in the dataset are used. Default value 'all' keeps all variables
