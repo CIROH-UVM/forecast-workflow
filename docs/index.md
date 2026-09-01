@@ -1,173 +1,62 @@
 ---
-icon: lucide/rocket
+icon: lucide/waves
 ---
 
-# Get started
+# Welcome
 
-For full documentation visit [zensical.org](https://zensical.org/docs/).
+This site documents **forecast-workflow**, the [CIROH](https://ciroh.ua.edu/) @ [UVM](https://www.uvm.edu/) pipeline for forecasting cyanobacteria harmful algal blooms (cyanoHABs) in Lake Champlain. The workflow acquires meteorological and hydrological data, computes tributary nutrient loads via concentration–discharge (CQ) relationships, drives the AEM3D 3D hydrodynamic and water quality model, and derives bloom metrics from the resulting chlorophyll-a output.
 
-## Commands
+The source code lives at [CIROH-UVM/forecast-workflow](https://github.com/CIROH-UVM/forecast-workflow). This site documents the parts of the repository most useful on their own: the Python data acquisition modules and the R bloom metrics functions.
 
-* [`zensical new`][new] - Create a new project
-* [`zensical serve`][serve] - Start local web server
-* [`zensical build`][build] - Build your site
+## Data acquisition
 
-  [new]: https://zensical.org/docs/usage/new/
-  [serve]: https://zensical.org/docs/usage/preview/
-  [build]: https://zensical.org/docs/usage/build/
+The modules under `data/` wrap upstream data providers behind a common interface. Unless noted otherwise, each module's `get_data()` returns a nested dictionary of Pandas Series, keyed first by location and then by variable:
 
-## Examples
-
-### Admonitions
-
-> Go to [documentation](https://zensical.org/docs/authoring/admonitions/)
-
-!!! note
-
-    This is a **note** admonition. Use it to provide helpful information.
-
-!!! warning
-
-    This is a **warning** admonition. Be careful!
-
-### Details
-
-> Go to [documentation](https://zensical.org/docs/authoring/admonitions/#collapsible-blocks)
-
-??? info "Click to expand for more info"
-
-    This content is hidden until you click to expand it.
-    Great for FAQs or long explanations.
-
-## Code Blocks
-
-> Go to [documentation](https://zensical.org/docs/authoring/code-blocks/)
-
-``` python hl_lines="2" title="Code blocks"
-def greet(name):
-    print(f"Hello, {name}!") # (1)!
-
-greet("Python")
+```python
+{location_name: {variable_name: pd.Series}}
 ```
 
-1.  > Go to [documentation](https://zensical.org/docs/authoring/code-blocks/#code-annotations)
+The pages are grouped by the kind of data the module provides.
 
-    Code annotations allow to attach notes to lines of code.
+### Observations
 
-Code can also be highlighted inline: `#!python print("Hello, Python!")`.
+Measured, monitored, and reanalysis data — records of what actually happened, used for model spin-up, hindcasting, and validation.
 
-## Content tabs
+| Page | Data |
+| --- | --- |
+| [USGS Streamflow Observations](usgs_ob.md) | Streamflow and gage height from USGS NWIS streamgages |
+| [Canadian Hydrometric Streamflow (CEHQ)](caflow_ob.md) | Streamflow for Quebec tributary gauges from the CEHQ archive |
+| [NOAA Local Climatological Data (LCD)](lcd_ob.md) | Hourly station weather observations, e.g. Burlington International Airport |
+| [UVM FEMC Meteorological Observations](femc_ob.md) | Weather observations from the Colchester Reef station on Lake Champlain |
+| [NOAA AORC Meteorological Reanalysis](aorc_ob.md) | Gridded hourly reanalysis meteorology from the AORC v1.1 Zarr store |
+| [NWM v2.1 Retrospective Forcings](nwmretro_forcings_ob.md) | Meteorological forcings behind the National Water Model v2.1 retrospective run |
+| [NWM v3.0 Retrospective Forcings](nwmretro_forcings3_ob.md) | Meteorological forcings behind the National Water Model v3.0 retrospective run |
+| [Sentinel-3 Cyanobacteria Index Imagery](sentinel3_ob.md) | Satellite cyanobacteria index rasters from NASA's Ocean Color CyAN portal |
 
-> Go to [documentation](https://zensical.org/docs/authoring/content-tabs/)
+### Forecasts
 
-=== "Python"
+Operational forecast products and long-term model runs used to drive the lake model forward in time.
 
-    ``` python
-    print("Hello from Python!")
-    ```
+| Page | Data |
+| --- | --- |
+| [National Water Model Streamflow](nwm_fc.md) | NWM streamflow forecasts from Google Cloud Storage or NOMADS |
+| [National Water Model Forecast Forcings](nwm_forcings_fc.md) | Meteorology driving NWM medium- and short-range forecasts |
+| [NWM v3.0 Retrospective Streamflow](nwmv3_retro_fc.md) | Channel-routing output from the NWM v3.0 retrospective run |
+| [NOAA GFS Forecast (THREDDS)](gfs_fc_thredds.md) | GFS 0.25° forecasts via NetCDF Subset Service — the recommended GFS module |
+| [NOAA GFS Forecast (NOMADS)](gfs_fc.md) | GFS forecasts via the NOMADS GRIB filter — deprecated in favor of the THREDDS module |
+| [NOAA CFS 9-Month Forecast](cfs_fc.md) | Long-range CFSv2 forecasts from the NCEI THREDDS server |
 
-=== "Rust"
+## Bloom metrics
 
-    ``` rs
-    println!("Hello from Rust!");
-    ```
+The [Metrics](metrics/index.md) section documents `atomic_metrics.R`, the R functions that turn chlorophyll-a raster stacks from AEM3D into three bloom metrics for a lake segment:
 
-## Diagrams
+- [Extent](metrics/extent.md) — what fraction of the segment is blooming each day
+- [Incidence](metrics/incidence.md) — whether each day counts as a bloom event
+- [Duration](metrics/duration.md) — how many bloom days fall within a rolling window
+- [Subdomains](metrics/create-subdomain.md) — clipping a raster stack to a lake segment before computing anything
 
-> Go to [documentation](https://zensical.org/docs/authoring/diagrams/)
+Start with the [Metrics overview](metrics/index.md), which explains how the three metrics layer on a single computation and how to compute all of them without repeating work.
 
-``` mermaid
-graph LR
-  A[Start] --> B{Error?};
-  B -->|Yes| C[Hmm...];
-  C --> D[Debug];
-  D --> B;
-  B ---->|No| E[Yay!];
-```
+## Contributing to these docs
 
-## Footnotes
-
-> Go to [documentation](https://zensical.org/docs/authoring/footnotes/)
-
-Here's a sentence with a footnote.[^1]
-
-Hover it, to see a tooltip.
-
-[^1]: This is the footnote.
-
-
-## Formatting
-
-> Go to [documentation](https://zensical.org/docs/authoring/formatting/)
-
-- ==This was marked (highlight)==
-- ^^This was inserted (underline)^^
-- ~~This was deleted (strikethrough)~~
-- H~2~O
-- A^T^A
-- ++ctrl+alt+del++
-
-## Icons, Emojis
-
-> Go to [documentation](https://zensical.org/docs/authoring/icons-emojis/)
-
-* :sparkles: `:sparkles:`
-* :rocket: `:rocket:`
-* :tada: `:tada:`
-* :memo: `:memo:`
-* :eyes: `:eyes:`
-
-## Maths
-
-> Go to [documentation](https://zensical.org/docs/authoring/math/)
-
-$$
-\cos x=\sum_{k=0}^{\infty}\frac{(-1)^k}{(2k)!}x^{2k}
-$$
-
-!!! warning "Needs configuration"
-    Note that MathJax is included via a `script` tag on this page and is not
-    configured in the generated default configuration to avoid including it
-    in a pages that do not need it. See the documentation for details on how
-    to configure it on all your pages if they are more Maths-heavy than these
-    simple starter pages.
-
-<script id="MathJax-script" src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
-<script>
-  window.MathJax = {
-    tex: {
-      inlineMath: [["\\(", "\\)"]],
-      displayMath: [["\\[", "\\]"]],
-      processEscapes: true,
-      processEnvironments: true
-    },
-    options: {
-      ignoreHtmlClass: ".*|",
-      processHtmlClass: "arithmatex"
-    }
-  };
-
-  document$.subscribe(() => {
-    MathJax.startup.output.clearCache()
-    MathJax.typesetClear()
-    MathJax.texReset()
-    MathJax.typesetPromise()
-  })
-</script>
-
-## Task Lists
-
-> Go to [documentation](https://zensical.org/docs/authoring/lists/#using-task-lists)
-
-* [x] Install Zensical
-* [x] Configure `zensical.toml`
-* [x] Write amazing documentation
-* [ ] Deploy anywhere
-
-## Tooltips
-
-> Go to [documentation](https://zensical.org/docs/authoring/tooltips/)
-
-[Hover me][example]
-
-  [example]: https://example.com "I'm a tooltip!"
+The site is built with [Zensical](https://zensical.org/) from the Markdown files under `docs/` in the repository. The [Markdown in 5min](markdown.md) page is a quick syntax refresher for authoring new pages.
